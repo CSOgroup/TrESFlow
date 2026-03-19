@@ -10,6 +10,7 @@
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
  *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
+ *   - AlignRNA STARsolo outputs from each grouped RNA unmapped SAM when explicitly enabled
  *   - barcode count/stat files from all wrapped upstream steps
  */
 
@@ -19,6 +20,7 @@ include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcod
 include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/main'
 include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/main'
 include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
+include { ALIGN_RNA }              from '../../modules/local/align_rna/main'
 
 def asPathList(obj) {
     if( obj instanceof List ) {
@@ -99,6 +101,31 @@ workflow INITIAL_RNA_TAGGING {
 
     FQ_TO_SAM(ch_fq_to_sam_input)
 
+    ch_aligned_solo_dirs = Channel.empty()
+    ch_aligned_filtered_bams = Channel.empty()
+    ch_aligned_stranded_bigwigs = Channel.empty()
+    ch_aligned_unstranded_bigwigs = Channel.empty()
+
+    if( params.run_align_rna ) {
+        ch_align_rna_input = FQ_TO_SAM.out.usam
+            .map { splitName, meta, usam ->
+                tuple(
+                    splitName,
+                    meta,
+                    usam,
+                    params.rna_ref_base_dir as String,
+                    params.rna_align_species as String
+                )
+            }
+
+        ALIGN_RNA(ch_align_rna_input)
+
+        ch_aligned_solo_dirs = ALIGN_RNA.out.solo_dir
+        ch_aligned_filtered_bams = ALIGN_RNA.out.filtered_bam
+        ch_aligned_stranded_bigwigs = ALIGN_RNA.out.stranded_bw
+        ch_aligned_unstranded_bigwigs = ALIGN_RNA.out.unstranded_bw
+    }
+
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)
         .mix(TAG_RNA_CELL_BARCODE.out.metrics)
@@ -109,5 +136,9 @@ workflow INITIAL_RNA_TAGGING {
     split_fastqs     = SPLIT_RNA_READS.out.split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     usam_files       = FQ_TO_SAM.out.usam
+    aligned_solo_dirs = ch_aligned_solo_dirs
+    aligned_filtered_bams = ch_aligned_filtered_bams
+    aligned_stranded_bigwigs = ch_aligned_stranded_bigwigs
+    aligned_unstranded_bigwigs = ch_aligned_unstranded_bigwigs
     barcode_reports  = ch_barcode_reports
 }
