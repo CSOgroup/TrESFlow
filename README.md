@@ -576,105 +576,32 @@ nextflow run . \
 
 For every execution mode, `envs/first_slice.yml` is not enough by itself. It does not install Codon `0.16.3` or Seq `0.11.3`, which remain mandatory host prerequisites until they are containerized.
 
-## Dependency Mapping for the Current Slice
+## Runtime Notes
 
-Relevant entries from `envs/first_slice.yml` for the implemented RNA and DNA wrappers:
+Current explicit runtime bindings for the implemented slice:
 
-- Launcher environment when you manually `micromamba activate tres`:
-  `nextflow`, `openjdk`
-- Current wrapper runtime for the DNA and RNA Python wrapper modules under `modules/local/`:
-  explicit `/home/annan/micromamba/envs/tres/bin/python3`
-- Current real trimming runtime for `modules/local/trim_rna_fastqs/main.nf` and `modules/local/trim_dna_fastqs/main.nf`:
-  explicit `/home/annan/micromamba/envs/tres/bin/trim_galore`, plus its bundled `cutadapt`
-- Current real RNA alignment runtime for `modules/local/align_rna/main.nf`:
-  explicit `/home/annan/micromamba/envs/tres/bin/STAR`, `/home/annan/micromamba/envs/tres/bin/samtools`, `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
+- `python3`: `/home/annan/micromamba/envs/tres/bin/python3`
+- `trim_galore`: `/home/annan/micromamba/envs/tres/bin/trim_galore`
+- `STAR`: `/home/annan/micromamba/envs/tres/bin/STAR`
+- `samtools`: `/home/annan/micromamba/envs/tres/bin/samtools`
+- `bedGraphToBigWig`: `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
+- `bwa-mem2`: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
+- `bamCoverage`: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
+  Reserved for the future DNA coverage step; not used by the current implemented boundary.
+- `gatk`: `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`
 
-Not provided by `envs/first_slice.yml`:
+Still host-dependent:
 
 - Codon `0.16.3`
-- Seq `0.11.3` plugin files under `${HOME}/.codon/lib/codon/plugins/seq`
-
-Current process usage:
-
-- `TAG_RNA_SAMPLE_BARCODE` and `TAG_DNA_SAMPLE_BARCODE` run `bin/run_tag.py`.
-  Today it only requires Python's standard library in both `mock` and `real` mode.
-  In `real` mode it also shells out to host-provided `codon` with `-plugin seq`, which is not currently supplied by `envs/first_slice.yml`.
-- `TAG_RNA_UMI` runs [`bin/run_tag_umi.py`](/Users/aannan/GitAA/TrESFlow/bin/run_tag_umi.py).
-  It has the same dependency pattern: Python stdlib plus host-provided `codon` with the Seq plugin for `real` mode.
-- `TAG_RNA_CELL_BARCODE` and `TAG_DNA_CELL_BARCODE` run `bin/run_tag_lig3.py`.
-  It also uses Python stdlib in `mock` mode and shells out to host-provided `codon` with the Seq plugin in `real` mode.
-- `TAG_DNA_MODALITY_BARCODE` also runs `bin/run_tag.py` with the same host Codon plus Seq dependency pattern as the sample-barcode wrappers.
-- `TRIM_RNA_FASTQS` and `TRIM_DNA_FASTQS` run `bin/run_trim_galore.py`.
-  In `mock` mode it gzip-copies the CB-tagged FASTQs to the expected trim_galore `_val_1` / `_val_2` outputs.
-  In `real` mode it shells out to the configured explicit `trim_galore` binary with the upstream launcher settings `--quality 10 --gzip --length 20 --paired`.
-- `SPLIT_RNA_READS` runs [`bin/run_split_reads_rna.py`](/Users/aannan/GitAA/TrESFlow/bin/run_split_reads_rna.py).
-  In `mock` mode it reproduces the upstream RNA grouping behavior from the trimmed FASTQs and writes launcher-style `sample_group_R1/R2.fq.gz` plus `SAM_RG_Header_sample_group.tsv` files.
-  In `real` mode it shells out to `codon -plugin seq` for `Split_ReadsV2.codon` in `rna` mode with the launcher-style RNA SB-group map.
-- `FQ_TO_SAM` runs [`bin/run_fq_to_sam.py`](/Users/aannan/GitAA/TrESFlow/bin/run_fq_to_sam.py).
-  In `mock` mode it reproduces the checked-in `FqToSAM.codon` behavior from split FASTQs and writes grouped unmapped SAM files.
-  In `real` mode it shells out to `codon -plugin seq` for `FqToSAM.codon`, which accepts `.fq.gz` inputs directly.
-- `ALIGN_RNA` runs [`upstream/source_scripts/AlignRNA.sh`](/Users/aannan/GitAA/TrESFlow/upstream/source_scripts/AlignRNA.sh) directly.
-  In `mock` mode it writes placeholder STARsolo directories, filtered BAMs, and bigWig files for smoke-test coverage.
-  In `real` mode it binds `STAR`, `samtools`, and `bedGraphToBigWig` explicitly to the configured runtime paths, using the grouped `.usam` plus the reference-base and species contract expected by the upstream shell script.
-- The default local CPU budget is `--max_cpus 40`.
-  That budget is enforced through the local executor and distributed as:
-  `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, and `1` CPU for the remaining wrapped processes.
-
-Current Docker process coverage:
-
-- `TAG_RNA_SAMPLE_BARCODE` is containerized for the smoke-test path
-- `TAG_RNA_UMI` is containerized for the smoke-test path
-- `TAG_RNA_CELL_BARCODE` is containerized for the smoke-test path
-- `TRIM_RNA_FASTQS` is containerized for the smoke-test path
-- `SPLIT_RNA_READS` is containerized for the smoke-test path
-- `FQ_TO_SAM` is containerized for the smoke-test path
-- `ALIGN_RNA` is containerized for the smoke-test path
-- `TAG_DNA_SAMPLE_BARCODE` is containerized for the smoke-test path
-- `TAG_DNA_MODALITY_BARCODE` is containerized for the smoke-test path
-- `TAG_DNA_CELL_BARCODE` is containerized for the smoke-test path
-- `TRIM_DNA_FASTQS` is containerized for the smoke-test path
-- Codon and Seq are not containerized in this pass
-
-Dependencies present in `envs/first_slice.yml` but currently unused by the implemented boundaries:
-
-- Alignment and downstream genomics tools:
-  `samtools`, `star`, `bwa-mem2`, `bedtools`, `fastqc`, `multiqc`, `deeptools`, `ucsc-bedgraphtobigwig`
-- Downstream analysis stack for later steps such as `sc_process.py`:
-  `anndata`, `scanpy`, `numpy`, `pandas`, `scipy`, `matplotlib`, `matplotlib-venn`, `upsetplot`, pip `snapatac2`, pip `MACS3`
-- Test and developer tooling not used by the current runtime path:
-  `pytest`, `pytest-timeout`
-- Other packages currently unused by the implemented boundaries:
-  `pyyaml`, `coreutils`, `parallel`, `pigz`, `pbzip2`
-
-## Docker Status
-
-Supported via Docker now:
-
-- An optional `docker` profile exists for the current smoke-test path.
-- It containerizes only the Python wrapper processes using the local image `tresflow-first-slice:py312`.
-- `docker + test` still containerizes the current wrapper tasks, but it now also requires host Codon `0.16.3` and Seq `0.11.3` because startup enforces the pinned host toolchain globally.
-
-What remains host-dependent right now:
-
-- Codon `0.16.3` for real non-mock execution of the five wrapped upstream Codon RNA steps
-- Seq `0.11.3` installation under `${HOME}/.codon/lib/codon/plugins/seq`
+- Seq `0.11.3`
 - system shell tools such as `bash`, `sort`, `awk`, `grep`, `head`, `tail`, `cat`, `mv`, and `rm`
-- The read-only upstream scripts under `upstream/source_scripts/`
-- The local launcher environment unless you choose either:
-  `micromamba activate tres`
-  or the optional `-profile conda_dev`
+- the read-only upstream scripts under `upstream/source_scripts/`
 
-Containerization note for the upcoming Docker work:
+Current Docker limitation:
 
-- `envs/first_slice.yml` is now a portable dependency manifest and should be treated as the package baseline for the first-slice image.
-- Docker remains the preferred long-term portability target for Linux and macOS users running containers.
-- A Docker image that fully supports real execution of the current slice will still need to account for both Codon `0.16.3` and Seq `0.11.3`, because those requirements are outside the checked-in env file today.
-
-Current limitation:
-
-- No profile bypasses the pinned host Codon/Seq requirement.
-- `-profile docker` only containerizes the wrapped task runtime. It does not remove the host requirement for Codon `0.16.3` plus Seq `0.11.3`, and the Docker smoke-test image still does not include `trim_galore`.
-- Real RNA execution is host-only in the current implementation, because the checked-in Docker image does not include the explicitly configured server binaries for `STAR`, `samtools`, or `bedGraphToBigWig`.
+- `-profile docker` containerizes only the wrapper-task runtime.
+- It does not remove the pinned host Codon/Seq requirement.
+- The checked-in image still does not provide the real-mode RNA and DNA server binaries used by the explicit runtime contract.
 
 ## Troubleshooting
 

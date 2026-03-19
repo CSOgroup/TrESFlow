@@ -14,24 +14,36 @@
  *      and GATK MarkDuplicates through the duplicate-marked DNA BAM boundary.
  */
 
+import PipelineSupport
+
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
 include { INITIAL_DNA_TAGGING } from '../subworkflows/local/initial_dna_tagging'
 
-def requireBwaMem2Prefix(final String rawPrefix) {
-    final String prefix = rawPrefix?.toString()?.trim()
-    if( !prefix ) {
-        error "Missing required parameter for DNA alignment: --dna_bwa_reference"
-    }
+def toRnaSampleInput(final Map row) {
+    tuple(
+        row.id,
+        row,
+        file(row.i1),
+        file(row.r1),
+        file(row.r2),
+        file(row.cell_whitelist),
+        file(row.sb_group_map)
+    )
+}
 
-    final List<String> suffixes = ['.0123', '.amb', '.ann', '.bwt.2bit.64', '.pac']
-    suffixes.each { suffix ->
-        final File sidecar = new File("${prefix}${suffix}")
-        if( !sidecar.exists() ) {
-            error "DNA bwa-mem2 index sidecar not found for prefix '${prefix}': ${sidecar}"
-        }
-    }
-
-    return prefix
+def toDnaSampleInput(final Map row) {
+    tuple(
+        row.id,
+        row,
+        file(row.i1),
+        file(row.i2),
+        file(row.r1),
+        file(row.r2),
+        file(row.modality_whitelist),
+        file(row.cell_whitelist),
+        file(row.mo_map),
+        file(row.sb_group_map)
+    )
 }
 
 workflow TRESEQ {
@@ -50,90 +62,33 @@ workflow TRESEQ {
     }
 
     if( rnaRows ) {
-        final String species = (params.rna_align_species ?: '').toString().trim().toLowerCase()
-        final String refBaseDir = (params.rna_ref_base_dir ?: '').toString().trim()
-
-        if( !species ) {
-            error "Missing required parameter for RNA alignment: --rna_align_species human|mouse"
-        }
-        if( !(species in ['human', 'mouse']) ) {
-            error "Invalid --rna_align_species '${species}'. Supported values: human, mouse"
-        }
-        if( !refBaseDir ) {
-            error "Missing required parameter for RNA alignment: --rna_ref_base_dir"
-        }
-
-        final List<String> requiredRefPaths = species == 'human'
-            ? ['GRCh38_TrES/star', 'hg38.chrom.sizes']
-            : ['GRCm39_TrES/star', 'mm39.chrom.sizes']
-
-        requiredRefPaths.each { relPath ->
-            final File resolved = new File(refBaseDir, relPath)
-            if( !resolved.exists() ) {
-                error "RNA alignment reference path not found for species '${species}': ${resolved}"
-            }
-        }
+        PipelineSupport.validateRnaAlignment(
+            params.rna_ref_base_dir as String,
+            params.rna_align_species as String
+        )
     }
 
     if( dnaRows ) {
-        final String bwaReference = requireBwaMem2Prefix(params.dna_bwa_reference as String)
-        final String blacklistBed = (params.dna_blacklist_bed ?: '').toString().trim()
-        final String effSizeRaw = (params.dna_effective_genome_size ?: '').toString().trim()
-
-        if( !blacklistBed ) {
-            error "Missing required parameter for DNA alignment: --dna_blacklist_bed"
-        }
-        final File blacklistFile = new File(blacklistBed)
-        if( !blacklistFile.exists() ) {
-            error "DNA blacklist BED not found: ${blacklistFile}"
-        }
-
-        if( !effSizeRaw ) {
-            error "Missing required parameter for DNA alignment: --dna_effective_genome_size"
-        }
-        long effSize = 0L
         try {
-            effSize = effSizeRaw as long
+            PipelineSupport.validateDnaAlignment(
+                params.dna_bwa_reference as String,
+                params.dna_blacklist_bed as String,
+                params.dna_effective_genome_size as String
+            )
         }
-        catch( Exception ignored ) {
-            error "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
-        }
-        if( effSize < 1 ) {
-            error "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
+        catch( IllegalArgumentException e ) {
+            error e.message
         }
     }
 
     Channel
         .fromList(rnaRows)
-        .map { row ->
-            tuple(
-                row.id,
-                row,
-                file(row.i1),
-                file(row.r1),
-                file(row.r2),
-                file(row.cell_whitelist),
-                file(row.sb_group_map)
-            )
-        }
+        .map { row -> toRnaSampleInput(row) }
         .set { ch_rna_samples }
 
     Channel
         .fromList(dnaRows)
-        .map { row ->
-            tuple(
-                row.id,
-                row,
-                file(row.i1),
-                file(row.i2),
-                file(row.r1),
-                file(row.r2),
-                file(row.modality_whitelist),
-                file(row.cell_whitelist),
-                file(row.mo_map),
-                file(row.sb_group_map)
-            )
-        }
+        .map { row -> toDnaSampleInput(row) }
         .set { ch_dna_samples }
 
     INITIAL_RNA_TAGGING(ch_rna_samples)

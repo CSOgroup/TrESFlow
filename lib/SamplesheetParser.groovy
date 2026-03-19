@@ -21,6 +21,16 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
+        final String sbGroupMap = resolveExistingPath(
+            baseDir,
+            requireString(parsed.sb_group_map, 'sb_group_map')
+        )
+        final boolean hasDnaSamples = parsed.samples.any { sample ->
+            sample instanceof Map && sample.modality?.toString()?.trim()?.equalsIgnoreCase('dna')
+        }
+        final String dnaMoMap = hasDnaSamples
+            ? resolveExistingPath(baseDir, requireString(parsed.dna_mo_map, 'dna_mo_map'))
+            : null
 
         final List<Map> samples = []
 
@@ -40,10 +50,6 @@ class SamplesheetParser {
 
             if( modality == 'rna' ) {
                 final Map umiBarcode = asMap(barcodes.umi, "samples[${idx}].barcodes.umi")
-                final String sbGroupMap = resolveExistingPath(
-                    baseDir,
-                    requireString(parsed.sb_group_map, 'sb_group_map')
-                )
 
                 samples << [
                     id                         : sampleId,
@@ -78,14 +84,6 @@ class SamplesheetParser {
 
             if( modality == 'dna' ) {
                 final Map modalityBarcode = asMap(barcodes.modality, "samples[${idx}].barcodes.modality")
-                final String sbGroupMap = resolveExistingPath(
-                    baseDir,
-                    requireString(parsed.sb_group_map, 'sb_group_map')
-                )
-                final String dnaMoMap = resolveExistingPath(
-                    baseDir,
-                    requireString(parsed.dna_mo_map, 'dna_mo_map')
-                )
 
                 samples << [
                     id                            : sampleId,

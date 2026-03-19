@@ -15,6 +15,8 @@
  *   - barcode count/stat files from all wrapped upstream DNA tagging steps
  */
 
+import PipelineSupport
+
 include { TAG_DNA_SAMPLE_BARCODE }   from '../../modules/local/tag_dna_sb/main'
 include { TAG_DNA_MODALITY_BARCODE } from '../../modules/local/tag_dna_modality/main'
 include { TAG_DNA_CELL_BARCODE }     from '../../modules/local/tag_dna_cell_barcode/main'
@@ -22,13 +24,6 @@ include { TRIM_DNA_FASTQS }          from '../../modules/local/trim_dna_fastqs/m
 include { SPLIT_DNA_READS }          from '../../modules/local/split_dna_reads/main'
 include { ALIGN_DNA }                from '../../modules/local/align_dna/main'
 include { MARK_DUPLICATES_DNA }      from '../../modules/local/mark_duplicates_dna/main'
-
-def asPathList(obj) {
-    if( obj instanceof List ) {
-        return obj
-    }
-    return [obj]
-}
 
 workflow INITIAL_DNA_TAGGING {
     take:
@@ -80,11 +75,11 @@ workflow INITIAL_DNA_TAGGING {
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1BySplit = asPathList(splitR1s).collectEntries { path ->
+            def r1BySplit = PipelineSupport.asPathList(splitR1s).collectEntries { path ->
                 def splitName = path.getName().replaceFirst('_R1\\.fq\\.gz$', '')
                 [(splitName): path]
             }
-            def r2BySplit = asPathList(splitR2s).collectEntries { path ->
+            def r2BySplit = PipelineSupport.asPathList(splitR2s).collectEntries { path ->
                 def splitName = path.getName().replaceFirst('_R2\\.fq\\.gz$', '')
                 [(splitName): path]
             }
@@ -100,7 +95,7 @@ workflow INITIAL_DNA_TAGGING {
 
     ch_align_rg = SPLIT_DNA_READS.out.rg_headers
         .flatMap { sampleId, meta, rgHeaders ->
-            asPathList(rgHeaders).collect { rgHeader ->
+            PipelineSupport.asPathList(rgHeaders).collect { rgHeader ->
                 def splitName = rgHeader.getName().replaceFirst('^SAM_RG_Header_', '').replaceFirst('\\.tsv$', '')
                 tuple(splitName, sampleId, meta, rgHeader)
             }

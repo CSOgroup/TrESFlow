@@ -15,6 +15,8 @@
  *   - barcode count/stat files from all wrapped upstream steps
  */
 
+import PipelineSupport
+
 include { TAG_RNA_SAMPLE_BARCODE } from '../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
 include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcode/main'
@@ -22,13 +24,6 @@ include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/mai
 include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/main'
 include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
 include { ALIGN_RNA }              from '../../modules/local/align_rna/main'
-
-def asPathList(obj) {
-    if( obj instanceof List ) {
-        return obj
-    }
-    return [obj]
-}
 
 workflow INITIAL_RNA_TAGGING {
     take:
@@ -80,12 +75,12 @@ workflow INITIAL_RNA_TAGGING {
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1ByGroup = asPathList(splitR1s).collectEntries { path ->
+            def r1ByGroup = PipelineSupport.asPathList(splitR1s).collectEntries { path ->
                 def name = path.getName()
                 def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R1\\.fq\\.gz$', '')
                 [(group): path]
             }
-            def r2ByGroup = asPathList(splitR2s).collectEntries { path ->
+            def r2ByGroup = PipelineSupport.asPathList(splitR2s).collectEntries { path ->
                 def name = path.getName()
                 def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R2\\.fq\\.gz$', '')
                 [(group): path]
