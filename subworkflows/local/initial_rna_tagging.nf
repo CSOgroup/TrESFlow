@@ -6,12 +6,14 @@
  *   - RNA sample-barcode and cell-barcode whitelists
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
+ *   - trim_galore paired-end FASTQs from the CB-tagged reads
  *   - barcode count/stat files from all wrapped upstream steps
  */
 
 include { TAG_RNA_SAMPLE_BARCODE } from '../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
 include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcode/main'
+include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/main'
 
 workflow INITIAL_RNA_TAGGING {
     take:
@@ -47,12 +49,14 @@ workflow INITIAL_RNA_TAGGING {
         }
 
     TAG_RNA_CELL_BARCODE(ch_cb_input)
+    TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
 
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)
         .mix(TAG_RNA_CELL_BARCODE.out.metrics)
 
     emit:
-    tagged_fastqs   = TAG_RNA_CELL_BARCODE.out.tagged
-    barcode_reports = ch_barcode_reports
+    tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
+    trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
+    barcode_reports  = ch_barcode_reports
 }

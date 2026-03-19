@@ -1,17 +1,18 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet and runs the first RNA tagging slice by wrapping the upstream `Tag.codon`, `Tag_UMI.codon`, and `Tag_Lig3.codon` steps.
+TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet and runs the current RNA-only slice by wrapping the upstream `Tag.codon`, `Tag_UMI.codon`, `Tag_Lig3.codon`, and `trim_galore` steps.
 
 ## Current slice
 
 - `TAG_RNA_SAMPLE_BARCODE` wraps `upstream/source_scripts/Tag.codon` for the RNA sample-barcode step.
 - `TAG_RNA_UMI` wraps `upstream/source_scripts/Tag_UMI.codon` for the RNA UMI step.
 - `TAG_RNA_CELL_BARCODE` wraps `upstream/source_scripts/Tag_Lig3.codon` for the RNA cell-barcode step.
+- `TRIM_RNA_FASTQS` wraps the immediate upstream RNA `trim_galore` step after CB tagging.
 - `-profile test` uses lightweight mock wrappers so the pipeline runs end-to-end without Codon.
-- Real runs keep the business logic in the upstream scripts and require host-installed Codon plus the Seq plugin.
-- `envs/first_slice.yml` is the source of truth for software requirements around the currently implemented RNA tagging slice.
+- Real runs keep the business logic in the upstream scripts and require host-installed Codon, the Seq plugin, and `trim_galore`.
+- `envs/first_slice.yml` is the source of truth for software requirements around the currently implemented RNA-only slice.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
-- The next upstream RNA step after `Tag_UMI` is `Tag_Lig3`, not `FqToSAM`; `FqToSAM` comes later after CB tagging, trimming, and RNA read splitting.
+- The next upstream RNA step after `Tag_Lig3` is `trim_galore`. `Split_ReadsV2`, `FqToSAM`, and `AlignRNA.sh` remain intentionally out of scope for this slice.
 
 ## Layout
 
@@ -24,6 +25,7 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `modules/local/tag_rna_sb/main.nf`
 - `modules/local/tag_rna_umi/main.nf`
 - `modules/local/tag_rna_cell_barcode/main.nf`
+- `modules/local/trim_rna_fastqs/main.nf`
 - `assets/samplesheet.example.yaml`
 - `assets/testdata/`
 
@@ -75,7 +77,8 @@ The current slice only accepts `modality: rna`. DNA and downstream alignment/spl
 nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-Expected tagged outputs land under `results/test/tagging/`, and Nextflow report artifacts land under `results/test/pipeline_info/`. The trace artifact is the standard Nextflow tabular trace file, written as `execution_trace.tsv` in that directory.
+Expected tagging and trimming outputs land under `results/test/tagging/`, and Nextflow report artifacts land under `results/test/pipeline_info/`. The trace artifact is the standard Nextflow tabular trace file, written as `execution_trace.tsv` in that directory.
+The upstream launcher deletes the untrimmed CB FASTQs after `trim_galore`; this slice keeps them published as intermediates and advances on the trimmed `_val_1` / `_val_2` outputs.
 
 ## Current RNA Step Map
 
@@ -89,7 +92,7 @@ The upstream RNA order currently relevant to this repo is:
 6. `FqToSAM.codon`
 7. `AlignRNA.sh`
 
-This repo now implements steps 1 through 3 only. Under normal execution they are real by default. Under `-profile test`, all three wrapped RNA tagging steps use mock behavior.
+This repo now implements steps 1 through 4 only. Under normal execution they are real by default. Under `-profile test`, all four wrapped RNA steps use mock behavior.
 
 ## Micromamba and Conda
 
@@ -158,6 +161,7 @@ Only the current Python wrapper processes are containerized in this pass:
 - [`TAG_RNA_SAMPLE_BARCODE`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_sb/main.nf)
 - [`TAG_RNA_UMI`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_umi/main.nf)
 - [`TAG_RNA_CELL_BARCODE`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_cell_barcode/main.nf)
+- [`TRIM_RNA_FASTQS`](/Users/aannan/GitAA/TrESFlow/modules/local/trim_rna_fastqs/main.nf)
 
 Under `-profile docker`, those processes run in the local image `tresflow-first-slice:py312`, built from `docker/first_slice.Dockerfile`.
 This does not make real non-mock execution portable, because Codon and Seq are still outside Docker in the current implementation.
@@ -170,6 +174,7 @@ Real non-mock execution currently requires the following on the host:
 - Codon CLI installed via Exaloop's installer script and available on `PATH`
 - Seq plugin installed separately from the platform-specific `0.11.4` release tarball so that
   `${HOME}/.codon/lib/codon/plugins/seq/plugin.toml` exists on disk
+- `trim_galore` available on `PATH` for the RNA trimming step
 - the read-only upstream scripts under `upstream/source_scripts/`
 
 Pinned Seq example for current documentation:
@@ -196,12 +201,14 @@ For real execution, `envs/first_slice.yml` is not enough by itself. Codon and Se
 
 ## Dependency Mapping for the Current Slice
 
-Relevant entries from `envs/first_slice.yml` for the implemented RNA tagging path:
+Relevant entries from `envs/first_slice.yml` for the implemented RNA-only path:
 
 - Launcher environment when you manually `micromamba activate tres`:
   `nextflow`, `openjdk`
-- Current process runtime for [`modules/local/tag_rna_sb/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_sb/main.nf) and [`modules/local/tag_rna_umi/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_umi/main.nf):
+- Current wrapper runtime for [`modules/local/tag_rna_sb/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_sb/main.nf), [`modules/local/tag_rna_umi/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_umi/main.nf), [`modules/local/tag_rna_cell_barcode/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_cell_barcode/main.nf), and [`modules/local/trim_rna_fastqs/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/trim_rna_fastqs/main.nf):
   `python` / `cpython`
+- Current real trimming runtime for [`modules/local/trim_rna_fastqs/main.nf`](/Users/aannan/GitAA/TrESFlow/modules/local/trim_rna_fastqs/main.nf):
+  `trim-galore`, `cutadapt`
 
 Not provided by `envs/first_slice.yml`:
 
@@ -217,23 +224,27 @@ Current process usage:
   It has the same dependency pattern: Python stdlib plus host-provided `codon` with the Seq plugin for `real` mode.
 - `TAG_RNA_CELL_BARCODE` runs [`bin/run_tag_lig3.py`](/Users/aannan/GitAA/TrESFlow/bin/run_tag_lig3.py).
   It also uses Python stdlib in `mock` mode and shells out to host-provided `codon` with the Seq plugin in `real` mode.
+- `TRIM_RNA_FASTQS` runs [`bin/run_trim_galore.py`](/Users/aannan/GitAA/TrESFlow/bin/run_trim_galore.py).
+  In `mock` mode it gzip-copies the CB-tagged FASTQs to the expected trim_galore `_val_1` / `_val_2` outputs.
+  In `real` mode it shells out to `trim_galore` with the upstream launcher settings `--quality 10 --gzip --length 20 --paired`.
 
 Current Docker process coverage:
 
 - `TAG_RNA_SAMPLE_BARCODE` is containerized for the smoke-test path
 - `TAG_RNA_UMI` is containerized for the smoke-test path
 - `TAG_RNA_CELL_BARCODE` is containerized for the smoke-test path
+- `TRIM_RNA_FASTQS` is containerized for the smoke-test path
 - Codon and Seq are not containerized in this pass
 
-Dependencies present in `envs/first_slice.yml` but currently unused by the implemented RNA tagging slice:
+Dependencies present in `envs/first_slice.yml` but currently unused by the implemented RNA-only slice:
 
 - Alignment and downstream genomics tools:
-  `samtools`, `star`, `bwa-mem2`, `bedtools`, `trim-galore`, `cutadapt`, `fastqc`, `multiqc`, `deeptools`, `ucsc-bedgraphtobigwig`
+  `samtools`, `star`, `bwa-mem2`, `bedtools`, `fastqc`, `multiqc`, `deeptools`, `ucsc-bedgraphtobigwig`
 - Downstream analysis stack for later steps such as `sc_process.py`:
   `anndata`, `scanpy`, `numpy`, `pandas`, `scipy`, `matplotlib`, `matplotlib-venn`, `upsetplot`, pip `snapatac2`, pip `MACS3`
 - Test and developer tooling not used by the current runtime path:
   `pytest`, `pytest-timeout`
-- Other packages currently unused by the implemented RNA tagging slice:
+- Other packages currently unused by the implemented RNA-only slice:
   `pyyaml`, `coreutils`, `parallel`, `pigz`, `pbzip2`
 
 ## Docker Status
@@ -246,8 +257,9 @@ Supported via Docker now:
 
 What remains host-dependent right now:
 
-- `codon` for real non-mock execution of the three wrapped upstream RNA steps
+- `codon` for real non-mock execution of the three wrapped upstream Codon RNA steps
 - Seq plugin installation under `${HOME}/.codon/lib/codon/plugins/seq`
+- `trim_galore` for real non-mock execution of the RNA trim step unless you choose the optional `-profile conda_dev`
 - The read-only upstream scripts under `upstream/source_scripts/`
 - The local launcher environment unless you choose either:
   `micromamba activate tres`
@@ -262,7 +274,7 @@ Containerization note for the upcoming Docker work:
 Current limitation for real mode:
 
 - `-profile docker` only makes the mock smoke test portable today.
-- Real non-mock execution is still not fully portable because the wrapped steps call `codon -plugin seq`, and Codon plus the Seq plugin are still external host prerequisites.
+- Real non-mock execution is still not fully portable because the wrapped steps call `codon -plugin seq`, Codon plus the Seq plugin are still external host prerequisites, and the Docker smoke-test image does not include `trim_galore`.
 
 ## Acceptance Criteria
 
@@ -285,6 +297,8 @@ The current RNA-only slice is accepted when:
   `test_rna.cell.stats_L1.tsv`
   `test_rna.cell.stats_L2.tsv`
   `test_rna.cell.stats_L3.tsv`
+  `test_rna.sample_barcode_umi_cell.R1_val_1.fq.gz`
+  `test_rna.sample_barcode_umi_cell.R2_val_2.fq.gz`
 - `results/test/pipeline_info/` contains the configured Nextflow report artifacts
 
 Exact test command:
