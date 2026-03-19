@@ -7,13 +7,13 @@
  * Inputs:
  *   - sample metadata
  *   - trim_galore RNA FASTQs from the CB-tagged reads
- *   - RNA SB-group map TSV keyed by sample and group
+ *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
  *   - per-group RNA FASTQ pairs named as upstream Split_ReadsV2 outputs
  *   - per-group SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  *
  * Notes:
- *   - The upstream RNA SB-group map example uses full SB strings even though the script comments
+ *   - The upstream sample-barcode group map example uses full SB strings even though the script comments
  *     discuss dropping an injected leading base. This wrapper follows the actual script logic:
  *     raw SB match first, then drop-first fallback.
  */

@@ -1,0 +1,5 @@
+#sample	sb_group	mark	mo_bc
+day15	Normal	H3K27me3	AGGCTATA
+day15	Normal	H3K27ac	GCCTCTAT
+day15	Co2	H3K27me3	AGGCTATA
+day15	Co2	H3K27ac	GCCTCTAT

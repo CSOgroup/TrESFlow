@@ -4,7 +4,8 @@
  *   - sample metadata parsed from params.samplesheet
  *   - raw RNA I1 / R1 / R2 FASTQs
  *   - RNA cell-barcode whitelist
- *   - RNA SB-group map TSV, used both to derive the effective sample-barcode whitelist and later by Split_ReadsV2 rna mode
+ *   - sample-barcode group map TSV, used both to derive the effective sample-barcode whitelist
+ *     and later by Split_ReadsV2 rna mode
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads

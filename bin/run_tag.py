@@ -62,7 +62,7 @@ def load_whitelist_from_sb_group_map(path: Path, sample: str):
             parts = line.split()
             if len(parts) < 3:
                 raise ValueError(
-                    f"Malformed RNA SB group map line {line_no} in {path}: expected at least 3 columns"
+                    f"Malformed sample-barcode group map line {line_no} in {path}: expected at least 3 columns"
                 )
 
             row_sample, group_name, sb_bc = parts[0], parts[1], parts[2]
@@ -78,14 +78,14 @@ def load_whitelist_from_sb_group_map(path: Path, sample: str):
 
             if sb_bc in sb_to_group and sb_to_group[sb_bc] != group_name:
                 raise ValueError(
-                    f"Conflicting RNA SB group map rows for sample {sample} barcode {sb_bc}: "
+                    f"Conflicting sample-barcode group map rows for sample {sample} barcode {sb_bc}: "
                     f"{sb_to_group[sb_bc]} vs {group_name}"
                 )
 
             sb_to_group[sb_bc] = group_name
 
     if not sb_to_group:
-        raise ValueError(f"No RNA SB barcodes found in {path} for sample {sample}")
+        raise ValueError(f"No sample-barcode group map rows found in {path} for sample {sample}")
 
     return set(sb_to_group.keys())
 
@@ -110,8 +110,14 @@ def percent(count: int, total: int) -> str:
     return f"{(count / total) * 100.0}%"
 
 
+def resolve_whitelist_values(args):
+    if args.sb_group_map is not None:
+        return load_whitelist_from_sb_group_map(args.sb_group_map, args.sample)
+    return load_whitelist(args.whitelist)
+
+
 def mock_tag(args):
-    whitelist = load_whitelist_from_sb_group_map(args.sb_group_map, args.sample)
+    whitelist = resolve_whitelist_values(args)
     mismatch_stats = [0 for _ in range(args.hd + 1)]
     barcode_counts = Counter()
     total_reads = 0
@@ -181,9 +187,12 @@ def real_tag(args):
 
     with tempfile.TemporaryDirectory(prefix="tresflow_tag_") as tmpdir:
         tmp_path = Path(tmpdir)
-        whitelist_path = tmp_path / f"{args.sample}_{args.tag}.derived_whitelist.txt"
-        whitelist_values = sorted(load_whitelist_from_sb_group_map(args.sb_group_map, args.sample))
-        whitelist_path.write_text("\n".join(whitelist_values) + "\n", encoding="utf-8")
+        if args.sb_group_map is not None:
+            whitelist_path = tmp_path / f"{args.sample}_{args.tag}.derived_whitelist.txt"
+            whitelist_values = sorted(load_whitelist_from_sb_group_map(args.sb_group_map, args.sample))
+            whitelist_path.write_text("\n".join(whitelist_values) + "\n", encoding="utf-8")
+        else:
+            whitelist_path = args.whitelist
 
         cmd = [
             "codon",
@@ -263,7 +272,9 @@ def parse_args():
     parser.add_argument("--i2", required=True, type=Path)
     parser.add_argument("--r1", required=True, type=Path)
     parser.add_argument("--r2", required=True, type=Path)
-    parser.add_argument("--sb-group-map", required=True, type=Path)
+    whitelist_group = parser.add_mutually_exclusive_group(required=True)
+    whitelist_group.add_argument("--sb-group-map", type=Path)
+    whitelist_group.add_argument("--whitelist", type=Path)
     parser.add_argument("--sample", required=True)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--bc-len", required=True, type=int)

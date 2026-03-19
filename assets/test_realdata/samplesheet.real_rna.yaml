@@ -1,9 +1,11 @@
 # External/local real-RNA validation template.
 # Copy this file next to your local validation inputs, rename it, and keep the relative paths as needed.
 # Real data files are expected to remain external/local and are not committed to this repo.
+# The example file path keeps the legacy filename `sb_map_RNA.tsv`, but the
+# pipeline contract treats it as the shared sample-barcode group map.
 
 library_name: REAL_VALIDATION_LIB
-rna_sb_group_map: sb_map_RNA.tsv
+sb_group_map: sb_map_RNA.tsv
 
 samples:
   - id: day15
@@ -14,7 +16,6 @@ samples:
       r2: day15_R2.fq.gz
     barcodes:
       sample:
-        whitelist: sample_barcode_whitelist.txt
         bc_len: 4
         bc_start: 0
         hd: 1

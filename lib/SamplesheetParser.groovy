@@ -21,10 +21,6 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
-        final String rnaSbGroupMap = resolveExistingPath(
-            baseDir,
-            requireString(parsed.rna_sb_group_map, 'rna_sb_group_map')
-        )
 
         final List<Map> samples = []
 
@@ -40,45 +36,103 @@ class SamplesheetParser {
             final Map reads = asMap(row.reads, "samples[${idx}].reads")
             final Map barcodes = asMap(row.barcodes, "samples[${idx}].barcodes")
             final Map sampleBarcode = asMap(barcodes.sample, "samples[${idx}].barcodes.sample")
-            final Map umiBarcode = asMap(barcodes.umi, "samples[${idx}].barcodes.umi")
             final Map cellBarcode = asMap(barcodes.cell, "samples[${idx}].barcodes.cell")
 
-            final Map sample = [
-                id                         : sampleId,
-                modality                   : modality,
-                i1                         : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
-                r1                         : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
-                r2                         : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
-                sample_bc_len              : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
-                sample_bc_start            : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
-                sample_hd                  : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),
-                sample_tag                 : optionalString(sampleBarcode.tag, 'SB'),
-                sample_first_pass          : optionalString(sampleBarcode.first_pass, 'first_pass'),
-                sample_reverse_complement  : toDirection(
-                    sampleBarcode.containsKey('reverse_complement') ? sampleBarcode.reverse_complement : true,
-                    "samples[${idx}].barcodes.sample.reverse_complement"
-                ),
-                umi_bc_len                 : requireInt(umiBarcode.bc_len, "samples[${idx}].barcodes.umi.bc_len"),
-                umi_bc_start               : requireInt(umiBarcode.bc_start, "samples[${idx}].barcodes.umi.bc_start"),
-                umi_tag                    : optionalString(umiBarcode.tag, 'UM'),
-                cell_whitelist             : resolveExistingPath(
+            if( modality == 'rna' ) {
+                final Map umiBarcode = asMap(barcodes.umi, "samples[${idx}].barcodes.umi")
+                final String sbGroupMap = resolveExistingPath(
                     baseDir,
-                    requireString(cellBarcode.whitelist, "samples[${idx}].barcodes.cell.whitelist")
-                ),
-                cell_bc_len                : requireInt(cellBarcode.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
-                cell_hd                    : requireInt(cellBarcode.hd, "samples[${idx}].barcodes.cell.hd"),
-                cell_tag                   : optionalString(cellBarcode.tag, 'CB'),
-                library_name               : libraryName,
-                rna_sb_group_map           : rnaSbGroupMap
-            ]
-
-            if( sample.modality != 'rna' ) {
-                throw new IllegalArgumentException(
-                    "This current RNA-only slice only supports modality: rna (sample '${sampleId}' has '${sample.modality}')"
+                    requireString(parsed.sb_group_map, 'sb_group_map')
                 )
+
+                samples << [
+                    id                         : sampleId,
+                    modality                   : modality,
+                    i1                         : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
+                    r1                         : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
+                    r2                         : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
+                    sample_bc_len              : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
+                    sample_bc_start            : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
+                    sample_hd                  : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),
+                    sample_tag                 : optionalString(sampleBarcode.tag, 'SB'),
+                    sample_first_pass          : optionalString(sampleBarcode.first_pass, 'first_pass'),
+                    sample_reverse_complement  : toDirection(
+                        sampleBarcode.containsKey('reverse_complement') ? sampleBarcode.reverse_complement : true,
+                        "samples[${idx}].barcodes.sample.reverse_complement"
+                    ),
+                    umi_bc_len                 : requireInt(umiBarcode.bc_len, "samples[${idx}].barcodes.umi.bc_len"),
+                    umi_bc_start               : requireInt(umiBarcode.bc_start, "samples[${idx}].barcodes.umi.bc_start"),
+                    umi_tag                    : optionalString(umiBarcode.tag, 'UM'),
+                    cell_whitelist             : resolveExistingPath(
+                        baseDir,
+                        requireString(cellBarcode.whitelist, "samples[${idx}].barcodes.cell.whitelist")
+                    ),
+                    cell_bc_len                : requireInt(cellBarcode.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
+                    cell_hd                    : requireInt(cellBarcode.hd, "samples[${idx}].barcodes.cell.hd"),
+                    cell_tag                   : optionalString(cellBarcode.tag, 'CB'),
+                    library_name               : libraryName,
+                    sb_group_map               : sbGroupMap
+                ]
+                continue
             }
 
-            samples << sample
+            if( modality == 'dna' ) {
+                final Map modalityBarcode = asMap(barcodes.modality, "samples[${idx}].barcodes.modality")
+                final String sbGroupMap = resolveExistingPath(
+                    baseDir,
+                    requireString(parsed.sb_group_map, 'sb_group_map')
+                )
+                final String dnaMoMap = resolveExistingPath(
+                    baseDir,
+                    requireString(parsed.dna_mo_map, 'dna_mo_map')
+                )
+
+                samples << [
+                    id                            : sampleId,
+                    modality                      : modality,
+                    i1                            : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
+                    i2                            : resolveExistingPath(baseDir, requireString(reads.i2, "samples[${idx}].reads.i2")),
+                    r1                            : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
+                    r2                            : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
+                    sample_bc_len                 : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
+                    sample_bc_start               : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
+                    sample_hd                     : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),
+                    sample_tag                    : optionalString(sampleBarcode.tag, 'SB'),
+                    sample_first_pass             : optionalString(sampleBarcode.first_pass, 'first_pass'),
+                    sample_reverse_complement     : toDirection(
+                        sampleBarcode.containsKey('reverse_complement') ? sampleBarcode.reverse_complement : true,
+                        "samples[${idx}].barcodes.sample.reverse_complement"
+                    ),
+                    modality_whitelist            : resolveExistingPath(
+                        baseDir,
+                        requireString(modalityBarcode.whitelist, "samples[${idx}].barcodes.modality.whitelist")
+                    ),
+                    modality_bc_len               : requireInt(modalityBarcode.bc_len, "samples[${idx}].barcodes.modality.bc_len"),
+                    modality_bc_start             : requireInt(modalityBarcode.bc_start, "samples[${idx}].barcodes.modality.bc_start"),
+                    modality_hd                   : requireInt(modalityBarcode.hd, "samples[${idx}].barcodes.modality.hd"),
+                    modality_tag                  : optionalString(modalityBarcode.tag, 'MO'),
+                    modality_first_pass           : optionalString(modalityBarcode.first_pass, 'not_first_pass'),
+                    modality_reverse_complement   : toDirection(
+                        modalityBarcode.containsKey('reverse_complement') ? modalityBarcode.reverse_complement : true,
+                        "samples[${idx}].barcodes.modality.reverse_complement"
+                    ),
+                    cell_whitelist                : resolveExistingPath(
+                        baseDir,
+                        requireString(cellBarcode.whitelist, "samples[${idx}].barcodes.cell.whitelist")
+                    ),
+                    cell_bc_len                   : requireInt(cellBarcode.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
+                    cell_hd                       : requireInt(cellBarcode.hd, "samples[${idx}].barcodes.cell.hd"),
+                    cell_tag                      : optionalString(cellBarcode.tag, 'CB'),
+                    library_name                  : libraryName,
+                    sb_group_map                  : sbGroupMap,
+                    mo_map                        : dnaMoMap
+                ]
+                continue
+            }
+
+            throw new IllegalArgumentException(
+                "Unsupported modality for sample '${sampleId}': '${modality}'. Supported values: rna, dna"
+            )
         }
 
         return samples
