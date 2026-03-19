@@ -1,15 +1,17 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet and runs the first RNA tagging slice by wrapping the upstream `Tag.codon` and `Tag_UMI.codon` steps.
+TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet and runs the first RNA tagging slice by wrapping the upstream `Tag.codon`, `Tag_UMI.codon`, and `Tag_Lig3.codon` steps.
 
 ## Current slice
 
 - `TAG_RNA_SAMPLE_BARCODE` wraps `upstream/source_scripts/Tag.codon` for the RNA sample-barcode step.
 - `TAG_RNA_UMI` wraps `upstream/source_scripts/Tag_UMI.codon` for the RNA UMI step.
+- `TAG_RNA_CELL_BARCODE` wraps `upstream/source_scripts/Tag_Lig3.codon` for the RNA cell-barcode step.
 - `-profile test` uses lightweight mock wrappers so the pipeline runs end-to-end without Codon.
 - Real runs keep the business logic in the upstream scripts and require host-installed Codon plus the Seq plugin.
 - `envs/first_slice.yml` is the source of truth for software requirements around the currently implemented RNA tagging slice.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
+- The next upstream RNA step after `Tag_UMI` is `Tag_Lig3`, not `FqToSAM`; `FqToSAM` comes later after CB tagging, trimming, and RNA read splitting.
 
 ## Layout
 
@@ -21,6 +23,7 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `subworkflows/local/initial_rna_tagging.nf`
 - `modules/local/tag_rna_sb/main.nf`
 - `modules/local/tag_rna_umi/main.nf`
+- `modules/local/tag_rna_cell_barcode/main.nf`
 - `assets/samplesheet.example.yaml`
 - `assets/testdata/`
 
@@ -41,6 +44,7 @@ samples:
   - id: sample_id
     modality: rna
     reads:
+      i1: path/to/I1.fastq.gz
       r1: path/to/R1.fastq.gz
       r2: path/to/R2.fastq.gz
     barcodes:
@@ -56,6 +60,11 @@ samples:
         bc_len: 10
         bc_start: 4
         tag: UM
+      cell:
+        whitelist: path/to/cell_whitelist.txt
+        bc_len: 8
+        hd: 1
+        tag: CB
 ```
 
 The current slice only accepts `modality: rna`. DNA and downstream alignment/splitting steps are intentionally not wired yet.
@@ -67,6 +76,20 @@ nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --out
 ```
 
 Expected tagged outputs land under `results/test/tagging/`, and Nextflow report artifacts land under `results/test/pipeline_info/`. The trace artifact is the standard Nextflow tabular trace file, written as `execution_trace.tsv` in that directory.
+
+## Current RNA Step Map
+
+The upstream RNA order currently relevant to this repo is:
+
+1. `Tag.codon` for sample barcode (`SB`)
+2. `Tag_UMI.codon` for UMI (`UM`)
+3. `Tag_Lig3.codon` for cell barcode (`CB`) and `RG`
+4. `trim_galore`
+5. `Split_ReadsV2.codon` in `rna` mode
+6. `FqToSAM.codon`
+7. `AlignRNA.sh`
+
+This repo now implements steps 1 through 3 only. Under normal execution they are real by default. Under `-profile test`, all three wrapped RNA tagging steps use mock behavior.
 
 ## Micromamba and Conda
 
@@ -134,6 +157,7 @@ Only the current Python wrapper processes are containerized in this pass:
 
 - [`TAG_RNA_SAMPLE_BARCODE`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_sb/main.nf)
 - [`TAG_RNA_UMI`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_umi/main.nf)
+- [`TAG_RNA_CELL_BARCODE`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_cell_barcode/main.nf)
 
 Under `-profile docker`, those processes run in the local image `tresflow-first-slice:py312`, built from `docker/first_slice.Dockerfile`.
 This does not make real non-mock execution portable, because Codon and Seq are still outside Docker in the current implementation.
@@ -191,11 +215,14 @@ Current process usage:
   In `real` mode it also shells out to host-provided `codon` with `-plugin seq`, which is not currently supplied by `envs/first_slice.yml`.
 - `TAG_RNA_UMI` runs [`bin/run_tag_umi.py`](/Users/aannan/GitAA/TrESFlow/bin/run_tag_umi.py).
   It has the same dependency pattern: Python stdlib plus host-provided `codon` with the Seq plugin for `real` mode.
+- `TAG_RNA_CELL_BARCODE` runs [`bin/run_tag_lig3.py`](/Users/aannan/GitAA/TrESFlow/bin/run_tag_lig3.py).
+  It also uses Python stdlib in `mock` mode and shells out to host-provided `codon` with the Seq plugin in `real` mode.
 
 Current Docker process coverage:
 
 - `TAG_RNA_SAMPLE_BARCODE` is containerized for the smoke-test path
 - `TAG_RNA_UMI` is containerized for the smoke-test path
+- `TAG_RNA_CELL_BARCODE` is containerized for the smoke-test path
 - Codon and Seq are not containerized in this pass
 
 Dependencies present in `envs/first_slice.yml` but currently unused by the implemented RNA tagging slice:
@@ -219,7 +246,7 @@ Supported via Docker now:
 
 What remains host-dependent right now:
 
-- `codon` for real non-mock execution of the two wrapped upstream steps
+- `codon` for real non-mock execution of the three wrapped upstream RNA steps
 - Seq plugin installation under `${HOME}/.codon/lib/codon/plugins/seq`
 - The read-only upstream scripts under `upstream/source_scripts/`
 - The local launcher environment unless you choose either:
@@ -236,6 +263,35 @@ Current limitation for real mode:
 
 - `-profile docker` only makes the mock smoke test portable today.
 - Real non-mock execution is still not fully portable because the wrapped steps call `codon -plugin seq`, and Codon plus the Seq plugin are still external host prerequisites.
+
+## Acceptance Criteria
+
+The current RNA-only slice is accepted when:
+
+- `nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test` completes successfully
+- `nextflow run . -profile test,docker --samplesheet assets/samplesheet.example.yaml --outdir results/test` completes successfully
+- `results/test/tagging/` contains:
+  `test_rna.sample_barcode.R1.fastq`
+  `test_rna.sample_barcode.R2.fastq`
+  `test_rna.sample_barcode.counts.tsv`
+  `test_rna.sample_barcode.stats.tsv`
+  `test_rna.sample_barcode_umi.R1.fastq`
+  `test_rna.sample_barcode_umi.R2.fastq`
+  `test_rna.umi.counts.tsv`
+  `test_rna.sample_barcode_umi_cell.R1.fastq`
+  `test_rna.sample_barcode_umi_cell.R2.fastq`
+  `test_rna.cell.counts.tsv`
+  `test_rna.tag_records.tsv`
+  `test_rna.cell.stats_L1.tsv`
+  `test_rna.cell.stats_L2.tsv`
+  `test_rna.cell.stats_L3.tsv`
+- `results/test/pipeline_info/` contains the configured Nextflow report artifacts
+
+Exact test command:
+
+```bash
+nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
+```
 
 ## Troubleshooting
 

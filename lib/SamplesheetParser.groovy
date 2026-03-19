@@ -36,10 +36,12 @@ class SamplesheetParser {
             final Map barcodes = asMap(row.barcodes, "samples[${idx}].barcodes")
             final Map sampleBarcode = asMap(barcodes.sample, "samples[${idx}].barcodes.sample")
             final Map umiBarcode = asMap(barcodes.umi, "samples[${idx}].barcodes.umi")
+            final Map cellBarcode = asMap(barcodes.cell, "samples[${idx}].barcodes.cell")
 
             final Map sample = [
                 id                         : sampleId,
                 modality                   : modality,
+                i1                         : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
                 r1                         : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
                 r2                         : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
                 sample_whitelist           : resolveExistingPath(
@@ -57,7 +59,14 @@ class SamplesheetParser {
                 ),
                 umi_bc_len                 : requireInt(umiBarcode.bc_len, "samples[${idx}].barcodes.umi.bc_len"),
                 umi_bc_start               : requireInt(umiBarcode.bc_start, "samples[${idx}].barcodes.umi.bc_start"),
-                umi_tag                    : optionalString(umiBarcode.tag, 'UM')
+                umi_tag                    : optionalString(umiBarcode.tag, 'UM'),
+                cell_whitelist             : resolveExistingPath(
+                    baseDir,
+                    requireString(cellBarcode.whitelist, "samples[${idx}].barcodes.cell.whitelist")
+                ),
+                cell_bc_len                : requireInt(cellBarcode.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
+                cell_hd                    : requireInt(cellBarcode.hd, "samples[${idx}].barcodes.cell.hd"),
+                cell_tag                   : optionalString(cellBarcode.tag, 'CB')
             ]
 
             if( sample.modality != 'rna' ) {

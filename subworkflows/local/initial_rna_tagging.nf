@@ -2,24 +2,29 @@
  * Subworkflow: INITIAL_RNA_TAGGING
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
- *   - raw RNA R1 / R2 FASTQs
- *   - RNA sample-barcode whitelist
+ *   - raw RNA I1 / R1 / R2 FASTQs
+ *   - RNA sample-barcode and cell-barcode whitelists
  * Outputs:
- *   - RNA FASTQs tagged with SB then UM comments
- *   - barcode count/stat files from both wrapped upstream steps
+ *   - RNA FASTQs tagged with SB, UM, then CB comments
+ *   - barcode count/stat files from all wrapped upstream steps
  */
 
 include { TAG_RNA_SAMPLE_BARCODE } from '../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
+include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcode/main'
 
 workflow INITIAL_RNA_TAGGING {
     take:
     ch_rna_samples
 
     main:
-    TAG_RNA_SAMPLE_BARCODE(ch_rna_samples)
+    ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist ->
+        tuple(sampleId, meta, r1, r2, sampleWhitelist)
+    }
 
-    ch_raw_r2 = ch_rna_samples.map { sampleId, meta, r1, r2, whitelist ->
+    TAG_RNA_SAMPLE_BARCODE(ch_sb_input)
+
+    ch_raw_r2 = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist ->
         tuple(sampleId, meta, r2)
     }
 
@@ -31,9 +36,23 @@ workflow INITIAL_RNA_TAGGING {
 
     TAG_RNA_UMI(ch_umi_input)
 
-    ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics.mix(TAG_RNA_UMI.out.metrics)
+    ch_cb_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist ->
+        tuple(sampleId, meta, i1, cellWhitelist)
+    }
+
+    ch_cb_input = ch_cb_meta
+        .join(TAG_RNA_UMI.out.tagged)
+        .map { sampleId, metaFromInput, i1, cellWhitelist, metaFromTag, taggedR1, taggedR2 ->
+            tuple(sampleId, metaFromInput, i1, taggedR1, taggedR2, cellWhitelist)
+        }
+
+    TAG_RNA_CELL_BARCODE(ch_cb_input)
+
+    ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
+        .mix(TAG_RNA_UMI.out.metrics)
+        .mix(TAG_RNA_CELL_BARCODE.out.metrics)
 
     emit:
-    tagged_fastqs   = TAG_RNA_UMI.out.tagged
+    tagged_fastqs   = TAG_RNA_CELL_BARCODE.out.tagged
     barcode_reports = ch_barcode_reports
 }
