@@ -20,15 +20,17 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `MARK_DUPLICATES_DNA` wraps the immediate upstream DNA `gatk MarkDuplicates` step after direct `AlignDNA.sh` BAM outputs.
 - `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through duplicate-marked DNA BAM outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
-- Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`. Real RNA runs also require `trim_galore`, `STAR`, `samtools`, and `bedGraphToBigWig`.
-- By default on this server, all tasks prepend `/home/annan/micromamba/envs/tres/bin` to `PATH`. Override with `--runtime_env_prefix` if needed.
-- Real DNA runs for the current implemented boundary require `trim_galore`, `bwa-mem2`, `samtools`, and `gatk` in addition to host Codon `0.16.3` and Seq `0.11.3`.
+- Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`.
+- For normal execution on this server, the pipeline binds `python3`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, and `bwa-mem2` explicitly to `/home/annan/micromamba/envs/tres/bin/...`.
+- `gatk` remains explicitly pinned outside that env at `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
+- `PATH` still prepends `/home/annan/micromamba/envs/tres/bin` as a compatibility fallback for unbound tools and future steps. Override with `--runtime_env_prefix` if needed.
 - `envs/first_slice.yml` is the source of truth for software requirements around the current implemented wrappers and mock path.
 - A separate `test_real_rna` profile is available for external/local validation data through the full implemented RNA boundary.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
 - Pinning the real-mode toolchain does not change the mock `-profile test` or `-profile test,docker` paths.
 - The first true shared downstream step is still one future `sc_process.py` call. This repo does not reproduce the second erroneous `sc_process.py` invocation from `MAINLAUNCH.sh`.
 - Downstream RNA `.ubam` conversion, DNA duplicate splitting to `_NoDup.bam`, DNA coverage generation, and shared `sc_process.py` analysis remain intentionally out of scope for the current implementation.
+- Every run also writes `pipeline_info/runtime_contract.tsv`, which records the configured explicit runtime binaries plus the host Codon/Seq preflight output.
 
 ## Implemented Boundaries
 
@@ -120,6 +122,21 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
 - `--runtime_env_prefix`
   Default: `/home/annan/micromamba/envs/tres`
   If `${runtime_env_prefix}/bin` exists, every task prepends it to `PATH` before running.
+- `--runtime_python`
+  Default: `/home/annan/micromamba/envs/tres/bin/python3`
+- `--runtime_trim_galore`
+  Default: `/home/annan/micromamba/envs/tres/bin/trim_galore`
+- `--runtime_star`
+  Default: `/home/annan/micromamba/envs/tres/bin/STAR`
+- `--runtime_samtools`
+  Default: `/home/annan/micromamba/envs/tres/bin/samtools`
+- `--runtime_bedgraph_to_bigwig`
+  Default: `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
+- `--runtime_bwa_mem2`
+  Default: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
+- `--runtime_bam_coverage`
+  Default: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
+  Reserved for the future DNA coverage step; it is recorded in `pipeline_info/runtime_contract.tsv` but not used by the current implemented boundary.
 - `--gatk_root`
   Default: `/mnt/dataFast/ahrmad/gatk-4.6.0.0`
   `MARK_DUPLICATES_DNA` runs `${gatk_root}/gatk MarkDuplicates`.
@@ -311,6 +328,7 @@ Expected outputs through the implemented RNA boundary:
 - `outdir/align/` with one `<sample>_<group>.filtered_cells.bam` per grouped `.usam`
 - `outdir/align/` with stranded and unstranded bigWig tracks per grouped `.usam` when `AlignRNA.sh` emits them
 - `outdir/pipeline_info/` with the configured Nextflow report artifacts
+- `outdir/pipeline_info/runtime_contract.tsv` with the configured explicit runtime binaries and the host Codon/Seq preflight details
 
 ## Real DNA Validation
 
@@ -360,6 +378,7 @@ Expected outputs through the implemented DNA boundary when `sb_group_map`, `dna_
 - RNA output locations remain `tagging/`, `split/`, `usam/`, `align/`, and `pipeline_info/`.
 - DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, `dna_dedup/`, and `pipeline_info/`.
 - The pipeline still writes Nextflow `timeline`, `report`, `trace`, and `DAG` artifacts under `${params.outdir}/pipeline_info/`.
+- The pipeline also writes `${params.outdir}/pipeline_info/runtime_contract.tsv` so the configured explicit runtime binaries are easy to verify after a run.
 
 ## Micromamba and Conda
 
@@ -419,7 +438,7 @@ nextflow run . \
 ```
 
 This path runs the implemented RNA workflow in real mode through grouped `AlignRNA.sh` outputs.
-It requires host-installed Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `STAR`, `samtools`, and `bedGraphToBigWig`.
+It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `STAR`, `samtools`, and `bedGraphToBigWig` from `/home/annan/micromamba/envs/tres/bin/`.
 It expects the real input files to remain external/local and not committed to this repo.
 
 It also requires the reference-base contract expected by `AlignRNA.sh`:
@@ -439,7 +458,7 @@ nextflow run . \
 ```
 
 This path runs the current DNA workflow in real mode through direct `gatk MarkDuplicates` outputs.
-It requires host-installed Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, `samtools`, and `gatk`.
+It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `bwa-mem2`, and `samtools` from `/home/annan/micromamba/envs/tres/bin/`.
 It uses the top-level `sb_group_map` plus `dna_mo_map` entries from the samplesheet to satisfy the upstream `Split_ReadsV2.codon` DNA contract, and it uses the explicit DNA alignment CLI params to satisfy the upstream `AlignDNA.sh` contract.
 For DNA sample-barcode tagging, the pipeline derives the effective SB whitelist directly from `sb_group_map`.
 It uses `${params.gatk_root}/gatk` for duplicate marking; on this server the default is `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
@@ -486,15 +505,18 @@ Every pipeline run currently requires the following on the host:
 - native Linux or macOS
 - Codon `0.16.3` installed under `${HOME}/.codon` and available on `PATH`
 - Seq `0.11.3` installed separately under `${HOME}/.codon/lib/codon/plugins/seq`
-- `trim_galore` available on `PATH` for real RNA and real DNA trimming runs
-- `STAR`, `samtools`, and `bedGraphToBigWig` available on `PATH` for real RNA alignment runs
-- `bwa-mem2` and `samtools` available on `PATH` for real DNA alignment runs
+- `/home/annan/micromamba/envs/tres/bin/python3`
+- `/home/annan/micromamba/envs/tres/bin/trim_galore`
+- `/home/annan/micromamba/envs/tres/bin/STAR`
+- `/home/annan/micromamba/envs/tres/bin/samtools`
+- `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
+- `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `gatk` available under `${params.gatk_root}/gatk` for DNA duplicate marking runs
 - the read-only upstream scripts under `upstream/source_scripts/`
 
 For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and shared sample-barcode group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
 For real DNA alignment runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files, plus `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
-By default on this server, tasks use `/home/annan/micromamba/envs/tres/bin` first on `PATH`; override with `--runtime_env_prefix` if you need a different runtime environment.
+By default on this server, the pipeline binds the current implemented runtime tools explicitly to `/home/annan/micromamba/envs/tres/bin`, and also prepends that directory to `PATH` as a compatibility fallback. Override the individual `--runtime_*` params if you need different binaries.
 `--dna_bwa_reference` is a bwa-mem2 index prefix; the base path itself may be a prefix rather than a regular file, but the sidecars `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac` must exist.
 
 If you already have a newer `${HOME}/.codon` install, back it up before downgrading:
@@ -561,11 +583,11 @@ Relevant entries from `envs/first_slice.yml` for the implemented RNA and DNA wra
 - Launcher environment when you manually `micromamba activate tres`:
   `nextflow`, `openjdk`
 - Current wrapper runtime for the DNA and RNA Python wrapper modules under `modules/local/`:
-  `python` / `cpython`
+  explicit `/home/annan/micromamba/envs/tres/bin/python3`
 - Current real trimming runtime for `modules/local/trim_rna_fastqs/main.nf` and `modules/local/trim_dna_fastqs/main.nf`:
-  `trim-galore`, `cutadapt`
+  explicit `/home/annan/micromamba/envs/tres/bin/trim_galore`, plus its bundled `cutadapt`
 - Current real RNA alignment runtime for `modules/local/align_rna/main.nf`:
-  `STAR`, `samtools`, `ucsc-bedgraphtobigwig`
+  explicit `/home/annan/micromamba/envs/tres/bin/STAR`, `/home/annan/micromamba/envs/tres/bin/samtools`, `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
 
 Not provided by `envs/first_slice.yml`:
 
@@ -584,7 +606,7 @@ Current process usage:
 - `TAG_DNA_MODALITY_BARCODE` also runs `bin/run_tag.py` with the same host Codon plus Seq dependency pattern as the sample-barcode wrappers.
 - `TRIM_RNA_FASTQS` and `TRIM_DNA_FASTQS` run `bin/run_trim_galore.py`.
   In `mock` mode it gzip-copies the CB-tagged FASTQs to the expected trim_galore `_val_1` / `_val_2` outputs.
-  In `real` mode it shells out to `trim_galore` with the upstream launcher settings `--quality 10 --gzip --length 20 --paired`.
+  In `real` mode it shells out to the configured explicit `trim_galore` binary with the upstream launcher settings `--quality 10 --gzip --length 20 --paired`.
 - `SPLIT_RNA_READS` runs [`bin/run_split_reads_rna.py`](/Users/aannan/GitAA/TrESFlow/bin/run_split_reads_rna.py).
   In `mock` mode it reproduces the upstream RNA grouping behavior from the trimmed FASTQs and writes launcher-style `sample_group_R1/R2.fq.gz` plus `SAM_RG_Header_sample_group.tsv` files.
   In `real` mode it shells out to `codon -plugin seq` for `Split_ReadsV2.codon` in `rna` mode with the launcher-style RNA SB-group map.
@@ -593,7 +615,7 @@ Current process usage:
   In `real` mode it shells out to `codon -plugin seq` for `FqToSAM.codon`, which accepts `.fq.gz` inputs directly.
 - `ALIGN_RNA` runs [`upstream/source_scripts/AlignRNA.sh`](/Users/aannan/GitAA/TrESFlow/upstream/source_scripts/AlignRNA.sh) directly.
   In `mock` mode it writes placeholder STARsolo directories, filtered BAMs, and bigWig files for smoke-test coverage.
-  In `real` mode it shells out to host `STAR`, `samtools`, and `bedGraphToBigWig`, using the grouped `.usam` plus the reference-base and species contract expected by the upstream shell script.
+  In `real` mode it binds `STAR`, `samtools`, and `bedGraphToBigWig` explicitly to the configured runtime paths, using the grouped `.usam` plus the reference-base and species contract expected by the upstream shell script.
 - The default local CPU budget is `--max_cpus 40`.
   That budget is enforced through the local executor and distributed as:
   `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, and `1` CPU for the remaining wrapped processes.
@@ -636,7 +658,7 @@ What remains host-dependent right now:
 
 - Codon `0.16.3` for real non-mock execution of the five wrapped upstream Codon RNA steps
 - Seq `0.11.3` installation under `${HOME}/.codon/lib/codon/plugins/seq`
-- `trim_galore`, `STAR`, `samtools`, and `bedGraphToBigWig` for real non-mock execution of the RNA path unless you choose the optional `-profile conda_dev` for the task-managed subset that it covers
+- system shell tools such as `bash`, `sort`, `awk`, `grep`, `head`, `tail`, `cat`, `mv`, and `rm`
 - The read-only upstream scripts under `upstream/source_scripts/`
 - The local launcher environment unless you choose either:
   `micromamba activate tres`
@@ -652,7 +674,7 @@ Current limitation:
 
 - No profile bypasses the pinned host Codon/Seq requirement.
 - `-profile docker` only containerizes the wrapped task runtime. It does not remove the host requirement for Codon `0.16.3` plus Seq `0.11.3`, and the Docker smoke-test image still does not include `trim_galore`.
-- Real RNA execution is host-only in the current implementation, because the checked-in Docker image does not include `STAR`, `samtools`, or `bedGraphToBigWig`.
+- Real RNA execution is host-only in the current implementation, because the checked-in Docker image does not include the explicitly configured server binaries for `STAR`, `samtools`, or `bedGraphToBigWig`.
 
 ## Troubleshooting
 

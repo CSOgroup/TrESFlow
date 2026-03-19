@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import os
 import shutil
 import subprocess
 import sys
@@ -38,13 +39,22 @@ def mock_trim(args):
 
 
 def real_trim(args):
-    if shutil.which("trim_galore") is None:
-        raise RuntimeError("trim_galore executable not found in PATH")
+    trim_galore_bin = args.trim_galore_bin
+    if trim_galore_bin is not None and not isinstance(trim_galore_bin, Path):
+        trim_galore_bin = Path(trim_galore_bin)
+    if trim_galore_bin is None:
+        resolved = shutil.which("trim_galore")
+        if resolved is None:
+            raise RuntimeError("trim_galore executable not found in PATH")
+        trim_galore_bin = Path(resolved)
+
+    if not trim_galore_bin.exists() or not os.access(trim_galore_bin, os.X_OK):
+        raise RuntimeError(f"trim_galore executable not found or not executable: {trim_galore_bin}")
 
     with tempfile.TemporaryDirectory(prefix="tresflow_trim_galore_") as tmpdir:
         tmp_path = Path(tmpdir)
         cmd = [
-            "trim_galore",
+            str(trim_galore_bin),
             "--quality",
             str(args.quality),
             "--cores",
@@ -72,6 +82,11 @@ def parse_args():
     parser.add_argument("--mode", required=True, choices=["real", "mock"])
     parser.add_argument("--r1", required=True, type=Path)
     parser.add_argument("--r2", required=True, type=Path)
+    parser.add_argument(
+        "--trim-galore-bin",
+        type=Path,
+        default=Path(os.environ["TRIM_GALORE_BIN"]) if os.environ.get("TRIM_GALORE_BIN") else None,
+    )
     parser.add_argument("--quality", required=True, type=int)
     parser.add_argument("--cores", required=True, type=int)
     parser.add_argument("--length", required=True, type=int)

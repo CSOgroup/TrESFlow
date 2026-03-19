@@ -63,6 +63,17 @@ EOF
     }
     else {
         """
+        for required_bin in "${params.runtime_star}" "${params.runtime_samtools}" "${params.runtime_bedgraph_to_bigwig}"; do
+          if [[ ! -x "\${required_bin}" ]]; then
+            echo "Missing configured RNA runtime executable: \${required_bin}" >&2
+            exit 1
+          fi
+        done
+
+        export STAR_BIN="${params.runtime_star}"
+        export SAMTOOLS_BIN="${params.runtime_samtools}"
+        export BEDGRAPH_TO_BIGWIG_BIN="${params.runtime_bedgraph_to_bigwig}"
+
         bash "${params.upstream_dir}/AlignRNA.sh" \\
           "${splitName}" \\
           "${usam}" \\

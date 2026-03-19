@@ -31,7 +31,7 @@ process TAG_DNA_MODALITY_BARCODE {
     def mode = task.ext.mock ? 'mock' : 'real'
 
     """
-    python3 "${projectDir}/bin/run_tag.py" \\
+    "${params.runtime_python}" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
       --script "${params.upstream_dir}/Tag.codon" \\
       --i2 "${i2}" \\

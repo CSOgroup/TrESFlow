@@ -30,7 +30,7 @@ process FQ_TO_SAM {
     def mode = task.ext.mock ? 'mock' : 'real'
 
     """
-    python3 "${projectDir}/bin/run_fq_to_sam.py" \\
+    "${params.runtime_python}" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
       --script "${params.upstream_dir}/FqToSAM.codon" \\
       --r1 "${splitR1}" \\
