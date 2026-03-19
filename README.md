@@ -1,6 +1,6 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, and now also runs the implemented DNA workflow through DNA `Split_ReadsV2.codon`.
+TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, and now also runs the implemented DNA workflow through `AlignDNA.sh`.
 
 ## Current slice
 
@@ -16,15 +16,16 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `TAG_DNA_CELL_BARCODE` wraps the upstream DNA `Tag_Lig3.codon` ligation-barcode step on `I1`.
 - `TRIM_DNA_FASTQS` wraps the immediate upstream DNA `trim_galore` step after CB tagging.
 - `SPLIT_DNA_READS` wraps the immediate upstream DNA `Split_ReadsV2.codon` step in `dna` mode after trimming.
+- `ALIGN_DNA` wraps the immediate upstream DNA `AlignDNA.sh` step after grouped DNA split outputs.
 - `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
-- `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through split, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
+- `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through direct `AlignDNA.sh` outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`. Real RNA runs also require `trim_galore`, `STAR`, `samtools`, and `bedGraphToBigWig`.
-- Real DNA runs for the current implemented boundary require `trim_galore` in addition to host Codon `0.16.3` and Seq `0.11.3`.
+- Real DNA runs for the current implemented boundary require `trim_galore`, `bwa-mem2`, and `samtools` in addition to host Codon `0.16.3` and Seq `0.11.3`.
 - `envs/first_slice.yml` is the source of truth for software requirements around the current implemented wrappers and mock path.
 - A separate `test_real_rna` profile is available for external/local validation data through the full implemented RNA boundary.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
 - Pinning the real-mode toolchain does not change the mock `-profile test` or `-profile test,docker` paths.
-- Downstream RNA `.ubam` conversion plus `sc_process.py`, and downstream DNA alignment/QC steps, remain intentionally out of scope for the current implementation.
+- Downstream RNA `.ubam` conversion plus `sc_process.py`, and downstream DNA duplicate-marking / coverage / QC steps, remain intentionally out of scope for the current implementation.
 
 ## Implemented Boundaries
 
@@ -54,8 +55,8 @@ The upstream DNA order relevant to this repo is:
 6. `AlignDNA.sh`
 7. downstream duplicate marking and coverage generation
 
-This repo currently implements the next DNA boundary: steps 1 through 5.
-DNA alignment, duplicate-marking, and coverage generation remain intentionally out of scope.
+This repo currently implements the next DNA boundary: steps 1 through 6.
+DNA duplicate-marking and coverage generation remain intentionally out of scope.
 
 ## Layout
 
@@ -79,6 +80,7 @@ DNA alignment, duplicate-marking, and coverage generation remain intentionally o
 - `modules/local/tag_dna_cell_barcode/main.nf`
 - `modules/local/trim_dna_fastqs/main.nf`
 - `modules/local/split_dna_reads/main.nf`
+- `modules/local/align_dna/main.nf`
 - `assets/samplesheet.example.yaml`
 - `assets/samplesheet.dna.example.yaml`
 - `assets/samplesheet.real_rna.template.yaml`
@@ -97,13 +99,23 @@ If the samplesheet contains any RNA samples, real and mock RNA runs also require
 - `--rna_align_species`
   Supported values: `human`, `mouse`
 
+If the samplesheet contains any DNA samples, real and mock DNA runs also require:
+
+- `--dna_bwa_reference`
+  bwa-mem2 index prefix. The path itself may be a prefix rather than a regular file; the required sidecars are `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac`.
+- `--dna_blacklist_bed`
+  BED file passed directly to `AlignDNA.sh` for blacklist filtering.
+- `--dna_effective_genome_size`
+  Integer passed directly to `AlignDNA.sh`.
+
 ## Optional CLI params
 
 - `--upstream_dir`
   Default: `./upstream/source_scripts`
 - `--max_cpus`
   Default: `40`
-  Total CPU budget for the local executor. Real runs distribute that budget as `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, `SPLIT_DNA_READS=min(4, int(max_cpus/10))`, and `1` CPU for the remaining wrapped processes.
+  Total CPU budget for the local executor. Real runs distribute that budget as `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, `SPLIT_DNA_READS=min(4, int(max_cpus/10))`, `ALIGN_DNA=max_cpus`, and `1` CPU for the remaining wrapped processes.
+  `ALIGN_DNA` takes the full executor budget so the local executor runs one DNA align task at a time; this keeps the wrapper honest because upstream `AlignDNA.sh` hardcodes its own internal thread counts.
 
 ## Samplesheet schema
 
@@ -191,7 +203,8 @@ sample and modality barcodes come from `I2`, then ligation/cell barcodes come fr
 For DNA sample-barcode tagging and DNA split, `sb_group_map` is the shared sample-barcode grouping TSV and the single source of truth for experiment-used DNA sample barcodes.
 `dna_mo_map` is the launcher-style modality map TSV consumed by `Split_ReadsV2.codon` in `dna` mode.
 The supported DNA MO-map form for this repo is the launcher-style 4-column TSV: `sample<TAB>sb_group<TAB>mark<TAB>mo_bc`.
-DNA alignment, blacklist, and reference contracts are still intentionally out of scope.
+DNA alignment uses explicit CLI inputs matching `AlignDNA.sh`: `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
+DNA duplicate-marking, coverage, and downstream QC remain intentionally out of scope.
 
 ## Running the test profile
 
@@ -209,8 +222,8 @@ The upstream launcher deletes the untrimmed CB FASTQs after `trim_galore`; this 
 nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna
 ```
 
-Expected DNA outputs land under `results/test_dna/dna_tagging/` and `results/test_dna/dna_split/`:
-sample-barcode-tagged FASTQs, sample-plus-modality-tagged FASTQs, SB/MO/CB count and stats files, CB tag records, trimmed `_val_1` / `_val_2` DNA FASTQs, split per-group per-mark FASTQ pairs, and `SAM_RG_Header_*.tsv` files.
+Expected DNA outputs land under `results/test_dna/dna_tagging/`, `results/test_dna/dna_split/`, and `results/test_dna/dna_align/`:
+sample-barcode-tagged FASTQs, sample-plus-modality-tagged FASTQs, SB/MO/CB count and stats files, CB tag records, trimmed `_val_1` / `_val_2` DNA FASTQs, split per-group per-mark FASTQ pairs, `SAM_RG_Header_*.tsv` files, mocked aligned BAMs, mocked BAM indexes, and mocked per-barcode count TSVs.
 
 ## Real RNA Validation
 
@@ -290,8 +303,8 @@ Expected outputs through the implemented RNA boundary:
 
 ## Real DNA Validation
 
-The real DNA validation path for this pass uses the provided real DNA inputs under `assets/test_realdata/` and stops at the DNA split boundary.
-The pipeline now requires the shared sample-barcode group map plus the DNA modality map for real DNA runs because `Split_ReadsV2.codon` in `dna` mode is now in scope.
+The real DNA validation path for this pass uses the provided real DNA inputs under `assets/test_realdata/` and stops at the direct `AlignDNA.sh` output boundary.
+The pipeline requires the shared sample-barcode group map plus the DNA modality map for DNA split, and explicit alignment CLI inputs matching `AlignDNA.sh`.
 For DNA sample-barcode tagging, `sb_group_map` is also the single source of truth for the effective SB whitelist passed into upstream `Tag.codon`.
 
 Exact run command for host-based real-DNA validation:
@@ -299,14 +312,17 @@ Exact run command for host-based real-DNA validation:
 ```bash
 nextflow run . \
   --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real_split \
-  --max_cpus 4
+  --outdir results/test_dna_real_align \
+  --dna_bwa_reference /path/to/bwa_index_prefix \
+  --dna_blacklist_bed /path/to/blacklist.bed \
+  --dna_effective_genome_size 2913022398
 ```
 
 The current provided `assets/test_realdata/sb_map_RNA.tsv` filename is legacy, but it is consumed as the generic `sb_group_map`.
-On this server, deriving the DNA SB whitelist from `sb_group_map` makes the provided real DNA run complete through `SPLIT_DNA_READS` with the existing `mo_map.tsv`.
+On this server, deriving the DNA SB whitelist from `sb_group_map` plus the explicit launcher-style human alignment inputs makes the provided real DNA run complete through `AlignDNA.sh`.
+`AlignDNA.sh` directly emits the filtered BAM, BAM index, and properly paired mapped reads per barcode TSV; it also hardcodes `min_good_reads_in_cells=100`.
 
-Expected outputs through the implemented DNA boundary when `sb_group_map` and `dna_mo_map` fully satisfy the upstream split contract:
+Expected outputs through the implemented DNA boundary when `sb_group_map`, `dna_mo_map`, and the explicit DNA alignment inputs satisfy the upstream contract:
 
 - `outdir/dna_tagging/` with one pair of SB-tagged FASTQs
 - `outdir/dna_tagging/` with one pair of SB-plus-MO-tagged FASTQs
@@ -315,16 +331,19 @@ Expected outputs through the implemented DNA boundary when `sb_group_map` and `d
 - `outdir/dna_tagging/` with trimmed `_val_1` / `_val_2` FASTQs
 - `outdir/dna_split/` with one `<sample>_<group>_<mark>_R1.fq.gz` and `<sample>_<group>_<mark>_R2.fq.gz` per valid group and mark combination
 - `outdir/dna_split/` with one `SAM_RG_Header_<sample>_<group>_<mark>.tsv` per valid group and mark combination
+- `outdir/dna_align/` with one `<sample>_<group>_<mark>.bam` per valid group and mark combination
+- `outdir/dna_align/` with one `<sample>_<group>_<mark>.bam.bai` per valid group and mark combination
+- `outdir/dna_align/` with one `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv` per valid group and mark combination
 - `outdir/pipeline_info/` with the configured Nextflow report artifacts
 
 ## Acceptance Criteria
 
 - `nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test` succeeds through mocked RNA `AlignRNA.sh` outputs.
-- `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA split outputs.
-- `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_split --max_cpus 4` succeeds through DNA split on a host with Codon `0.16.3`, Seq `0.11.3`, and `trim_galore`.
+- `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA alignment outputs.
+- `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_align --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398` succeeds through direct `AlignDNA.sh` outputs on a host with Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, and `samtools`.
 - The DNA sample-barcode whitelist is derived from `sb_group_map`; a separate DNA sample-barcode whitelist is not part of the pipeline contract.
 - RNA output locations remain `tagging/`, `split/`, `usam/`, `align/`, and `pipeline_info/`.
-- DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, and `pipeline_info/`.
+- DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, and `pipeline_info/`.
 - The pipeline still writes Nextflow `timeline`, `report`, `trace`, and `DAG` artifacts under `${params.outdir}/pipeline_info/`.
 
 ## Micromamba and Conda
@@ -368,8 +387,8 @@ Supported on native Linux and macOS hosts:
 nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna
 ```
 
-This path uses the bundled mock wrappers for the current DNA boundary through split, and startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
-This mock path emits `dna_split/` outputs.
+This path uses the bundled mock wrappers for the current DNA boundary through direct `AlignDNA.sh` outputs, and startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
+This mock path emits `dna_split/` and `dna_align/` outputs.
 
 ### Host + Real RNA Validation
 
@@ -398,15 +417,17 @@ Supported on native Linux and macOS hosts with the provided real DNA files under
 ```bash
 nextflow run . \
   --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real_split \
-  --max_cpus 4
+  --outdir results/test_dna_real_align \
+  --dna_bwa_reference /path/to/bwa_index_prefix \
+  --dna_blacklist_bed /path/to/blacklist.bed \
+  --dna_effective_genome_size 2913022398
 ```
 
-This path runs the current DNA workflow in real mode through DNA split.
-It requires host-installed Codon `0.16.3`, Seq `0.11.3`, and `trim_galore`.
-It uses the top-level `sb_group_map` plus `dna_mo_map` entries from the samplesheet to satisfy the upstream `Split_ReadsV2.codon` DNA contract.
+This path runs the current DNA workflow in real mode through direct `AlignDNA.sh` outputs.
+It requires host-installed Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, and `samtools`.
+It uses the top-level `sb_group_map` plus `dna_mo_map` entries from the samplesheet to satisfy the upstream `Split_ReadsV2.codon` DNA contract, and it uses the explicit DNA alignment CLI params to satisfy the upstream `AlignDNA.sh` contract.
 For DNA sample-barcode tagging, the pipeline derives the effective SB whitelist directly from `sb_group_map`.
-No DNA alignment references or `AlignDNA.sh` inputs are required yet because those downstream DNA steps are still intentionally out of scope.
+Duplicate marking, coverage generation, and downstream DNA QC remain intentionally out of scope.
 
 ### Micromamba Dev + Test
 
@@ -439,7 +460,7 @@ nextflow run . -profile test,docker --samplesheet assets/samplesheet.example.yam
 
 This keeps the current wrapper tasks containerized, but it is no longer a standalone portable smoke-test path because startup still enforces host Codon `0.16.3` and Seq `0.11.3`.
 Under `-profile docker`, every process labeled `codon_wrapper` runs in the local image `tresflow-first-slice:py312`, built from `docker/first_slice.Dockerfile`.
-That currently includes the wrapped RNA path plus the wrapped DNA path through split.
+That currently includes the wrapped RNA path plus the wrapped DNA path through direct `AlignDNA.sh` outputs.
 This does not make any execution mode fully portable, because Codon `0.16.3` and Seq `0.11.3` are still required on the host in the current implementation.
 
 ## Real Mode Host Prerequisites
@@ -451,10 +472,12 @@ Every pipeline run currently requires the following on the host:
 - Seq `0.11.3` installed separately under `${HOME}/.codon/lib/codon/plugins/seq`
 - `trim_galore` available on `PATH` for real RNA and real DNA trimming runs
 - `STAR`, `samtools`, and `bedGraphToBigWig` available on `PATH` for real RNA alignment runs
+- `bwa-mem2` and `samtools` available on `PATH` for real DNA alignment runs
 - the read-only upstream scripts under `upstream/source_scripts/`
 
 For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and shared sample-barcode group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
-For real DNA split runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files.
+For real DNA alignment runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files, plus `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
+`--dna_bwa_reference` is a bwa-mem2 index prefix; the base path itself may be a prefix rather than a regular file, but the sidecars `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac` must exist.
 
 If you already have a newer `${HOME}/.codon` install, back it up before downgrading:
 

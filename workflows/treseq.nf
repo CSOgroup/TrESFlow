@@ -10,12 +10,29 @@
  *   7. Run the upstream RNA FqToSAM step via a thin wrapper.
  *   8. Run the upstream RNA AlignRNA.sh step via a thin wrapper.
  *   9. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
- *      steps plus DNA trim_galore and Split_ReadsV2 dna mode through the first
- *      launcher-style DNA split boundary.
+ *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, and AlignDNA.sh
+ *      through the direct DNA alignment boundary.
  */
 
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
 include { INITIAL_DNA_TAGGING } from '../subworkflows/local/initial_dna_tagging'
+
+def requireBwaMem2Prefix(final String rawPrefix) {
+    final String prefix = rawPrefix?.toString()?.trim()
+    if( !prefix ) {
+        error "Missing required parameter for DNA alignment: --dna_bwa_reference"
+    }
+
+    final List<String> suffixes = ['.0123', '.amb', '.ann', '.bwt.2bit.64', '.pac']
+    suffixes.each { suffix ->
+        final File sidecar = new File("${prefix}${suffix}")
+        if( !sidecar.exists() ) {
+            error "DNA bwa-mem2 index sidecar not found for prefix '${prefix}': ${sidecar}"
+        }
+    }
+
+    return prefix
+}
 
 workflow TRESEQ {
     main:
@@ -55,6 +72,34 @@ workflow TRESEQ {
             if( !resolved.exists() ) {
                 error "RNA alignment reference path not found for species '${species}': ${resolved}"
             }
+        }
+    }
+
+    if( dnaRows ) {
+        final String bwaReference = requireBwaMem2Prefix(params.dna_bwa_reference as String)
+        final String blacklistBed = (params.dna_blacklist_bed ?: '').toString().trim()
+        final String effSizeRaw = (params.dna_effective_genome_size ?: '').toString().trim()
+
+        if( !blacklistBed ) {
+            error "Missing required parameter for DNA alignment: --dna_blacklist_bed"
+        }
+        final File blacklistFile = new File(blacklistBed)
+        if( !blacklistFile.exists() ) {
+            error "DNA blacklist BED not found: ${blacklistFile}"
+        }
+
+        if( !effSizeRaw ) {
+            error "Missing required parameter for DNA alignment: --dna_effective_genome_size"
+        }
+        long effSize = 0L
+        try {
+            effSize = effSizeRaw as long
+        }
+        catch( Exception ignored ) {
+            error "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
+        }
+        if( effSize < 1 ) {
+            error "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
         }
     }
 
@@ -109,5 +154,8 @@ workflow TRESEQ {
     dna_trimmed_fastqs = INITIAL_DNA_TAGGING.out.trimmed_fastqs
     dna_split_fastqs = INITIAL_DNA_TAGGING.out.split_fastqs
     dna_rg_headers = INITIAL_DNA_TAGGING.out.rg_headers
+    dna_aligned_bams = INITIAL_DNA_TAGGING.out.aligned_bams
+    dna_aligned_bais = INITIAL_DNA_TAGGING.out.aligned_bais
+    dna_alignment_barcode_counts = INITIAL_DNA_TAGGING.out.alignment_barcode_counts
     dna_barcode_reports = INITIAL_DNA_TAGGING.out.barcode_reports
 }
