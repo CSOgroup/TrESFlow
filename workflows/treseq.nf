@@ -10,8 +10,8 @@
  *   7. Run the upstream RNA FqToSAM step via a thin wrapper.
  *   8. Run the upstream RNA AlignRNA.sh step via a thin wrapper.
  *   9. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
- *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, and AlignDNA.sh
- *      through the direct DNA alignment boundary.
+ *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
+ *      and GATK MarkDuplicates through the duplicate-marked DNA BAM boundary.
  */
 
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
@@ -157,5 +157,8 @@ workflow TRESEQ {
     dna_aligned_bams = INITIAL_DNA_TAGGING.out.aligned_bams
     dna_aligned_bais = INITIAL_DNA_TAGGING.out.aligned_bais
     dna_alignment_barcode_counts = INITIAL_DNA_TAGGING.out.alignment_barcode_counts
+    dna_markeddup_bams = INITIAL_DNA_TAGGING.out.markeddup_bams
+    dna_markeddup_bais = INITIAL_DNA_TAGGING.out.markeddup_bais
+    dna_duplicate_metrics = INITIAL_DNA_TAGGING.out.duplicate_metrics
     dna_barcode_reports = INITIAL_DNA_TAGGING.out.barcode_reports
 }

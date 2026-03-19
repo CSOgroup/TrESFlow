@@ -4,6 +4,7 @@ nextflow.enable.dsl = 2
 
 def enforcePinnedCodonSeq() {
     final File preflight = new File(projectDir.toString(), 'bin/check_codon_seq_host.sh')
+    final String runtimeEnvPrefix = (params.runtime_env_prefix ?: '').toString().trim()
 
     if( !preflight.exists() ) {
         throw new IllegalStateException(
@@ -11,10 +12,20 @@ def enforcePinnedCodonSeq() {
         )
     }
 
-    final Process process = new ProcessBuilder('bash', preflight.toString())
+    final ProcessBuilder processBuilder = new ProcessBuilder('bash', preflight.toString())
         .directory(projectDir.toFile())
         .redirectErrorStream(true)
-        .start()
+
+    if( runtimeEnvPrefix ) {
+        final File runtimeBin = new File(runtimeEnvPrefix, 'bin')
+        if( runtimeBin.exists() ) {
+            final Map<String, String> env = processBuilder.environment()
+            final String existingPath = env.get('PATH') ?: ''
+            env.put('PATH', "${runtimeBin.toString()}:${existingPath}".toString())
+        }
+    }
+
+    final Process process = processBuilder.start()
 
     final String output = process.inputStream.getText('UTF-8').trim()
     final int exitCode = process.waitFor()

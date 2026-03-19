@@ -11,6 +11,7 @@
  *   - trim_galore paired-end FASTQs from the CB-tagged DNA reads
  *   - Split_ReadsV2 per-group per-mark DNA FASTQs and SAM RG headers
  *   - AlignDNA filtered BAMs, BAM indexes, and properly paired mapped-read counts
+ *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
  *   - barcode count/stat files from all wrapped upstream DNA tagging steps
  */
 
@@ -20,6 +21,7 @@ include { TAG_DNA_CELL_BARCODE }     from '../../modules/local/tag_dna_cell_barc
 include { TRIM_DNA_FASTQS }          from '../../modules/local/trim_dna_fastqs/main'
 include { SPLIT_DNA_READS }          from '../../modules/local/split_dna_reads/main'
 include { ALIGN_DNA }                from '../../modules/local/align_dna/main'
+include { MARK_DUPLICATES_DNA }      from '../../modules/local/mark_duplicates_dna/main'
 
 def asPathList(obj) {
     if( obj instanceof List ) {
@@ -132,6 +134,7 @@ workflow INITIAL_DNA_TAGGING {
         }
 
     ALIGN_DNA(ch_align_input)
+    MARK_DUPLICATES_DNA(ALIGN_DNA.out.bam)
 
     ch_barcode_reports = TAG_DNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics)
@@ -145,5 +148,8 @@ workflow INITIAL_DNA_TAGGING {
     aligned_bams    = ALIGN_DNA.out.bam
     aligned_bais    = ALIGN_DNA.out.bai
     alignment_barcode_counts = ALIGN_DNA.out.barcode_counts
+    markeddup_bams = MARK_DUPLICATES_DNA.out.bam
+    markeddup_bais = MARK_DUPLICATES_DNA.out.bai
+    duplicate_metrics = MARK_DUPLICATES_DNA.out.metrics
     barcode_reports = ch_barcode_reports
 }
