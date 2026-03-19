@@ -1,6 +1,6 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, and now also runs the implemented DNA workflow through DNA `MarkDuplicates`.
+TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, and now also implements the immediate DNA-only post-MarkDuplicates prep through duplicate-filtered DNA `_NoDup.bam` plus `bamCoverage` wrappers.
 
 ## Current slice
 
@@ -18,8 +18,10 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `SPLIT_DNA_READS` wraps the immediate upstream DNA `Split_ReadsV2.codon` step in `dna` mode after trimming.
 - `ALIGN_DNA` wraps the immediate upstream DNA `AlignDNA.sh` step after grouped DNA split outputs.
 - `MARK_DUPLICATES_DNA` wraps the immediate upstream DNA `gatk MarkDuplicates` step after direct `AlignDNA.sh` BAM outputs.
+- `SPLIT_DUPLICATES_DNA` wraps the immediate upstream `samtools view` plus `samtools index` steps that emit DNA `_NoDup.bam` outputs after `MarkDuplicates`.
+- `BAM_COVERAGE_DNA` wraps the immediate upstream `bamCoverage` step on DNA `_NoDup.bam` inputs.
 - `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
-- `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through duplicate-marked DNA BAM outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
+- `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through DNA `_NoDup.bam` plus coverage outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`.
 - For normal execution on this server, the pipeline binds `python3`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, and `bwa-mem2` explicitly to `/home/annan/micromamba/envs/tres/bin/...`.
 - `gatk` remains explicitly pinned outside that env at `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
@@ -29,7 +31,7 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
 - Pinning the real-mode toolchain does not change the mock `-profile test` or `-profile test,docker` paths.
 - The first true shared downstream step is still one future `sc_process.py` call. This repo does not reproduce the second erroneous `sc_process.py` invocation from `MAINLAUNCH.sh`.
-- Downstream RNA `.ubam` conversion, DNA duplicate splitting to `_NoDup.bam`, DNA coverage generation, and shared `sc_process.py` analysis remain intentionally out of scope for the current implementation.
+- Downstream RNA `.ubam` conversion and the single shared `sc_process.py` analysis remain intentionally out of scope for the current implementation.
 - Every run also writes `pipeline_info/runtime_contract.tsv`, which records the configured explicit runtime binaries plus the host Codon/Seq preflight output.
 
 ## Implemented Boundaries
@@ -59,10 +61,12 @@ The upstream DNA order relevant to this repo is:
 5. `Split_ReadsV2.codon` in `dna` mode
 6. `AlignDNA.sh`
 7. `gatk MarkDuplicates`
-8. downstream duplicate splitting and coverage generation
+8. duplicate filtering to `_NoDup.bam`
+9. `samtools index` on `_NoDup.bam`
+10. `bamCoverage`
 
-This repo currently implements the next DNA boundary: steps 1 through 7.
-DNA duplicate splitting to `_NoDup.bam`, coverage generation, and shared downstream analysis remain intentionally out of scope.
+This repo currently implements the next DNA boundary: steps 1 through 10.
+The first remaining shared downstream step is still one future `sc_process.py` call.
 
 ## Layout
 
@@ -88,6 +92,8 @@ DNA duplicate splitting to `_NoDup.bam`, coverage generation, and shared downstr
 - `modules/local/split_dna_reads/main.nf`
 - `modules/local/align_dna/main.nf`
 - `modules/local/mark_duplicates_dna/main.nf`
+- `modules/local/split_duplicates_dna/main.nf`
+- `modules/local/bam_coverage_dna/main.nf`
 - `assets/samplesheet.example.yaml`
 - `assets/samplesheet.dna.example.yaml`
 - `assets/samplesheet.real_rna.template.yaml`
@@ -136,7 +142,7 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
   Default: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `--runtime_bam_coverage`
   Default: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
-  Reserved for the future DNA coverage step; it is recorded in `pipeline_info/runtime_contract.tsv` but not used by the current implemented boundary.
+  Used by `BAM_COVERAGE_DNA` for the current DNA post-MarkDuplicates coverage wrapper and recorded in `pipeline_info/runtime_contract.tsv`.
 - `--gatk_root`
   Default: `/mnt/dataFast/ahrmad/gatk-4.6.0.0`
   `MARK_DUPLICATES_DNA` runs `${gatk_root}/gatk MarkDuplicates`.
@@ -232,7 +238,7 @@ For DNA sample-barcode tagging and DNA split, `sb_group_map` is the shared sampl
 `dna_mo_map` is the launcher-style modality map TSV consumed by `Split_ReadsV2.codon` in `dna` mode.
 The supported DNA MO-map form for this repo is the launcher-style 4-column TSV: `sample<TAB>sb_group<TAB>mark<TAB>mo_bc`.
 DNA alignment uses explicit CLI inputs matching `AlignDNA.sh`: `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
-DNA duplicate-marking, coverage, and downstream QC remain intentionally out of scope.
+Shared downstream analysis remains intentionally out of scope.
 
 ## Running the test profile
 
@@ -250,8 +256,8 @@ The upstream launcher deletes the untrimmed CB FASTQs after `trim_galore`; this 
 nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna
 ```
 
-Expected DNA outputs land under `results/test_dna/dna_tagging/`, `results/test_dna/dna_split/`, and `results/test_dna/dna_align/`:
-sample-barcode-tagged FASTQs, sample-plus-modality-tagged FASTQs, SB/MO/CB count and stats files, CB tag records, trimmed `_val_1` / `_val_2` DNA FASTQs, split per-group per-mark FASTQ pairs, `SAM_RG_Header_*.tsv` files, mocked aligned BAMs, mocked BAM indexes, and mocked per-barcode count TSVs.
+Expected DNA outputs land under `results/test_dna/dna_tagging/`, `results/test_dna/dna_split/`, `results/test_dna/dna_align/`, `results/test_dna/dna_dedup/`, `results/test_dna/dna_nodup/`, and `results/test_dna/dna_coverage/`:
+sample-barcode-tagged FASTQs, sample-plus-modality-tagged FASTQs, SB/MO/CB count and stats files, CB tag records, trimmed `_val_1` / `_val_2` DNA FASTQs, split per-group per-mark FASTQ pairs, `SAM_RG_Header_*.tsv` files, mocked aligned BAMs, mocked BAM indexes, mocked per-barcode count TSVs, mocked `_MarkedDup.bam` outputs, mocked `_NoDup.bam` outputs, and mocked bigWig coverage tracks.
 
 ## Real RNA Validation
 
@@ -332,7 +338,7 @@ Expected outputs through the implemented RNA boundary:
 
 ## Real DNA Validation
 
-The real DNA validation path for this pass uses the provided real DNA inputs under `assets/test_realdata/` and stops at the direct `gatk MarkDuplicates` output boundary.
+The real DNA validation path for this pass uses the provided real DNA inputs under `assets/test_realdata/` and implements the DNA-only post-alignment prep boundary after `MarkDuplicates`.
 The pipeline requires the shared sample-barcode group map plus the DNA modality map for DNA split, and explicit alignment CLI inputs matching `AlignDNA.sh`.
 For DNA sample-barcode tagging, `sb_group_map` is also the single source of truth for the effective SB whitelist passed into upstream `Tag.codon`.
 
@@ -341,16 +347,19 @@ Exact run command for host-based real-DNA validation:
 ```bash
 nextflow run . \
   --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real_markdup \
+  --outdir results/test_dna_real_postalign \
   --dna_bwa_reference /path/to/bwa_index_prefix \
   --dna_blacklist_bed /path/to/blacklist.bed \
   --dna_effective_genome_size 2913022398
 ```
 
 The current provided `assets/test_realdata/sb_map_RNA.tsv` filename is legacy, but it is consumed as the generic `sb_group_map`.
-On this server, deriving the DNA SB whitelist from `sb_group_map` plus the explicit launcher-style human alignment inputs makes the provided real DNA run complete through `MarkDuplicates`.
+On this server, deriving the DNA SB whitelist from `sb_group_map` plus the explicit launcher-style human alignment inputs makes the provided real DNA run complete through `_NoDup.bam` outputs.
 `AlignDNA.sh` directly emits the filtered BAM, BAM index, and properly paired mapped reads per barcode TSV; it also hardcodes `min_good_reads_in_cells=100`.
 `MARK_DUPLICATES_DNA` preserves the launcher `gatk MarkDuplicates` contract with `--BARCODE_TAG CB`, `--REMOVE_DUPLICATES false`, `--CREATE_INDEX true`, and `--MAX_RECORDS_IN_RAM 10000000`.
+`SPLIT_DUPLICATES_DNA` preserves the launcher `samtools view --require-flags 0x400 --unoutput ..._NoDup.bam` plus `samtools index` steps.
+`BAM_COVERAGE_DNA` preserves the launcher `bamCoverage -bs 100 --extendReads --centerReads --effectiveGenomeSize <effSize>` step on each `_NoDup.bam` with mapped reads.
+If a `_NoDup.bam` has zero mapped reads, the wrapper skips `bamCoverage` with a warning instead of letting deepTools flood stderr indefinitely on the current real data.
 
 Expected outputs through the implemented DNA boundary when `sb_group_map`, `dna_mo_map`, and the explicit DNA alignment inputs satisfy the upstream contract:
 
@@ -367,16 +376,21 @@ Expected outputs through the implemented DNA boundary when `sb_group_map`, `dna_
 - `outdir/dna_dedup/` with one `<sample>_<group>_<mark>_MarkedDup.bam` per valid group and mark combination
 - `outdir/dna_dedup/` with one `<sample>_<group>_<mark>_MarkedDup.bam.bai` per valid group and mark combination
 - `outdir/dna_dedup/` with one `<sample>_<group>_<mark>.DuplicateMetrics.txt` per valid group and mark combination
+- `outdir/dna_nodup/` with one `<sample>_<group>_<mark>_NoDup.bam` per valid group and mark combination
+- `outdir/dna_nodup/` with one `<sample>_<group>_<mark>_NoDup.bam.bai` per valid group and mark combination
+- `outdir/dna_coverage/` with one `<sample>_<group>_<mark>_NoDup.bw` per valid group and mark combination whose `_NoDup.bam` contains mapped reads
 - `outdir/pipeline_info/` with the configured Nextflow report artifacts
 
 ## Acceptance Criteria
 
 - `nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test` succeeds through mocked RNA `AlignRNA.sh` outputs.
-- `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA duplicate-marking outputs.
-- `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_markdup --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398` succeeds through direct `gatk MarkDuplicates` outputs on a host with Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, `samtools`, and `gatk`.
+- `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA `_NoDup.bam` plus coverage outputs.
+- `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_postalign --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398` succeeds through direct DNA `_NoDup.bam` outputs on a host with Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, `samtools`, `bamCoverage`, and `gatk`.
+- If any `_NoDup.bam` has zero mapped reads, `BAM_COVERAGE_DNA` skips coverage for that split with a warning.
+- Full server-side validation of non-empty real `bamCoverage` outputs is still pending.
 - The DNA sample-barcode whitelist is derived from `sb_group_map`; a separate DNA sample-barcode whitelist is not part of the pipeline contract.
 - RNA output locations remain `tagging/`, `split/`, `usam/`, `align/`, and `pipeline_info/`.
-- DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, `dna_dedup/`, and `pipeline_info/`.
+- DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, `dna_dedup/`, `dna_nodup/`, `dna_coverage/`, and `pipeline_info/`.
 - The pipeline still writes Nextflow `timeline`, `report`, `trace`, and `DAG` artifacts under `${params.outdir}/pipeline_info/`.
 - The pipeline also writes `${params.outdir}/pipeline_info/runtime_contract.tsv` so the configured explicit runtime binaries are easy to verify after a run.
 
@@ -421,8 +435,8 @@ Supported on native Linux and macOS hosts:
 nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna
 ```
 
-This path uses the bundled mock wrappers for the current DNA boundary through duplicate-marked DNA outputs, and startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
-This mock path emits `dna_split/`, `dna_align/`, and `dna_dedup/` outputs.
+This path uses the bundled mock wrappers for the current DNA boundary through `_NoDup.bam` plus coverage outputs, and startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
+This mock path emits `dna_split/`, `dna_align/`, `dna_dedup/`, `dna_nodup/`, and `dna_coverage/` outputs.
 
 ### Host + Real RNA Validation
 
@@ -451,18 +465,18 @@ Supported on native Linux and macOS hosts with the provided real DNA files under
 ```bash
 nextflow run . \
   --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real_markdup \
+  --outdir results/test_dna_real_postalign \
   --dna_bwa_reference /path/to/bwa_index_prefix \
   --dna_blacklist_bed /path/to/blacklist.bed \
   --dna_effective_genome_size 2913022398
 ```
 
-This path runs the current DNA workflow in real mode through direct `gatk MarkDuplicates` outputs.
-It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `bwa-mem2`, and `samtools` from `/home/annan/micromamba/envs/tres/bin/`.
+This path runs the current DNA workflow in real mode through direct `_NoDup.bam` outputs and then invokes the DNA coverage wrapper.
+It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `bwa-mem2`, `samtools`, and `bamCoverage` from `/home/annan/micromamba/envs/tres/bin/`.
 It uses the top-level `sb_group_map` plus `dna_mo_map` entries from the samplesheet to satisfy the upstream `Split_ReadsV2.codon` DNA contract, and it uses the explicit DNA alignment CLI params to satisfy the upstream `AlignDNA.sh` contract.
 For DNA sample-barcode tagging, the pipeline derives the effective SB whitelist directly from `sb_group_map`.
 It uses `${params.gatk_root}/gatk` for duplicate marking; on this server the default is `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
-Duplicate splitting to `_NoDup.bam`, coverage generation, and shared downstream analysis remain intentionally out of scope.
+The first remaining shared downstream step is still one future `sc_process.py` call.
 
 ### Micromamba Dev + Test
 
@@ -495,7 +509,7 @@ nextflow run . -profile test,docker --samplesheet assets/samplesheet.example.yam
 
 This keeps the current wrapper tasks containerized, but it is no longer a standalone portable smoke-test path because startup still enforces host Codon `0.16.3` and Seq `0.11.3`.
 Under `-profile docker`, every process labeled `codon_wrapper` runs in the local image `tresflow-first-slice:py312`, built from `docker/first_slice.Dockerfile`.
-That currently includes the wrapped RNA path plus the wrapped DNA path through direct `gatk MarkDuplicates` outputs.
+That currently includes the wrapped RNA path plus the wrapped DNA path through direct `_NoDup.bam` plus coverage outputs.
 This does not make any execution mode fully portable, because Codon `0.16.3` and Seq `0.11.3` are still required on the host in the current implementation.
 
 ## Real Mode Host Prerequisites
@@ -511,6 +525,7 @@ Every pipeline run currently requires the following on the host:
 - `/home/annan/micromamba/envs/tres/bin/samtools`
 - `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
 - `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
+- `/home/annan/micromamba/envs/tres/bin/bamCoverage`
 - `gatk` available under `${params.gatk_root}/gatk` for DNA duplicate marking runs
 - the read-only upstream scripts under `upstream/source_scripts/`
 
@@ -587,7 +602,6 @@ Current explicit runtime bindings for the implemented slice:
 - `bedGraphToBigWig`: `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
 - `bwa-mem2`: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `bamCoverage`: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
-  Reserved for the future DNA coverage step; not used by the current implemented boundary.
 - `gatk`: `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`
 
 Still host-dependent:

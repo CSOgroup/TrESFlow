@@ -12,6 +12,8 @@
  *   - Split_ReadsV2 per-group per-mark DNA FASTQs and SAM RG headers
  *   - AlignDNA filtered BAMs, BAM indexes, and properly paired mapped-read counts
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
+ *   - duplicate-filtered NoDup BAMs and indexes
+ *   - bigWig coverage tracks from the NoDup BAMs
  *   - barcode count/stat files from all wrapped upstream DNA tagging steps
  */
 
@@ -24,6 +26,8 @@ include { TRIM_DNA_FASTQS }          from '../../modules/local/trim_dna_fastqs/m
 include { SPLIT_DNA_READS }          from '../../modules/local/split_dna_reads/main'
 include { ALIGN_DNA }                from '../../modules/local/align_dna/main'
 include { MARK_DUPLICATES_DNA }      from '../../modules/local/mark_duplicates_dna/main'
+include { SPLIT_DUPLICATES_DNA }     from '../../modules/local/split_duplicates_dna/main'
+include { BAM_COVERAGE_DNA }         from '../../modules/local/bam_coverage_dna/main'
 
 workflow INITIAL_DNA_TAGGING {
     take:
@@ -130,6 +134,21 @@ workflow INITIAL_DNA_TAGGING {
 
     ALIGN_DNA(ch_align_input)
     MARK_DUPLICATES_DNA(ALIGN_DNA.out.bam)
+    SPLIT_DUPLICATES_DNA(MARK_DUPLICATES_DNA.out.bam)
+
+    ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
+        .join(SPLIT_DUPLICATES_DNA.out.bai)
+        .map { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai ->
+            tuple(
+                splitName,
+                metaFromBam,
+                noDupBam,
+                noDupBai,
+                (params.dna_effective_genome_size as String)
+            )
+        }
+
+    BAM_COVERAGE_DNA(ch_nodup_for_coverage)
 
     ch_barcode_reports = TAG_DNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics)
@@ -146,5 +165,8 @@ workflow INITIAL_DNA_TAGGING {
     markeddup_bams = MARK_DUPLICATES_DNA.out.bam
     markeddup_bais = MARK_DUPLICATES_DNA.out.bai
     duplicate_metrics = MARK_DUPLICATES_DNA.out.metrics
+    nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
+    nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
+    coverage_bigwigs = BAM_COVERAGE_DNA.out.bw
     barcode_reports = ch_barcode_reports
 }

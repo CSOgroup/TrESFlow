@@ -11,7 +11,8 @@
  *   8. Run the upstream RNA AlignRNA.sh step via a thin wrapper.
  *   9. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
- *      and GATK MarkDuplicates through the duplicate-marked DNA BAM boundary.
+ *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage
+ *      through the DNA-only post-alignment prep boundary before shared downstream work.
  */
 
 import PipelineSupport
@@ -115,5 +116,8 @@ workflow TRESEQ {
     dna_markeddup_bams = INITIAL_DNA_TAGGING.out.markeddup_bams
     dna_markeddup_bais = INITIAL_DNA_TAGGING.out.markeddup_bais
     dna_duplicate_metrics = INITIAL_DNA_TAGGING.out.duplicate_metrics
+    dna_nodup_bams = INITIAL_DNA_TAGGING.out.nodup_bams
+    dna_nodup_bais = INITIAL_DNA_TAGGING.out.nodup_bais
+    dna_coverage_bigwigs = INITIAL_DNA_TAGGING.out.coverage_bigwigs
     dna_barcode_reports = INITIAL_DNA_TAGGING.out.barcode_reports
 }
