@@ -1,40 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REQUIRED_CODON_VERSION="0.16.3"
+REQUIRED_SEQ_VERSION="0.11.3"
 CODON_HOME_DIR="${CODON_HOME:-${HOME}/.codon}"
 SEQ_PLUGIN_DIR="${CODON_HOME_DIR}/lib/codon/plugins/seq"
 SEQ_PLUGIN_TOML="${SEQ_PLUGIN_DIR}/plugin.toml"
 
-echo "Checking Codon/Seq host prerequisites"
+extract_semver() {
+  local value="${1:-}"
+  printf '%s\n' "${value}" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true
+}
+
+echo "Checking pinned Codon/Seq host prerequisites for every pipeline run"
 echo "CODON_HOME=${CODON_HOME_DIR}"
+echo "required_codon_version=${REQUIRED_CODON_VERSION}"
+echo "required_seq_version=${REQUIRED_SEQ_VERSION}"
 
 if ! command -v codon >/dev/null 2>&1; then
   echo "ERROR: 'codon' is not on PATH." >&2
-  echo "Install Codon with Exaloop's installer script and ensure the binary is on PATH." >&2
+  echo "Install Codon ${REQUIRED_CODON_VERSION} with scripts/install_codon_0.16.3.sh and ensure the binary is on PATH." >&2
   exit 1
 fi
 
 CODON_BIN="$(command -v codon)"
-CODON_VERSION="$(codon --version 2>/dev/null | head -n 1 || true)"
+CODON_VERSION_RAW="$(codon --version 2>/dev/null | head -n 1 || true)"
+CODON_VERSION="$(extract_semver "${CODON_VERSION_RAW}")"
 
 echo "codon_path=${CODON_BIN}"
+echo "codon_version_raw=${CODON_VERSION_RAW:-unknown}"
 echo "codon_version=${CODON_VERSION:-unknown}"
 
-if [[ ! -f "${SEQ_PLUGIN_TOML}" ]]; then
-  echo "ERROR: Seq plugin metadata not found at ${SEQ_PLUGIN_TOML}" >&2
-  echo "Install the Seq plugin tarball into ${CODON_HOME_DIR}/lib/codon/plugins/seq" >&2
+if [[ "${CODON_VERSION}" != "${REQUIRED_CODON_VERSION}" ]]; then
+  echo "ERROR: Codon ${REQUIRED_CODON_VERSION} is required for every pipeline run, found '${CODON_VERSION_RAW:-unknown}'." >&2
   exit 1
 fi
 
-SEQ_VERSION="$(awk -F'"' '/^version = /{print $2; exit}' "${SEQ_PLUGIN_TOML}")"
+if [[ ! -f "${SEQ_PLUGIN_TOML}" ]]; then
+  echo "ERROR: Seq plugin metadata not found at ${SEQ_PLUGIN_TOML}" >&2
+  echo "Install Seq ${REQUIRED_SEQ_VERSION} into ${CODON_HOME_DIR}/lib/codon/plugins/seq" >&2
+  exit 1
+fi
+
+SEQ_VERSION_RAW="$(awk -F'"' '/^version = /{print $2; exit}' "${SEQ_PLUGIN_TOML}")"
+SEQ_VERSION="$(extract_semver "${SEQ_VERSION_RAW}")"
 SEQ_SUPPORTED_CODON="$(awk -F'"' '/^supported = /{print $2; exit}' "${SEQ_PLUGIN_TOML}")"
 
 echo "seq_plugin_dir=${SEQ_PLUGIN_DIR}"
+echo "seq_version_raw=${SEQ_VERSION_RAW:-unknown}"
 echo "seq_version=${SEQ_VERSION:-unknown}"
 echo "seq_supported_codon=${SEQ_SUPPORTED_CODON:-unknown}"
+
+if [[ "${SEQ_VERSION}" != "${REQUIRED_SEQ_VERSION}" ]]; then
+  echo "ERROR: Seq ${REQUIRED_SEQ_VERSION} is required for every pipeline run, found '${SEQ_VERSION_RAW:-unknown}'." >&2
+  exit 1
+fi
 
 if [[ ! -f "${SEQ_PLUGIN_DIR}/build/libseq.dylib" && ! -f "${SEQ_PLUGIN_DIR}/build/libseq.so" ]]; then
   echo "WARNING: Seq plugin shared library not found under ${SEQ_PLUGIN_DIR}/build" >&2
 fi
 
-echo "Host preflight passed."
+echo "Host preflight passed for globally pinned pipeline toolchain."

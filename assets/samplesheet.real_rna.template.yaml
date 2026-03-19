@@ -1,0 +1,31 @@
+# External/local real-RNA validation template.
+# The sample id must match the `sample` column in rna_sb_group_map.
+# For the current real-mode example, keep `id: day15`.
+
+library_name: REAL_VALIDATION_LIB
+rna_sb_group_map: sb_map_RNA.tsv
+
+samples:
+  - id: day15
+    modality: rna
+    reads:
+      i1: day15_I1.fq.gz
+      r1: day15_R1.fq.gz
+      r2: day15_R2.fq.gz
+    barcodes:
+      sample:
+        bc_len: 4
+        bc_start: 0
+        hd: 1
+        tag: SB
+        first_pass: first_pass
+        reverse_complement: true
+      umi:
+        bc_len: 10
+        bc_start: 4
+        tag: UM
+      cell:
+        whitelist: ligation_barcode_whitelist.txt
+        bc_len: 8
+        hd: 1
+        tag: CB

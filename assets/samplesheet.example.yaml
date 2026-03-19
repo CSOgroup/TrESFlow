@@ -10,7 +10,6 @@ samples:
       r2: testdata/test_rna_R2.fastq
     barcodes:
       sample:
-        whitelist: testdata/sample_whitelist.txt
         bc_len: 4
         bc_start: 0
         hd: 1

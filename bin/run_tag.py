@@ -50,6 +50,46 @@ def load_whitelist(path: Path):
         return {line.strip() for line in handle if line.strip()}
 
 
+def load_whitelist_from_sb_group_map(path: Path, sample: str):
+    sb_to_group = {}
+
+    with open(path, "rt", encoding="utf-8") as handle:
+        for line_no, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.split()
+            if len(parts) < 3:
+                raise ValueError(
+                    f"Malformed RNA SB group map line {line_no} in {path}: expected at least 3 columns"
+                )
+
+            row_sample, group_name, sb_bc = parts[0], parts[1], parts[2]
+            if (
+                row_sample.lower() == "sample"
+                and group_name.lower() == "sb_group"
+                and sb_bc.lower() == "sb_bc"
+            ):
+                continue
+
+            if row_sample != sample:
+                continue
+
+            if sb_bc in sb_to_group and sb_to_group[sb_bc] != group_name:
+                raise ValueError(
+                    f"Conflicting RNA SB group map rows for sample {sample} barcode {sb_bc}: "
+                    f"{sb_to_group[sb_bc]} vs {group_name}"
+                )
+
+            sb_to_group[sb_bc] = group_name
+
+    if not sb_to_group:
+        raise ValueError(f"No RNA SB barcodes found in {path} for sample {sample}")
+
+    return set(sb_to_group.keys())
+
+
 def write_stats(output_stats: Path, n_reads: int, bc_reads: int, mismatch_stats, hd: int):
     reads_without_bc = n_reads - bc_reads
     lines = [
@@ -71,7 +111,7 @@ def percent(count: int, total: int) -> str:
 
 
 def mock_tag(args):
-    whitelist = load_whitelist(args.whitelist)
+    whitelist = load_whitelist_from_sb_group_map(args.sb_group_map, args.sample)
     mismatch_stats = [0 for _ in range(args.hd + 1)]
     barcode_counts = Counter()
     total_reads = 0
@@ -141,6 +181,10 @@ def real_tag(args):
 
     with tempfile.TemporaryDirectory(prefix="tresflow_tag_") as tmpdir:
         tmp_path = Path(tmpdir)
+        whitelist_path = tmp_path / f"{args.sample}_{args.tag}.derived_whitelist.txt"
+        whitelist_values = sorted(load_whitelist_from_sb_group_map(args.sb_group_map, args.sample))
+        whitelist_path.write_text("\n".join(whitelist_values) + "\n", encoding="utf-8")
+
         cmd = [
             "codon",
             "run",
@@ -157,7 +201,7 @@ def real_tag(args):
             str(args.i2),
             str(args.r1),
             str(args.r2),
-            str(args.whitelist),
+            str(whitelist_path),
             args.sample,
             args.tag,
             str(tmp_path),
@@ -166,8 +210,22 @@ def real_tag(args):
         ]
         subprocess.run(cmd, check=True)
 
-        expected_r1 = tmp_path / f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq"
-        expected_r2 = tmp_path / f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq"
+        expected_r1 = find_existing_output(
+            tmp_path,
+            [
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq",
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fq",
+            ],
+            "tagged R1 FASTQ",
+        )
+        expected_r2 = find_existing_output(
+            tmp_path,
+            [
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq",
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fq",
+            ],
+            "tagged R2 FASTQ",
+        )
         expected_counts = tmp_path / f"Reads_Per_Barcode_{args.sample}_{args.tag}.tsv"
         expected_stats = tmp_path / f"Barcode_Statistics_{args.sample}_{args.tag}.tsv"
 
@@ -175,6 +233,15 @@ def real_tag(args):
         shutil.move(expected_r2, args.output_r2)
         shutil.move(expected_counts, args.output_counts)
         shutil.move(expected_stats, args.output_stats)
+
+
+def find_existing_output(base_dir: Path, candidate_names, label: str) -> Path:
+    for candidate_name in candidate_names:
+        candidate = base_dir / candidate_name
+        if candidate.exists():
+            return candidate
+    joined = ", ".join(str(base_dir / name) for name in candidate_names)
+    raise FileNotFoundError(f"Expected {label} in one of: {joined}")
 
 
 def stem_without_fastq_suffix(name: str) -> str:
@@ -196,7 +263,7 @@ def parse_args():
     parser.add_argument("--i2", required=True, type=Path)
     parser.add_argument("--r1", required=True, type=Path)
     parser.add_argument("--r2", required=True, type=Path)
-    parser.add_argument("--whitelist", required=True, type=Path)
+    parser.add_argument("--sb-group-map", required=True, type=Path)
     parser.add_argument("--sample", required=True)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--bc-len", required=True, type=int)

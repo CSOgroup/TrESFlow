@@ -12,7 +12,7 @@
  *   - sample metadata
  *   - raw RNA R1 FASTQ
  *   - raw RNA R2 FASTQ (used both as read 2 and as the barcode source for this RNA step)
- *   - sample-barcode whitelist
+ *   - RNA SB-group map TSV used as the single source of truth for experiment-used sample barcodes
  * Outputs:
  *   - sample-barcode-tagged R1 / R2 FASTQs
  *   - barcode counts and summary stats
@@ -25,7 +25,7 @@ process TAG_RNA_SAMPLE_BARCODE {
     publishDir "${params.outdir}/tagging", mode: 'copy', overwrite: true
 
     input:
-    tuple val(sampleId), val(meta), path(r1), path(r2), path(sampleWhitelist)
+    tuple val(sampleId), val(meta), path(r1), path(r2), path(sbGroupMap)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), emit: tagged
@@ -41,7 +41,7 @@ process TAG_RNA_SAMPLE_BARCODE {
       --i2 "${r2}" \\
       --r1 "${r1}" \\
       --r2 "${r2}" \\
-      --whitelist "${sampleWhitelist}" \\
+      --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --tag "${meta.sample_tag}" \\
       --bc-len ${meta.sample_bc_len} \\

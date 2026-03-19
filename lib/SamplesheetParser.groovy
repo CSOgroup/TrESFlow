@@ -49,10 +49,6 @@ class SamplesheetParser {
                 i1                         : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
                 r1                         : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
                 r2                         : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
-                sample_whitelist           : resolveExistingPath(
-                    baseDir,
-                    requireString(sampleBarcode.whitelist, "samples[${idx}].barcodes.sample.whitelist")
-                ),
                 sample_bc_len              : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
                 sample_bc_start            : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
                 sample_hd                  : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),

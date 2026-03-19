@@ -10,10 +10,12 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `TRIM_RNA_FASTQS` wraps the immediate upstream RNA `trim_galore` step after CB tagging.
 - `SPLIT_RNA_READS` wraps the immediate upstream RNA `Split_ReadsV2.codon` step in `rna` mode after trimming.
 - `FQ_TO_SAM` wraps the immediate upstream RNA `FqToSAM.codon` step after read splitting.
-- `-profile test` uses lightweight mock wrappers so the pipeline runs end-to-end without Codon.
-- Real runs keep the business logic in the upstream scripts and require host-installed Codon, the Seq plugin, and `trim_galore`.
+- `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
+- Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`. Real runs also require `trim_galore`.
 - `envs/first_slice.yml` is the source of truth for software requirements around the currently implemented RNA-only slice.
+- A separate `test_real_rna` profile is available for external/local validation data through the current `FQ_TO_SAM` boundary.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
+- Pinning the real-mode toolchain does not change the mock `-profile test` or `-profile test,docker` paths.
 - The next upstream RNA step after `Split_ReadsV2.codon` is `FqToSAM.codon`. `AlignRNA.sh` remains intentionally out of scope for this slice.
 
 ## Layout
@@ -31,7 +33,9 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `modules/local/split_rna_reads/main.nf`
 - `modules/local/fq_to_sam/main.nf`
 - `assets/samplesheet.example.yaml`
+- `assets/samplesheet.real_rna.template.yaml`
 - `assets/testdata/`
+- `scripts/install_codon_0.16.3.sh`
 
 ## Required CLI params
 
@@ -58,7 +62,6 @@ samples:
       r2: path/to/R2.fastq.gz
     barcodes:
       sample:
-        whitelist: path/to/sample_whitelist.txt
         bc_len: 4
         bc_start: 0
         hd: 1
@@ -78,6 +81,9 @@ samples:
 
 The current slice only accepts `modality: rna`. DNA plus downstream alignment steps are intentionally not wired yet.
 The RNA SB-group map is the launcher-style TSV used by `Split_ReadsV2.codon` in `rna` mode: `sample<TAB>sb_group<TAB>sb_bc`.
+For the current RNA workflow it is also the single source of truth for the sample-barcode whitelist passed into `Tag.codon`.
+Blank lines, `#` comments, and a literal `sample sb_group sb_bc` header row are ignored.
+The pipeline fails if the map has no rows for a sample or if the same `sb_bc` is assigned to multiple groups for that sample.
 
 ## Running the test profile
 
@@ -88,6 +94,68 @@ nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --out
 Expected tagging and trimming outputs land under `results/test/tagging/`, split outputs land under `results/test/split/`, grouped unmapped SAM outputs land under `results/test/usam/`, and Nextflow report artifacts land under `results/test/pipeline_info/`. The trace artifact is the standard Nextflow tabular trace file, written as `execution_trace.tsv` in that directory.
 The upstream launcher deletes the untrimmed CB FASTQs after `trim_galore`; this slice keeps them published as intermediates and advances on the trimmed `_val_1` / `_val_2` outputs.
 `Split_ReadsV2.codon` has one ambiguity in its comments versus examples: the code comments discuss dropping an injected leading base from `SB`, but the upstream RNA map example uses full `SB` strings. This repo follows the script's actual lookup behavior: raw `SB` match first, then drop-first fallback.
+
+## Real RNA Validation
+
+The real-data validation path is intentionally external/local. No real RNA fixture is committed to this repo.
+
+Minimum real-input contract for the current RNA-only workflow:
+
+- top-level `library_name`
+- top-level `rna_sb_group_map`
+- per-sample `id` matching the `sample` column in `rna_sb_group_map` for the groups you want emitted.
+  For the current real-mode example, that sample id is `day15`.
+- per-sample `modality: rna`
+- per-sample `reads.i1`
+- per-sample `reads.r1`
+- per-sample `reads.r2`
+- per-sample `barcodes.sample.bc_len`
+- per-sample `barcodes.sample.bc_start`
+- per-sample `barcodes.sample.hd`
+- per-sample `barcodes.sample.tag` or default `SB`
+- per-sample `barcodes.sample.first_pass` or default `first_pass`
+- per-sample `barcodes.sample.reverse_complement` or default `true`
+- per-sample `barcodes.umi.bc_len`
+- per-sample `barcodes.umi.bc_start`
+- per-sample `barcodes.umi.tag` or default `UM`
+- per-sample `barcodes.cell.whitelist`
+- per-sample `barcodes.cell.bc_len`
+- per-sample `barcodes.cell.hd`
+- per-sample `barcodes.cell.tag` or default `CB`
+
+Recommended external/local layout:
+
+```text
+/path/to/real_rna_validation/
+  samplesheet.real_rna.yaml
+  sb_map_RNA.tsv
+  ligation_barcode_whitelist.txt
+  day15_I1.fq.gz
+  day15_R1.fq.gz
+  day15_R2.fq.gz
+```
+
+Use [`samplesheet.real_rna.template.yaml`](/Users/aannan/GitAA/TrESFlow/assets/samplesheet.real_rna.template.yaml) as the committed template. The real files above are expected to remain external/local.
+The template keeps `samples[0].id: day15` because the sample id must match the first `sample` column in `rna_sb_group_map`.
+
+Exact run command for host-based real-RNA validation:
+
+```bash
+nextflow run . -profile test_real_rna --samplesheet /path/to/real_rna_validation/samplesheet.real_rna.yaml --outdir results/test_real_rna
+```
+
+Optional variant if you want Nextflow to provision `trim_galore` and Python task dependencies through the checked-in conda environment while still using the globally required host Codon `0.16.3` plus Seq `0.11.3`:
+
+```bash
+nextflow run . -profile test_real_rna,conda_dev --samplesheet /path/to/real_rna_validation/samplesheet.real_rna.yaml --outdir results/test_real_rna
+```
+
+Expected outputs through the current boundary:
+
+- `outdir/tagging/` with SB, UM, CB, and trim outputs
+- `outdir/split/` with one FASTQ pair and one `SAM_RG_Header_*.tsv` per RNA SB group in `rna_sb_group_map`
+- `outdir/usam/` with one `<sample>_<group>_tagged.usam` per RNA SB group in `rna_sb_group_map`
+- `outdir/pipeline_info/` with the configured Nextflow report artifacts
 
 ## Current RNA Step Map
 
@@ -122,7 +190,7 @@ nextflow run . -profile test,conda_dev --samplesheet assets/samplesheet.example.
 ```
 
 `conda_dev` is for local development only. It is not enabled by default, and it does not replace Docker as the preferred portable execution target.
-Today it fully covers the mock `-profile test` path. Real mode still depends on host-installed Codon and the Seq plugin.
+Today it fully covers the mock `-profile test` task runtime. Every pipeline run still depends on host-installed Codon `0.16.3` and Seq `0.11.3`.
 
 ## What Works Today
 
@@ -134,7 +202,19 @@ Supported on native Linux and macOS hosts:
 nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-This path uses the bundled mock wrappers. It does not require Codon or Seq.
+This path uses the bundled mock wrappers for the RNA steps, but startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
+
+### Host + Real RNA Validation
+
+Supported on native Linux and macOS hosts with external/local RNA inputs:
+
+```bash
+nextflow run . -profile test_real_rna --samplesheet /path/to/real_rna_validation/samplesheet.real_rna.yaml --outdir results/test_real_rna
+```
+
+This path runs the current RNA-only workflow in real mode through grouped `FQ_TO_SAM` outputs.
+It requires host-installed Codon `0.16.3`, Seq `0.11.3`, and `trim_galore`.
+It expects the real input files to remain external/local and not committed to this repo.
 
 ### Micromamba Dev + Test
 
@@ -147,6 +227,7 @@ nextflow run . -profile test,conda_dev --samplesheet assets/samplesheet.example.
 ```
 
 This path uses Nextflow's official `conda` support with `conda.useMicromamba = true`. It is useful for local development and keeps the launcher and task Python environment aligned with `envs/first_slice.yml`.
+It still requires host Codon `0.16.3` and Seq `0.11.3` before the pipeline will start.
 
 ### Docker + Test
 
@@ -164,7 +245,7 @@ Then run:
 nextflow run . -profile test,docker --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-This is the portable smoke-test path for the currently implemented RNA-only slice.
+This keeps the currently implemented RNA-only slice containerized for the wrapper tasks, but it is no longer a standalone portable smoke-test path because startup still enforces host Codon `0.16.3` and Seq `0.11.3`.
 Only the current Python wrapper processes are containerized in this pass:
 
 - [`TAG_RNA_SAMPLE_BARCODE`](/Users/aannan/GitAA/TrESFlow/modules/local/tag_rna_sb/main.nf)
@@ -175,31 +256,63 @@ Only the current Python wrapper processes are containerized in this pass:
 - [`FQ_TO_SAM`](/Users/aannan/GitAA/TrESFlow/modules/local/fq_to_sam/main.nf)
 
 Under `-profile docker`, those processes run in the local image `tresflow-first-slice:py312`, built from `docker/first_slice.Dockerfile`.
-This does not make real non-mock execution portable, because Codon and Seq are still outside Docker in the current implementation.
+This does not make any execution mode fully portable, because Codon `0.16.3` and Seq `0.11.3` are still required on the host in the current implementation.
 
 ## Real Mode Host Prerequisites
 
-Real non-mock execution currently requires the following on the host:
+Every pipeline run currently requires the following on the host:
 
 - native Linux or macOS
-- Codon CLI installed via Exaloop's installer script and available on `PATH`
-- Seq plugin installed separately from the platform-specific `0.11.4` release tarball so that
-  `${HOME}/.codon/lib/codon/plugins/seq/plugin.toml` exists on disk
-- `trim_galore` available on `PATH` for the RNA trimming step
+- Codon `0.16.3` installed under `${HOME}/.codon` and available on `PATH`
+- Seq `0.11.3` installed separately under `${HOME}/.codon/lib/codon/plugins/seq`
+- `trim_galore` available on `PATH` for real RNA trimming runs
 - the read-only upstream scripts under `upstream/source_scripts/`
 
-Pinned Seq example for current documentation:
+For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and RNA SB-group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
 
-- Seq plugin version: `0.11.4`
-- plugin metadata on this host reports compatibility: `supported = ">=0.18.2"`
-- Codon installed on this host reports version: `0.19.6`
+If you already have a newer `${HOME}/.codon` install, back it up before downgrading:
 
-Example verification commands:
+```bash
+mv "${HOME}/.codon" "${HOME}/.codon.backup-$(date +%Y%m%d%H%M%S)"
+```
+
+Install pinned Codon `0.16.3` with the repo-local helper:
+
+```bash
+bash scripts/install_codon_0.16.3.sh
+```
+
+Install pinned Seq `0.11.3` separately from the OS/ARCH-specific release tarball. Examples:
+
+macOS arm64:
+
+```bash
+mkdir -p "${HOME}/.codon/lib/codon/plugins"
+curl -LO https://github.com/exaloop/seq/releases/download/v0.11.3/seq-darwin-arm64.tar.gz
+tar zxvf seq-darwin-arm64.tar.gz -C "${HOME}/.codon/lib/codon/plugins"
+```
+
+Linux x86_64:
+
+```bash
+mkdir -p "${HOME}/.codon/lib/codon/plugins"
+curl -LO https://github.com/exaloop/seq/releases/download/v0.11.3/seq-linux-x86_64.tar.gz
+tar zxvf seq-linux-x86_64.tar.gz -C "${HOME}/.codon/lib/codon/plugins"
+```
+
+Use the matching Seq `0.11.3` tarball name for other supported Linux/macOS OS/ARCH combinations.
+
+Exact preflight command used for every pipeline run:
+
+```bash
+bin/check_codon_seq_host.sh
+```
+
+Example version checks:
 
 ```bash
 codon --version
 sed -n '1,20p' "${HOME}/.codon/lib/codon/plugins/seq/plugin.toml"
-bin/check_codon_seq_host.sh
 ```
 
 Example real-mode run:
@@ -208,7 +321,7 @@ Example real-mode run:
 nextflow run . --samplesheet /path/to/samplesheet.yaml --outdir /path/to/results
 ```
 
-For real execution, `envs/first_slice.yml` is not enough by itself. Codon and Seq remain documented host prerequisites until they are containerized.
+For every execution mode, `envs/first_slice.yml` is not enough by itself. It does not install Codon `0.16.3` or Seq `0.11.3`, which remain mandatory host prerequisites until they are containerized.
 
 ## Dependency Mapping for the Current Slice
 
@@ -223,8 +336,8 @@ Relevant entries from `envs/first_slice.yml` for the implemented RNA-only path:
 
 Not provided by `envs/first_slice.yml`:
 
-- `codon`
-- Seq plugin files under `${HOME}/.codon/lib/codon/plugins/seq`
+- Codon `0.16.3`
+- Seq `0.11.3` plugin files under `${HOME}/.codon/lib/codon/plugins/seq`
 
 Current process usage:
 
@@ -272,12 +385,12 @@ Supported via Docker now:
 
 - An optional `docker` profile exists for the current smoke-test path.
 - It containerizes only the Python wrapper processes using the local image `tresflow-first-slice:py312`.
-- `docker + test` is the currently supported portable smoke-test path.
+- `docker + test` still containerizes the current wrapper tasks, but it now also requires host Codon `0.16.3` and Seq `0.11.3` because startup enforces the pinned host toolchain globally.
 
 What remains host-dependent right now:
 
-- `codon` for real non-mock execution of the five wrapped upstream Codon RNA steps
-- Seq plugin installation under `${HOME}/.codon/lib/codon/plugins/seq`
+- Codon `0.16.3` for real non-mock execution of the five wrapped upstream Codon RNA steps
+- Seq `0.11.3` installation under `${HOME}/.codon/lib/codon/plugins/seq`
 - `trim_galore` for real non-mock execution of the RNA trim step unless you choose the optional `-profile conda_dev`
 - The read-only upstream scripts under `upstream/source_scripts/`
 - The local launcher environment unless you choose either:
@@ -288,12 +401,12 @@ Containerization note for the upcoming Docker work:
 
 - `envs/first_slice.yml` is now a portable dependency manifest and should be treated as the package baseline for the first-slice image.
 - Docker remains the preferred long-term portability target for Linux and macOS users running containers.
-- A Docker image that fully supports real execution of the current slice will still need to account for both Codon and the Seq plugin, because those requirements are outside the checked-in env file today.
+- A Docker image that fully supports real execution of the current slice will still need to account for both Codon `0.16.3` and Seq `0.11.3`, because those requirements are outside the checked-in env file today.
 
-Current limitation for real mode:
+Current limitation:
 
-- `-profile docker` only makes the mock smoke test portable today.
-- Real non-mock execution is still not fully portable because the wrapped steps call `codon -plugin seq`, Codon plus the Seq plugin are still external host prerequisites, and the Docker smoke-test image does not include `trim_galore`.
+- No profile bypasses the pinned host Codon/Seq requirement.
+- `-profile docker` only containerizes the wrapped task runtime. It does not remove the host requirement for Codon `0.16.3` plus Seq `0.11.3`, and the Docker smoke-test image still does not include `trim_galore`.
 
 ## Acceptance Criteria
 
@@ -330,6 +443,15 @@ The current RNA-only slice is accepted when:
   `test_rna_Co2_tagged.usam`
 - `results/test/pipeline_info/` contains the configured Nextflow report artifacts
 
+The external/local real-RNA validation path is accepted when:
+
+- `nextflow run . -profile test_real_rna --samplesheet /path/to/real_rna_validation/samplesheet.real_rna.yaml --outdir results/test_real_rna` completes successfully
+- the real-data files remain external/local and are not committed to this repo
+- `results/test_real_rna/tagging/` contains SB, UM, CB, and trim outputs for the supplied sample
+- `results/test_real_rna/split/` contains one FASTQ pair plus one `SAM_RG_Header_*.tsv` per RNA SB group in the supplied `rna_sb_group_map`
+- `results/test_real_rna/usam/` contains one `<sample>_<group>_tagged.usam` per RNA SB group in the supplied `rna_sb_group_map`
+- `results/test_real_rna/pipeline_info/` contains the configured Nextflow report artifacts
+
 Exact test command:
 
 ```bash
@@ -338,7 +460,7 @@ nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --out
 
 ## Troubleshooting
 
-To verify the host prerequisites for real mode:
+To verify the host prerequisites enforced for every pipeline run:
 
 ```bash
 bin/check_codon_seq_host.sh
@@ -347,6 +469,6 @@ bin/check_codon_seq_host.sh
 That check verifies:
 
 - `codon` is on `PATH`
-- Codon reports a version
+- Codon reports exactly `0.16.3`
 - Seq plugin metadata exists where Codon expects it by default
-- Seq plugin metadata exposes a version and supported Codon range
+- Seq plugin metadata reports exactly `0.11.3`

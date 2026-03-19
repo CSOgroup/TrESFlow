@@ -3,8 +3,8 @@
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
  *   - raw RNA I1 / R1 / R2 FASTQs
- *   - RNA sample-barcode and cell-barcode whitelists
- *   - RNA SB-group map TSV for Split_ReadsV2 rna mode
+ *   - RNA cell-barcode whitelist
+ *   - RNA SB-group map TSV, used both to derive the effective sample-barcode whitelist and later by Split_ReadsV2 rna mode
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
@@ -32,13 +32,13 @@ workflow INITIAL_RNA_TAGGING {
     ch_rna_samples
 
     main:
-    ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist, sbGroupMap ->
-        tuple(sampleId, meta, r1, r2, sampleWhitelist)
+    ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
+        tuple(sampleId, meta, r1, r2, sbGroupMap)
     }
 
     TAG_RNA_SAMPLE_BARCODE(ch_sb_input)
 
-    ch_raw_r2 = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist, sbGroupMap ->
+    ch_raw_r2 = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, r2)
     }
 
@@ -50,7 +50,7 @@ workflow INITIAL_RNA_TAGGING {
 
     TAG_RNA_UMI(ch_umi_input)
 
-    ch_cb_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist, sbGroupMap ->
+    ch_cb_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, i1, cellWhitelist)
     }
 
@@ -63,7 +63,7 @@ workflow INITIAL_RNA_TAGGING {
     TAG_RNA_CELL_BARCODE(ch_cb_input)
     TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
 
-    ch_split_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, sampleWhitelist, cellWhitelist, sbGroupMap ->
+    ch_split_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, sbGroupMap)
     }
 

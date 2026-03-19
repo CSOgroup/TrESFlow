@@ -29,7 +29,6 @@ workflow TRESEQ {
                 file(row.i1),
                 file(row.r1),
                 file(row.r2),
-                file(row.sample_whitelist),
                 file(row.cell_whitelist),
                 file(row.rna_sb_group_map)
             )
