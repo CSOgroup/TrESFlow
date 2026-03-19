@@ -6,6 +6,7 @@
  *   3. Run the upstream RNA UMI tagging step (Tag_UMI.codon) via a thin wrapper.
  *   4. Run the upstream RNA cell-barcode tagging step (Tag_Lig3.codon) via a thin wrapper.
  *   5. Run the upstream RNA trim_galore step via a thin wrapper.
+ *   6. Run the upstream RNA Split_ReadsV2 step in rna mode via a thin wrapper.
  */
 
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
@@ -28,7 +29,8 @@ workflow TRESEQ {
                 file(row.r1),
                 file(row.r2),
                 file(row.sample_whitelist),
-                file(row.cell_whitelist)
+                file(row.cell_whitelist),
+                file(row.rna_sb_group_map)
             )
         }
         .set { ch_rna_samples }
@@ -38,5 +40,7 @@ workflow TRESEQ {
     emit:
     tagged_fastqs     = INITIAL_RNA_TAGGING.out.tagged_fastqs
     trimmed_fastqs    = INITIAL_RNA_TAGGING.out.trimmed_fastqs
+    split_fastqs      = INITIAL_RNA_TAGGING.out.split_fastqs
+    rg_headers        = INITIAL_RNA_TAGGING.out.rg_headers
     barcode_reports   = INITIAL_RNA_TAGGING.out.barcode_reports
 }

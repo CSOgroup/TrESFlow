@@ -1,3 +1,6 @@
+library_name: TESTLIB
+rna_sb_group_map: testdata/rna_sb_group_map.tsv
+
 samples:
   - id: test_rna
     modality: rna

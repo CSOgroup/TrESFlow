@@ -20,6 +20,11 @@ class SamplesheetParser {
         }
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
+        final String libraryName = requireString(parsed.library_name, 'library_name')
+        final String rnaSbGroupMap = resolveExistingPath(
+            baseDir,
+            requireString(parsed.rna_sb_group_map, 'rna_sb_group_map')
+        )
 
         final List<Map> samples = []
 
@@ -66,12 +71,14 @@ class SamplesheetParser {
                 ),
                 cell_bc_len                : requireInt(cellBarcode.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
                 cell_hd                    : requireInt(cellBarcode.hd, "samples[${idx}].barcodes.cell.hd"),
-                cell_tag                   : optionalString(cellBarcode.tag, 'CB')
+                cell_tag                   : optionalString(cellBarcode.tag, 'CB'),
+                library_name               : libraryName,
+                rna_sb_group_map           : rnaSbGroupMap
             ]
 
             if( sample.modality != 'rna' ) {
                 throw new IllegalArgumentException(
-                    "This first implementation slice only supports modality: rna (sample '${sampleId}' has '${sample.modality}')"
+                    "This current RNA-only slice only supports modality: rna (sample '${sampleId}' has '${sample.modality}')"
                 )
             }
 
