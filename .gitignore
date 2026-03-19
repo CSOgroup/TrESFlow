@@ -1,0 +1,5 @@
+
+upstream/
+.nextflow*
+results/
+work/

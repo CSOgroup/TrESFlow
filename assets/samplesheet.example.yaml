@@ -1,0 +1,19 @@
+samples:
+  - id: test_rna
+    modality: rna
+    reads:
+      r1: testdata/test_rna_R1.fastq
+      r2: testdata/test_rna_R2.fastq
+    barcodes:
+      sample:
+        whitelist: testdata/sample_whitelist.txt
+        bc_len: 4
+        bc_start: 0
+        hd: 1
+        tag: SB
+        first_pass: first_pass
+        reverse_complement: true
+      umi:
+        bc_len: 10
+        bc_start: 4
+        tag: UM
