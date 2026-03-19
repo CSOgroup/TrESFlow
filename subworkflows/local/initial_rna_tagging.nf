@@ -9,6 +9,7 @@
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
  *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
+ *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
  *   - barcode count/stat files from all wrapped upstream steps
  */
 
@@ -17,6 +18,14 @@ include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
 include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcode/main'
 include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/main'
 include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/main'
+include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
+
+def asPathList(obj) {
+    if( obj instanceof List ) {
+        return obj
+    }
+    return [obj]
+}
 
 workflow INITIAL_RNA_TAGGING {
     take:
@@ -66,6 +75,30 @@ workflow INITIAL_RNA_TAGGING {
 
     SPLIT_RNA_READS(ch_split_input)
 
+    ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
+        .flatMap { sampleId, meta, splitR1s, splitR2s ->
+            def r1ByGroup = asPathList(splitR1s).collectEntries { path ->
+                def name = path.getName()
+                def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R1\\.fq\\.gz$', '')
+                [(group): path]
+            }
+            def r2ByGroup = asPathList(splitR2s).collectEntries { path ->
+                def name = path.getName()
+                def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R2\\.fq\\.gz$', '')
+                [(group): path]
+            }
+
+            def groups = (r1ByGroup.keySet() + r2ByGroup.keySet()).unique().sort()
+            groups.collect { group ->
+                if( !r1ByGroup.containsKey(group) || !r2ByGroup.containsKey(group) ) {
+                    throw new IllegalStateException("Missing split FASTQ mate for sample '${sampleId}' group '${group}'")
+                }
+                tuple("${sampleId}_${group}", meta, r1ByGroup[group], r2ByGroup[group])
+            }
+        }
+
+    FQ_TO_SAM(ch_fq_to_sam_input)
+
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)
         .mix(TAG_RNA_CELL_BARCODE.out.metrics)
@@ -75,5 +108,6 @@ workflow INITIAL_RNA_TAGGING {
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
     split_fastqs     = SPLIT_RNA_READS.out.split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
+    usam_files       = FQ_TO_SAM.out.usam
     barcode_reports  = ch_barcode_reports
 }

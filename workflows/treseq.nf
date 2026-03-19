@@ -7,6 +7,7 @@
  *   4. Run the upstream RNA cell-barcode tagging step (Tag_Lig3.codon) via a thin wrapper.
  *   5. Run the upstream RNA trim_galore step via a thin wrapper.
  *   6. Run the upstream RNA Split_ReadsV2 step in rna mode via a thin wrapper.
+ *   7. Run the upstream RNA FqToSAM step via a thin wrapper.
  */
 
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
@@ -42,5 +43,6 @@ workflow TRESEQ {
     trimmed_fastqs    = INITIAL_RNA_TAGGING.out.trimmed_fastqs
     split_fastqs      = INITIAL_RNA_TAGGING.out.split_fastqs
     rg_headers        = INITIAL_RNA_TAGGING.out.rg_headers
+    usam_files        = INITIAL_RNA_TAGGING.out.usam_files
     barcode_reports   = INITIAL_RNA_TAGGING.out.barcode_reports
 }
