@@ -1,5 +1,8 @@
 /*
  * Subworkflow: SHARED_SC_STAGE
+ * Optional boundary:
+ *   - Runs only when the user explicitly enables shared downstream staging.
+ *
  * Inputs:
  *   - RNA grouped STARsolo directories
  *   - RNA grouped filtered BAMs

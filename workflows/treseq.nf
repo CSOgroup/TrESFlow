@@ -13,8 +13,10 @@
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage
  *      through the DNA-only post-alignment prep boundary before shared downstream work.
- *  10. When both modalities are present, stage one flat shared workdir that matches the
- *      input layout expected by one future sc_process.py call.
+ *  10. Optionally stage one flat shared workdir that matches the input layout expected
+ *      by one future sc_process.py call.
+ *  11. The single downstream sc_process.py call remains explicitly optional and is not
+ *      part of the mandatory core path.
  */
 
 import PipelineSupport
@@ -61,6 +63,25 @@ def sharedGenomeFromSpecies(final String rawSpecies) {
     return null
 }
 
+def parseBooleanParam(final Object rawValue, final String paramName) {
+    if( rawValue instanceof Boolean ) {
+        return (Boolean) rawValue
+    }
+
+    final String normalized = rawValue?.toString()?.trim()?.toLowerCase()
+    if( !normalized ) {
+        return false
+    }
+    if( normalized in ['true', '1', 'yes', 'y'] ) {
+        return true
+    }
+    if( normalized in ['false', '0', 'no', 'n'] ) {
+        return false
+    }
+
+    error "Invalid --${paramName} '${rawValue}'. Supported boolean values: true, false"
+}
+
 workflow TRESEQ {
     main:
     if( !params.samplesheet ) {
@@ -71,9 +92,29 @@ workflow TRESEQ {
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     final int maxCpus = params.max_cpus as int
+    final boolean stageScProcessInputs = parseBooleanParam(params.stage_sc_process_inputs, 'stage_sc_process_inputs')
+    final boolean runScProcess = parseBooleanParam(params.run_sc_process, 'run_sc_process')
 
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
+    }
+
+    if( stageScProcessInputs && !(rnaRows && dnaRows) ) {
+        error "--stage_sc_process_inputs requires both RNA and DNA samples in the same YAML samplesheet"
+    }
+
+    if( runScProcess ) {
+        if( !(rnaRows && dnaRows) ) {
+            error "--run_sc_process requires both RNA and DNA samples in the same YAML samplesheet"
+        }
+
+        error (
+            "Optional downstream sc_process.py execution is not implemented in this checkout. " +
+            "The supported core workflow stops at RNA ALIGN_RNA and DNA BAM_COVERAGE_DNA. " +
+            "If you want downstream preparation only, use --stage_sc_process_inputs true. " +
+            "A future real sc_process.py run on this server also requires a local SnapATAC-compatible gene annotation " +
+            "to avoid the upstream script's attempted download of gencode.v41.basic.annotation.gff3.gz."
+        )
     }
 
     if( rnaRows ) {
@@ -110,7 +151,7 @@ workflow TRESEQ {
     INITIAL_DNA_TAGGING(ch_dna_samples)
 
     def ch_shared_stage_dir = Channel.empty()
-    if( rnaRows && dnaRows ) {
+    if( stageScProcessInputs ) {
         final String sharedSpecies = (params.rna_align_species ?: '').toString().trim().toLowerCase()
         final String sharedGenome = sharedGenomeFromSpecies(sharedSpecies)
         final String sharedStageLabel = (sampleRows[0].library_name ?: 'shared_stage').toString()

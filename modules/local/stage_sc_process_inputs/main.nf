@@ -3,6 +3,7 @@
  * Purpose:
  *   - Build the first true shared downstream boundary after the current RNA and DNA branches.
  *   - Stage a flat workdir layout that matches what upstream sc_process.py expects.
+ *   - Remain optional so the validated RNA and DNA branches stay useful on their own.
  *
  * Inputs:
  *   - launcher-style DNA modality map TSV
