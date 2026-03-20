@@ -1,8 +1,7 @@
 # External/local real-RNA validation template.
 # The sample id must match the `sample` column in sb_group_map.
-# The example file path keeps the legacy filename `sb_map_RNA.tsv`, but the
-# pipeline contract treats it as the shared sample-barcode group map.
-# For the current real-mode example, keep `id: day15`.
+# The on-disk filename `sb_map_RNA.tsv` is legacy; the pipeline treats it as
+# the shared sample-barcode group map.
 
 library_name: REAL_VALIDATION_LIB
 sb_group_map: sb_map_RNA.tsv

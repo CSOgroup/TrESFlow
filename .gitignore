@@ -3,3 +3,9 @@ upstream/
 .nextflow*
 results/
 work/
+.DS_Store
+nxf-tmp.*
+__pycache__/
+tmp-home/
+tmp-mpl/
+tmp-numba/

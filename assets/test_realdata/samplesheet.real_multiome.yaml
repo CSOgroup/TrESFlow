@@ -1,6 +1,6 @@
-# Shared real-data validation example for the current strongest truthful boundary before sc_process.py.
-# The sb-group map keeps its legacy on-disk filename `sb_map_RNA.tsv`, but the
-# pipeline contract treats it as the shared sample-barcode group map for both RNA and DNA.
+# Shared real-data validation example for the optional staged multiome boundary.
+# The on-disk filename `sb_map_RNA.tsv` is legacy; the pipeline treats it as
+# the shared sample-barcode group map for both RNA and DNA.
 library_name: REAL_VALIDATION_LIB_MULTIOME
 sb_group_map: sb_map_RNA.tsv
 dna_mo_map: mo_map.tsv

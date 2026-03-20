@@ -1,14 +1,9 @@
 # Implemented Pipeline Architecture
 
-This is the repo-maintained architecture view for the **currently implemented**
-TrESFlow workflow on this server.
+Repo-maintained architecture view for the current implementation.
 
-- Core workflow:
-  - RNA through `ALIGN_RNA`
-  - DNA through `BAM_COVERAGE_DNA`
-- Optional downstream:
-  - shared staging
-  - one optional `sc_process.py` path
+- Core workflow: RNA through `ALIGN_RNA`, DNA through `BAM_COVERAGE_DNA`
+- Optional downstream: shared staging plus one optional `sc_process.py` path
 
 ```mermaid
 flowchart TD
