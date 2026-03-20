@@ -8,7 +8,7 @@
  *   - sample metadata
  *   - raw DNA I2 FASTQ as the modality-barcode source
  *   - DNA sample-barcode-tagged R1 / R2 FASTQs
- *   - explicit DNA modality-barcode whitelist
+ *   - per-sample DNA modality-barcode whitelist derived from the samplesheet mark mapping
  * Outputs:
  *   - DNA FASTQs tagged with both sample-barcode and modality comments
  *   - modality-barcode counts and summary stats

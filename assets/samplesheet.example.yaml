@@ -1,27 +1,15 @@
 library_name: TESTLIB
-sb_group_map: testdata/sb_group_map.tsv
 
 samples:
-  - id: test_rna
-    modality: rna
-    reads:
-      i1: testdata/test_rna_I1.fastq
-      r1: testdata/test_rna_R1.fastq
-      r2: testdata/test_rna_R2.fastq
-    barcodes:
-      sample:
-        bc_len: 4
-        bc_start: 0
-        hd: 1
-        tag: SB
-        first_pass: first_pass
-        reverse_complement: true
-      umi:
-        bc_len: 10
-        bc_start: 4
-        tag: UM
-      cell:
-        whitelist: testdata/cell_whitelist.txt
-        bc_len: 8
-        hd: 1
-        tag: CB
+  test_rna:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT]
+      Co2:
+        sb_barcodes: [ACGT]
+
+    rna:
+      reads:
+        i1: testdata/test_rna_I1.fastq
+        r1: testdata/test_rna_R1.fastq
+        r2: testdata/test_rna_R2.fastq

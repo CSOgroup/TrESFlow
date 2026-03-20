@@ -3,9 +3,9 @@
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
  *   - raw DNA I1 / I2 / R1 / R2 FASTQs
- *   - shared sample-barcode group map TSV used to derive the effective DNA SB whitelist
- *   - explicit DNA modality-barcode and ligation whitelists
- *   - DNA modality map TSV and the shared sample-barcode group map TSV for Split_ReadsV2 dna mode
+ *   - internally derived sample-barcode group map TSV used to derive the effective DNA SB whitelist
+ *   - internally derived DNA modality-barcode whitelist plus the configured ligation whitelist
+ *   - internally derived DNA modality map TSV and shared sample-barcode group map TSV for Split_ReadsV2 dna mode
  * Outputs:
  *   - DNA FASTQs tagged with SB, MO, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged DNA reads

@@ -1,7 +1,7 @@
 /*
  * Workflow: TRESEQ
  * Current slice:
- *   1. Parse a single YAML samplesheet.
+ *   1. Parse a single hierarchical YAML samplesheet.
  *   2. Run the upstream RNA sample-barcode tagging step (Tag.codon) via a thin wrapper.
  *   3. Run the upstream RNA UMI tagging step (Tag_UMI.codon) via a thin wrapper.
  *   4. Run the upstream RNA cell-barcode tagging step (Tag_Lig3.codon) via a thin wrapper.
@@ -76,7 +76,14 @@ workflow TRESEQ {
         error "Missing required parameter: --samplesheet"
     }
 
-    def sampleRows = SamplesheetParser.parse(params.samplesheet as String)
+    def sampleRows = SamplesheetParser.parse(
+        params.samplesheet as String,
+        [
+            outdir                     : params.outdir,
+            ligation_barcode_whitelist : params.ligation_barcode_whitelist,
+            barcode_defaults           : params.barcode_defaults,
+        ]
+    )
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     final int maxCpus = params.max_cpus as int

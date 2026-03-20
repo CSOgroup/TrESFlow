@@ -156,23 +156,81 @@ and for the optional downstream `sc_process.py` entrypoint only.
 
 Pipeline input is a single YAML samplesheet under `params.samplesheet`.
 
-### Shared samplesheet contract
+### Samplesheet contract
 
-Top-level keys:
+The supported public contract is a hierarchical YAML where each biological
+sample appears once, with nested group definitions and nested RNA/DNA modality
+blocks.
+
+```yaml
+library_name: REALDATATESTLIB
+
+samples:
+  day15:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
+      Co2:
+        sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+
+    rna:
+      reads:
+        i1: test_realdata/day15_I1.fq.gz
+        r1: test_realdata/day15_R1.fq.gz
+        r2: test_realdata/day15_R2.fq.gz
+
+    dna:
+      reads:
+        i1: test_realdata/day15_DNA_I1.fq.gz
+        i2: test_realdata/day15_DNA_I2.fq.gz
+        r1: test_realdata/day15_DNA_R1.fq.gz
+        r2: test_realdata/day15_DNA_R2.fq.gz
+      mark_barcodes:
+        H3K27me3: AGGCTATA
+        H3K27ac: GCCTCTAT
+```
+
+User-supplied top-level keys:
 
 - `library_name`
-- `sb_group_map`
-- `dna_mo_map` when any DNA samples are present
+- `samples`
 
-The parser accepts `modality: rna` and `modality: dna` rows in the same file.
+Per sample:
 
-`sb_group_map` is shared by RNA and DNA. It is:
+- `groups.<group>.sb_barcodes`
+- optional `rna.reads`
+- optional `dna.reads`
+- optional `dna.mark_barcodes`
 
-- the sample-barcode grouping TSV used by `Split_ReadsV2.codon`
-- the source of truth for the effective DNA sample-barcode whitelist
+At least one modality block must be present for each sample.
 
-The current real-data examples still use the legacy on-disk filename
-`sb_map_RNA.tsv`, but the pipeline treats it as the shared `sb_group_map`.
+### Internally derived contract files
+
+The pipeline now derives the implementation-facing files it still needs under:
+
+- `${outdir}/pipeline_info/derived_contract/sb_group_map.tsv`
+- `${outdir}/pipeline_info/derived_contract/dna_mo_map.tsv`
+- `${outdir}/pipeline_info/derived_contract/dna_modality_whitelists/<sample>.txt`
+
+These are derived from the hierarchical YAML and are not part of the public
+input contract.
+
+Users no longer supply separate:
+
+- sample-barcode group TSV files
+- DNA modality-map TSV files
+- DNA modality-barcode whitelist files
+
+The shared sample-barcode groups in the YAML are now the source of truth for:
+
+- grouped RNA splitting
+- grouped DNA splitting
+- the effective DNA sample-barcode whitelist
+
+The DNA `mark_barcodes` mapping in the YAML is now the source of truth for:
+
+- the internally derived `dna_mo_map.tsv`
+- per-sample DNA modality whitelists
 
 ### Required for real RNA runs
 
@@ -192,6 +250,27 @@ Reference layout:
 
 `--dna_bwa_reference` is a bwa-mem2 index prefix. The following sidecars must
 exist: `.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, `.pac`.
+
+### Defaulted barcode resources and tag settings
+
+The ligation barcode whitelist stays out of the samplesheet and defaults from:
+
+- `--ligation_barcode_whitelist`
+
+The default server config points it at:
+
+- `assets/test_realdata/ligation_barcode_whitelist.txt`
+
+Codon barcode-tagging details are also kept out of the samplesheet by default.
+They are defined in `params.barcode_defaults` in [`nextflow.config`](nextflow.config)
+and cover:
+
+- RNA sample barcode settings
+- RNA UMI settings
+- RNA cell barcode settings
+- DNA sample barcode settings
+- DNA modality barcode settings
+- DNA cell barcode settings
 
 ### Optional downstream controls
 
@@ -223,11 +302,6 @@ Committed examples and templates:
 - real RNA template: [`assets/samplesheet.real_rna.template.yaml`](assets/samplesheet.real_rna.template.yaml)
 - real DNA example: [`assets/samplesheet.dna.RealDATAexample.yaml`](assets/samplesheet.dna.RealDATAexample.yaml)
 - real multiome example: [`assets/test_realdata/samplesheet.real_multiome.yaml`](assets/test_realdata/samplesheet.real_multiome.yaml)
-
-Committed data assets used by the current repo:
-
-- [`assets/testdata/`](assets/testdata/)
-- [`assets/test_realdata/`](assets/test_realdata/)
 
 ## Outputs
 

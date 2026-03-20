@@ -1,32 +1,18 @@
 # External/local real-RNA validation template.
-# The sample id must match the `sample` column in sb_group_map.
-# The on-disk filename `sb_map_RNA.tsv` is legacy; the pipeline treats it as
-# the shared sample-barcode group map.
+# One biological sample appears once, with nested groups and modality blocks.
 
-library_name: REAL_VALIDATION_LIB
-sb_group_map: sb_map_RNA.tsv
+library_name: REALDATATESTLIB
 
 samples:
-  - id: day15
-    modality: rna
-    reads:
-      i1: day15_I1.fq.gz
-      r1: day15_R1.fq.gz
-      r2: day15_R2.fq.gz
-    barcodes:
-      sample:
-        bc_len: 4
-        bc_start: 0
-        hd: 1
-        tag: SB
-        first_pass: first_pass
-        reverse_complement: true
-      umi:
-        bc_len: 10
-        bc_start: 4
-        tag: UM
-      cell:
-        whitelist: ligation_barcode_whitelist.txt
-        bc_len: 8
-        hd: 1
-        tag: CB
+  day15:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
+      Co2:
+        sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+
+    rna:
+      reads:
+        i1: day15_I1.fq.gz
+        r1: day15_R1.fq.gz
+        r2: day15_R2.fq.gz

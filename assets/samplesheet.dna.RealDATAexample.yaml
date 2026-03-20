@@ -1,35 +1,19 @@
-# The on-disk file keeps its legacy name `sb_map_RNA.tsv`, but the pipeline
-# contract treats it as the shared sample-barcode group map for both RNA and DNA.
-library_name: REALDATATESTLIB_DNA
-sb_group_map: test_realdata/sb_map_RNA.tsv
-dna_mo_map: test_realdata/mo_map.tsv
+library_name: REALDATATESTLIB
 
 samples:
-  - id: day15
-    modality: dna
-    reads:
-      i1: test_realdata/day15_DNA_I1.fq.gz
-      i2: test_realdata/day15_DNA_I2.fq.gz
-      r1: test_realdata/day15_DNA_R1.fq.gz
-      r2: test_realdata/day15_DNA_R2.fq.gz
-    barcodes:
-      sample:
-        bc_len: 4
-        bc_start: 14
-        hd: 1
-        tag: SB
-        first_pass: first_pass
-        reverse_complement: true
-      modality:
-        whitelist: test_realdata/dna_modality_barcode_whitelist.txt
-        bc_len: 8
-        bc_start: 18
-        hd: 1
-        tag: MO
-        first_pass: not_first_pass
-        reverse_complement: true
-      cell:
-        whitelist: test_realdata/ligation_barcode_whitelist.txt
-        bc_len: 8
-        hd: 1
-        tag: CB
+  day15:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
+      Co2:
+        sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+
+    dna:
+      reads:
+        i1: test_realdata/day15_DNA_I1.fq.gz
+        i2: test_realdata/day15_DNA_I2.fq.gz
+        r1: test_realdata/day15_DNA_R1.fq.gz
+        r2: test_realdata/day15_DNA_R2.fq.gz
+      mark_barcodes:
+        H3K27me3: AGGCTATA
+        H3K27ac: GCCTCTAT
