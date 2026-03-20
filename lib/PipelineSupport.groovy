@@ -123,7 +123,8 @@ class PipelineSupport {
             [name: 'bedGraphToBigWig', path: (params.runtime_bedgraph_to_bigwig ?: '').toString(), used: 'yes'],
             [name: 'bwa-mem2', path: (params.runtime_bwa_mem2 ?: '').toString(), used: 'yes'],
             [name: 'bamCoverage', path: (params.runtime_bam_coverage ?: '').toString(), used: 'yes'],
-            [name: 'gatk', path: "${params.gatk_root ?: ''}/gatk".toString(), used: 'yes'],
+            [name: 'gatk', path: (params.runtime_gatk ?: '').toString(), used: 'yes'],
+            [name: 'codon', path: (params.runtime_codon ?: '').toString(), used: 'yes'],
         ]
     }
 

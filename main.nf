@@ -6,7 +6,8 @@ import PipelineSupport
 
 def enforcePinnedCodonSeq() {
     final File preflight = new File(projectDir.toString(), 'bin/check_codon_seq_host.sh')
-    final String runtimeEnvPrefix = (params.runtime_env_prefix ?: '').toString().trim()
+    final String codonBin = (params.runtime_codon ?: '').toString().trim()
+    final String codonHome = (params.codon_home ?: '').toString().trim()
 
     if( !preflight.exists() ) {
         throw new IllegalStateException(
@@ -18,13 +19,12 @@ def enforcePinnedCodonSeq() {
         .directory(projectDir.toFile())
         .redirectErrorStream(true)
 
-    if( runtimeEnvPrefix ) {
-        final File runtimeBin = new File(runtimeEnvPrefix, 'bin')
-        if( runtimeBin.exists() ) {
-            final Map<String, String> env = processBuilder.environment()
-            final String existingPath = env.get('PATH') ?: ''
-            env.put('PATH', "${runtimeBin.toString()}:${existingPath}".toString())
-        }
+    final Map<String, String> env = processBuilder.environment()
+    if( codonBin ) {
+        env.put('CODON_BIN', codonBin)
+    }
+    if( codonHome ) {
+        env.put('CODON_HOME', codonHome)
     }
 
     final Process process = processBuilder.start()
@@ -42,7 +42,19 @@ def enforcePinnedCodonSeq() {
     return output
 }
 
-PipelineSupport.validateConfiguredExecutable('runtime python3', params.runtime_python as String)
+[
+    'runtime python3': params.runtime_python,
+    'runtime trim_galore': params.runtime_trim_galore,
+    'runtime STAR': params.runtime_star,
+    'runtime samtools': params.runtime_samtools,
+    'runtime bedGraphToBigWig': params.runtime_bedgraph_to_bigwig,
+    'runtime bwa-mem2': params.runtime_bwa_mem2,
+    'runtime bamCoverage': params.runtime_bam_coverage,
+    'runtime gatk': params.runtime_gatk,
+    'runtime codon': params.runtime_codon,
+].each { label, path ->
+    PipelineSupport.validateConfiguredExecutable(label, path as String)
+}
 final String codonPreflightOutput = enforcePinnedCodonSeq()
 PipelineSupport.writeRuntimeContract(
     (params.outdir ?: 'results').toString(),

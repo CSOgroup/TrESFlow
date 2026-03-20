@@ -25,9 +25,8 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through DNA `_NoDup.bam` plus coverage outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - `-profile test_multiome` runs both mock modality branches and exercises the shared staging boundary.
 - Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`.
-- For normal execution on this server, the pipeline binds `python3`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, and `bwa-mem2` explicitly to `/home/annan/micromamba/envs/tres/bin/...`.
-- `gatk` remains explicitly pinned outside that env at `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
-- `PATH` still prepends `/home/annan/micromamba/envs/tres/bin` as a compatibility fallback for unbound tools and future steps. Override with `--runtime_env_prefix` if needed.
+- For normal execution on this server, the pipeline binds `python3`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, and `gatk` explicitly to `/home/annan/micromamba/envs/tres/bin/...`.
+- Codon plus the Seq plugin remain the only explicit non-env runtime exception in the current server setup.
 - `envs/first_slice.yml` is the source of truth for software requirements around the current implemented wrappers and mock path.
 - A separate `test_real_rna` profile is available for external/local validation data through the full implemented RNA boundary.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
@@ -134,9 +133,9 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
 
 - `--upstream_dir`
   Default: `./upstream/source_scripts`
-- `--runtime_env_prefix`
-  Default: `/home/annan/micromamba/envs/tres`
-  If `${runtime_env_prefix}/bin` exists, every task prepends it to `PATH` before running.
+- `--runtime_bin_dir`
+  Default: `/home/annan/micromamba/envs/tres/bin`
+  Shared base directory for the env-bound executable defaults below.
 - `--runtime_python`
   Default: `/home/annan/micromamba/envs/tres/bin/python3`
 - `--runtime_trim_galore`
@@ -152,9 +151,15 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
 - `--runtime_bam_coverage`
   Default: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
   Used by `BAM_COVERAGE_DNA` for the current DNA post-MarkDuplicates coverage wrapper and recorded in `pipeline_info/runtime_contract.tsv`.
-- `--gatk_root`
-  Default: `/mnt/dataFast/ahrmad/gatk-4.6.0.0`
-  `MARK_DUPLICATES_DNA` runs `${gatk_root}/gatk MarkDuplicates`.
+- `--runtime_gatk`
+  Default: `/home/annan/micromamba/envs/tres/bin/gatk`
+  `MARK_DUPLICATES_DNA` runs the configured `gatk MarkDuplicates` binary directly.
+- `--runtime_codon`
+  Default: `/home/annan/.codon/bin/codon`
+  Explicit Codon exception while the server still uses a host-managed Codon install outside the micromamba env.
+- `--codon_home`
+  Default: `/home/annan/.codon`
+  Explicit Seq plugin home used by the pinned Codon/Seq preflight and inherited by Codon-based wrapper tasks.
 - `--max_cpus`
   Default: `40`
   Total CPU budget for the local executor. Real runs distribute that budget as `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, `SPLIT_DNA_READS=min(4, int(max_cpus/10))`, `ALIGN_DNA=max_cpus`, `MARK_DUPLICATES_DNA=1`, and `1` CPU for the remaining wrapped processes.
@@ -524,10 +529,9 @@ nextflow run . \
 ```
 
 This path runs the current DNA workflow in real mode through direct `_NoDup.bam` outputs and then invokes the DNA coverage wrapper.
-It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `bwa-mem2`, `samtools`, and `bamCoverage` from `/home/annan/micromamba/envs/tres/bin/`.
+It requires host-installed Codon `0.16.3` and Seq `0.11.3`, and by default it executes `python3`, `trim_galore`, `bwa-mem2`, `samtools`, `bamCoverage`, and `gatk` from `/home/annan/micromamba/envs/tres/bin/`.
 It uses the top-level `sb_group_map` plus `dna_mo_map` entries from the samplesheet to satisfy the upstream `Split_ReadsV2.codon` DNA contract, and it uses the explicit DNA alignment CLI params to satisfy the upstream `AlignDNA.sh` contract.
 For DNA sample-barcode tagging, the pipeline derives the effective SB whitelist directly from `sb_group_map`.
-It uses `${params.gatk_root}/gatk` for duplicate marking; on this server the default is `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
 The first remaining shared downstream step is still one future `sc_process.py` call.
 
 ### Micromamba Dev + Test
@@ -569,8 +573,8 @@ This does not make any execution mode fully portable, because Codon `0.16.3` and
 Every pipeline run currently requires the following on the host:
 
 - native Linux or macOS
-- Codon `0.16.3` installed under `${HOME}/.codon` and available on `PATH`
-- Seq `0.11.3` installed separately under `${HOME}/.codon/lib/codon/plugins/seq`
+- `/home/annan/.codon/bin/codon` or an override via `--runtime_codon`
+- Seq `0.11.3` installed under `/home/annan/.codon/lib/codon/plugins/seq` or an override via `--codon_home`
 - `/home/annan/micromamba/envs/tres/bin/python3`
 - `/home/annan/micromamba/envs/tres/bin/trim_galore`
 - `/home/annan/micromamba/envs/tres/bin/STAR`
@@ -578,13 +582,13 @@ Every pipeline run currently requires the following on the host:
 - `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
 - `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `/home/annan/micromamba/envs/tres/bin/bamCoverage`
-- `gatk` available under `${params.gatk_root}/gatk` for DNA duplicate marking runs
+- `/home/annan/micromamba/envs/tres/bin/gatk`
 - the read-only upstream scripts under `upstream/source_scripts/`
 
 For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and shared sample-barcode group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
 For real DNA alignment runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files, plus `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
 For one future real `sc_process.py` run, you will also need a local SnapATAC-compatible gene annotation available on the server; without that, the upstream script currently attempts to download `gencode.v41.basic.annotation.gff3.gz` for the human/hg38 path.
-By default on this server, the pipeline binds the current implemented runtime tools explicitly to `/home/annan/micromamba/envs/tres/bin`, and also prepends that directory to `PATH` as a compatibility fallback. Override the individual `--runtime_*` params if you need different binaries.
+By default on this server, the pipeline binds the current implemented task executables explicitly to `/home/annan/micromamba/envs/tres/bin`. It does not rely on prepending that directory to `PATH` for the implemented slice. Override the individual `--runtime_*` params if you need different binaries.
 `--dna_bwa_reference` is a bwa-mem2 index prefix; the base path itself may be a prefix rather than a regular file, but the sidecars `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac` must exist.
 
 If you already have a newer `${HOME}/.codon` install, back it up before downgrading:
@@ -655,12 +659,12 @@ Current explicit runtime bindings for the implemented slice:
 - `bedGraphToBigWig`: `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
 - `bwa-mem2`: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `bamCoverage`: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
-- `gatk`: `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`
+- `gatk`: `/home/annan/micromamba/envs/tres/bin/gatk`
 
 Still host-dependent:
 
-- Codon `0.16.3`
-- Seq `0.11.3`
+- Codon `0.16.3`: `/home/annan/.codon/bin/codon`
+- Seq `0.11.3`: `/home/annan/.codon/lib/codon/plugins/seq`
 - system shell tools such as `bash`, `sort`, `awk`, `grep`, `head`, `tail`, `cat`, `mv`, and `rm`
 - the read-only upstream scripts under `upstream/source_scripts/`
 
@@ -680,7 +684,7 @@ bin/check_codon_seq_host.sh
 
 That check verifies:
 
-- `codon` is on `PATH`
+- the configured `CODON_BIN` exists and is executable, or `codon` is on `PATH`
 - Codon reports exactly `0.16.3`
-- Seq plugin metadata exists where Codon expects it by default
+- Seq plugin metadata exists under the configured `CODON_HOME` or its default location
 - Seq plugin metadata reports exactly `0.11.3`

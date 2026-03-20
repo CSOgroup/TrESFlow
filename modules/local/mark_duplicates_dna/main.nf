@@ -52,12 +52,14 @@ EOF
     }
     else {
         """
-        if [[ ! -x "${params.gatk_root}/gatk" ]]; then
-          echo "Missing GATK executable at ${params.gatk_root}/gatk" >&2
+        if [[ ! -x "${params.runtime_gatk}" ]]; then
+          echo "Missing configured GATK executable at ${params.runtime_gatk}" >&2
           exit 1
         fi
 
-        "${params.gatk_root}/gatk" MarkDuplicates \\
+        echo "Using GATK_BIN=${params.runtime_gatk}"
+
+        "${params.runtime_gatk}" MarkDuplicates \\
           -I "${alignedBam}" \\
           -O "${splitName}_MarkedDup.bam" \\
           -M "${splitName}.DuplicateMetrics.txt" \\

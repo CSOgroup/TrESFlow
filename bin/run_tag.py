@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import os
 import shutil
 import subprocess
 import sys
@@ -88,6 +89,20 @@ def load_whitelist_from_sb_group_map(path: Path, sample: str):
         raise ValueError(f"No sample-barcode group map rows found in {path} for sample {sample}")
 
     return set(sb_to_group.keys())
+
+
+def resolve_codon_bin() -> str:
+    configured = os.environ.get("CODON_BIN")
+    if configured:
+        codon_bin = Path(configured)
+        if not codon_bin.exists() or not os.access(codon_bin, os.X_OK):
+            raise RuntimeError(f"Configured CODON_BIN is missing or not executable: {codon_bin}")
+        return str(codon_bin)
+
+    resolved = shutil.which("codon")
+    if resolved is None:
+        raise RuntimeError("codon executable not found in PATH")
+    return resolved
 
 
 def write_stats(output_stats: Path, n_reads: int, bc_reads: int, mismatch_stats, hd: int):
@@ -182,8 +197,7 @@ def mock_tag(args):
 
 
 def real_tag(args):
-    if shutil.which("codon") is None:
-        raise RuntimeError("codon executable not found in PATH")
+    codon_bin = resolve_codon_bin()
 
     with tempfile.TemporaryDirectory(prefix="tresflow_tag_") as tmpdir:
         tmp_path = Path(tmpdir)
@@ -195,7 +209,7 @@ def real_tag(args):
             whitelist_path = args.whitelist
 
         cmd = [
-            "codon",
+            codon_bin,
             "run",
             "-plugin",
             "seq",

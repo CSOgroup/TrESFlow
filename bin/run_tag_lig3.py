@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import os
 import shutil
 import subprocess
 import sys
@@ -43,6 +44,20 @@ def parse_header(header: str):
 def load_whitelist(path: Path):
     with open(path, "rt", encoding="utf-8") as handle:
         return {line.strip() for line in handle if line.strip()}
+
+
+def resolve_codon_bin() -> str:
+    configured = os.environ.get("CODON_BIN")
+    if configured:
+        codon_bin = Path(configured)
+        if not codon_bin.exists() or not os.access(codon_bin, os.X_OK):
+            raise RuntimeError(f"Configured CODON_BIN is missing or not executable: {codon_bin}")
+        return str(codon_bin)
+
+    resolved = shutil.which("codon")
+    if resolved is None:
+        raise RuntimeError("codon executable not found in PATH")
+    return resolved
 
 
 def find_tag_value(comment: str, tag_name: str):
@@ -142,13 +157,12 @@ def mock_tag(args):
 
 
 def real_tag(args):
-    if shutil.which("codon") is None:
-        raise RuntimeError("codon executable not found in PATH")
+    codon_bin = resolve_codon_bin()
 
     with tempfile.TemporaryDirectory(prefix="tresflow_tag_lig3_") as tmpdir:
         tmp_path = Path(tmpdir)
         cmd = [
-            "codon",
+            codon_bin,
             "run",
             "-plugin",
             "seq",

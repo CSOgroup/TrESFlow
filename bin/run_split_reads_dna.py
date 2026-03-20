@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import os
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,20 @@ def load_sb_group_map(path: Path, sample: str):
         raise ValueError(f"No SB group mapping found for sample {sample} in {path}")
 
     return sb_to_group, group_names
+
+
+def resolve_codon_bin() -> str:
+    configured = os.environ.get("CODON_BIN")
+    if configured:
+        codon_bin = Path(configured)
+        if not codon_bin.exists() or not os.access(codon_bin, os.X_OK):
+            raise RuntimeError(f"Configured CODON_BIN is missing or not executable: {codon_bin}")
+        return str(codon_bin)
+
+    resolved = shutil.which("codon")
+    if resolved is None:
+        raise RuntimeError("codon executable not found in PATH")
+    return resolved
 
 
 def load_mo_map(path: Path, sample: str, group_names):
@@ -266,13 +281,12 @@ def mock_split(args):
 
 
 def real_split(args):
-    if shutil.which("codon") is None:
-        raise RuntimeError("codon executable not found in PATH")
+    codon_bin = resolve_codon_bin()
 
     with tempfile.TemporaryDirectory(prefix="tresflow_split_reads_dna_") as tmpdir:
         tmp_path = Path(tmpdir)
         cmd = [
-            "codon",
+            codon_bin,
             "run",
             "-plugin",
             "seq",

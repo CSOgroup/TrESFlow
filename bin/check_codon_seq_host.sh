@@ -4,6 +4,7 @@ set -euo pipefail
 REQUIRED_CODON_VERSION="0.16.3"
 REQUIRED_SEQ_VERSION="0.11.3"
 CODON_HOME_DIR="${CODON_HOME:-${HOME}/.codon}"
+CODON_BIN_CONFIGURED="${CODON_BIN:-}"
 SEQ_PLUGIN_DIR="${CODON_HOME_DIR}/lib/codon/plugins/seq"
 SEQ_PLUGIN_TOML="${SEQ_PLUGIN_DIR}/plugin.toml"
 
@@ -17,17 +18,28 @@ echo "CODON_HOME=${CODON_HOME_DIR}"
 echo "required_codon_version=${REQUIRED_CODON_VERSION}"
 echo "required_seq_version=${REQUIRED_SEQ_VERSION}"
 
-if ! command -v codon >/dev/null 2>&1; then
-  echo "ERROR: 'codon' is not on PATH." >&2
-  echo "Install Codon ${REQUIRED_CODON_VERSION} with scripts/install_codon_0.16.3.sh and ensure the binary is on PATH." >&2
-  exit 1
+if [[ -n "${CODON_BIN_CONFIGURED}" ]]; then
+  if [[ ! -x "${CODON_BIN_CONFIGURED}" ]]; then
+    echo "ERROR: configured CODON_BIN is missing or not executable: ${CODON_BIN_CONFIGURED}" >&2
+    exit 1
+  fi
+  CODON_BIN="${CODON_BIN_CONFIGURED}"
+  CODON_PATH_SOURCE="configured"
+else
+  if ! command -v codon >/dev/null 2>&1; then
+    echo "ERROR: 'codon' is not on PATH and CODON_BIN is not configured." >&2
+    echo "Install Codon ${REQUIRED_CODON_VERSION} with scripts/install_codon_0.16.3.sh and ensure the binary is on PATH, or configure CODON_BIN explicitly." >&2
+    exit 1
+  fi
+  CODON_BIN="$(command -v codon)"
+  CODON_PATH_SOURCE="PATH"
 fi
 
-CODON_BIN="$(command -v codon)"
-CODON_VERSION_RAW="$(codon --version 2>/dev/null | head -n 1 || true)"
+CODON_VERSION_RAW="$("${CODON_BIN}" --version 2>/dev/null | head -n 1 || true)"
 CODON_VERSION="$(extract_semver "${CODON_VERSION_RAW}")"
 
 echo "codon_path=${CODON_BIN}"
+echo "codon_path_source=${CODON_PATH_SOURCE}"
 echo "codon_version_raw=${CODON_VERSION_RAW:-unknown}"
 echo "codon_version=${CODON_VERSION:-unknown}"
 
