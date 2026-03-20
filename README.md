@@ -73,9 +73,7 @@ Real RNA validation:
 nextflow run . \
   -profile test_real_rna \
   --samplesheet assets/test_realdata/samplesheet.real_rna.yaml \
-  --outdir results/test_real_rna \
-  --rna_ref_base_dir /path/to/reference_base \
-  --rna_align_species human
+  --outdir results/test_real_rna
 ```
 
 Real DNA validation:
@@ -83,10 +81,7 @@ Real DNA validation:
 ```bash
 nextflow run . \
   --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real \
-  --dna_bwa_reference /path/to/bwa_index_prefix \
-  --dna_blacklist_bed /path/to/blacklist.bed \
-  --dna_effective_genome_size 2913022398
+  --outdir results/test_dna_real
 ```
 
 Optional real shared staging:
@@ -95,11 +90,6 @@ Optional real shared staging:
 nextflow run . \
   --samplesheet assets/test_realdata/samplesheet.real_multiome.yaml \
   --outdir results/test_real_multiome_stage \
-  --rna_ref_base_dir /path/to/reference_base \
-  --rna_align_species human \
-  --dna_bwa_reference /path/to/bwa_index_prefix \
-  --dna_blacklist_bed /path/to/blacklist.bed \
-  --dna_effective_genome_size 2913022398 \
   --stage_sc_process_inputs true
 ```
 
@@ -109,11 +99,6 @@ Optional real downstream analysis:
 nextflow run . \
   --samplesheet assets/test_realdata/samplesheet.real_multiome.yaml \
   --outdir results/test_real_multiome_sc_process \
-  --rna_ref_base_dir /path/to/reference_base \
-  --rna_align_species human \
-  --dna_bwa_reference /path/to/bwa_index_prefix \
-  --dna_blacklist_bed /path/to/blacklist.bed \
-  --dna_effective_genome_size 2913022398 \
   --run_sc_process true
 ```
 
@@ -165,6 +150,14 @@ blocks.
 ```yaml
 library_name: REALDATATESTLIB
 
+resources:
+  ligation_barcode_whitelist: test_realdata/ligation_barcode_whitelist.txt
+  rna_ref_base_dir: /path/to/reference_base_dir
+  rna_align_species: human
+  dna_bwa_reference: /path/to/bwa_index_prefix
+  dna_blacklist_bed: /path/to/blacklist.bed
+  dna_effective_genome_size: 2913022398
+
 samples:
   day15:
     groups:
@@ -193,7 +186,17 @@ samples:
 User-supplied top-level keys:
 
 - `library_name`
+- `resources`
 - `samples`
+
+`resources` holds shared run inputs such as:
+
+- `ligation_barcode_whitelist`
+- `rna_ref_base_dir`
+- `rna_align_species`
+- `dna_bwa_reference`
+- `dna_blacklist_bed`
+- `dna_effective_genome_size`
 
 Per sample:
 
@@ -234,8 +237,10 @@ The DNA `mark_barcodes` mapping in the YAML is now the source of truth for:
 
 ### Required for real RNA runs
 
-- `--rna_ref_base_dir`
-- `--rna_align_species`
+Required in the run contract:
+
+- `resources.rna_ref_base_dir` in the samplesheet, or `--rna_ref_base_dir` as a fallback
+- `resources.rna_align_species` in the samplesheet, or `--rna_align_species` as a fallback
 
 Reference layout:
 
@@ -244,16 +249,21 @@ Reference layout:
 
 ### Required for real DNA runs
 
-- `--dna_bwa_reference`
-- `--dna_blacklist_bed`
-- `--dna_effective_genome_size`
+Required in the run contract:
+
+- `resources.dna_bwa_reference` in the samplesheet, or `--dna_bwa_reference` as a fallback
+- `resources.dna_blacklist_bed` in the samplesheet, or `--dna_blacklist_bed` as a fallback
+- `resources.dna_effective_genome_size` in the samplesheet, or `--dna_effective_genome_size` as a fallback
 
 `--dna_bwa_reference` is a bwa-mem2 index prefix. The following sidecars must
 exist: `.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, `.pac`.
 
 ### Defaulted barcode resources and tag settings
 
-The ligation barcode whitelist stays out of the samplesheet and defaults from:
+The ligation barcode whitelist is now part of the preferred samplesheet
+contract under `resources.ligation_barcode_whitelist`.
+
+If it is omitted from the YAML, the fallback is:
 
 - `--ligation_barcode_whitelist`
 
@@ -293,6 +303,16 @@ uses `/home/annan/.cache/snapatac2`, so `snap.genome.hg38` and
 - `--max_cpus`
 
 `--max_cpus` defaults to `40`.
+
+The samplesheet is the primary source of truth for shared run resources.
+Existing CLI params remain available as fallbacks when a resource is omitted
+from the YAML.
+
+### Legacy compatibility
+
+The parser still accepts the older list-style YAML contract as a compatibility
+shim. That path is kept for low-risk transition only. The supported public
+contract is the hierarchical YAML shown above.
 
 ## Example Samplesheets
 

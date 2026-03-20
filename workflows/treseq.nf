@@ -82,6 +82,11 @@ workflow TRESEQ {
             outdir                     : params.outdir,
             ligation_barcode_whitelist : params.ligation_barcode_whitelist,
             barcode_defaults           : params.barcode_defaults,
+            rna_ref_base_dir           : params.rna_ref_base_dir,
+            rna_align_species          : params.rna_align_species,
+            dna_bwa_reference          : params.dna_bwa_reference,
+            dna_blacklist_bed          : params.dna_blacklist_bed,
+            dna_effective_genome_size  : params.dna_effective_genome_size,
         ]
     )
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
@@ -102,17 +107,17 @@ workflow TRESEQ {
 
     if( rnaRows ) {
         WorkflowSupport.validateRnaAlignment(
-            params.rna_ref_base_dir as String,
-            params.rna_align_species as String
+            rnaRows[0].rna_ref_base_dir as String,
+            rnaRows[0].rna_align_species as String
         )
     }
 
     if( dnaRows ) {
         try {
             WorkflowSupport.validateDnaAlignment(
-                params.dna_bwa_reference as String,
-                params.dna_blacklist_bed as String,
-                params.dna_effective_genome_size as String
+                dnaRows[0].dna_bwa_reference as String,
+                dnaRows[0].dna_blacklist_bed as String,
+                dnaRows[0].dna_effective_genome_size as String
             )
         }
         catch( IllegalArgumentException e ) {
@@ -148,7 +153,7 @@ workflow TRESEQ {
     def ch_shared_stage_dir = Channel.empty()
     def ch_sc_process_run_dir = Channel.empty()
     if( enableSharedStage ) {
-        final String sharedSpecies = (params.rna_align_species ?: '').toString().trim().toLowerCase()
+        final String sharedSpecies = (rnaRows[0].rna_align_species ?: '').toString().trim().toLowerCase()
         final String sharedGenome = WorkflowSupport.sharedGenomeFromSpecies(sharedSpecies)
         final String sharedStageLabel = (sampleRows[0].library_name ?: 'shared_stage').toString()
         final String sharedSbGroupMap = (dnaRows ? dnaRows[0].sb_group_map : rnaRows[0].sb_group_map).toString()

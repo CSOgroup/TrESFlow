@@ -21,13 +21,14 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
+        final Map sharedResources = resolveSharedResources(parsed, baseDir, options)
 
         if( parsed.samples instanceof Map ) {
-            return parseUnified(parsed, baseDir, libraryName, options)
+            return parseUnified(parsed, baseDir, libraryName, options, sharedResources)
         }
 
         if( parsed.samples instanceof List ) {
-            return parseLegacy(parsed, baseDir, libraryName, options)
+            return parseLegacy(parsed, baseDir, libraryName, options, sharedResources)
         }
 
         throw new IllegalArgumentException(
@@ -39,13 +40,11 @@ class SamplesheetParser {
         final Map parsed,
         final File baseDir,
         final String libraryName,
-        final Map options
+        final Map options,
+        final Map sharedResources
     ) {
         final Map defaults = normalizedDefaults(options)
-        final String ligationWhitelist = resolveExistingPath(
-            baseDir,
-            requireString(defaults.shared.ligation_whitelist, 'ligation_barcode_whitelist')
-        )
+        final String ligationWhitelist = sharedResources.ligation_barcode_whitelist
         final File derivedDir = prepareDerivedDir(options)
 
         final List<Map> samples = []
@@ -89,6 +88,8 @@ class SamplesheetParser {
                     cell_bc_len               : defaults.rna.cell.bc_len as int,
                     cell_hd                   : defaults.rna.cell.hd as int,
                     cell_tag                  : defaults.rna.cell.tag.toString(),
+                    rna_ref_base_dir          : sharedResources.rna_ref_base_dir,
+                    rna_align_species         : sharedResources.rna_align_species,
                     library_name              : libraryName,
                     group_definitions         : normalizedGroups
                 ]
@@ -124,6 +125,9 @@ class SamplesheetParser {
                     cell_bc_len                 : defaults.dna.cell.bc_len as int,
                     cell_hd                     : defaults.dna.cell.hd as int,
                     cell_tag                    : defaults.dna.cell.tag.toString(),
+                    dna_bwa_reference           : sharedResources.dna_bwa_reference,
+                    dna_blacklist_bed           : sharedResources.dna_blacklist_bed,
+                    dna_effective_genome_size   : sharedResources.dna_effective_genome_size,
                     library_name                : libraryName,
                     group_definitions           : normalizedGroups,
                     mark_barcodes               : markBarcodes
@@ -153,7 +157,8 @@ class SamplesheetParser {
         final Map parsed,
         final File baseDir,
         final String libraryName,
-        final Map options
+        final Map options,
+        final Map sharedResources
     ) {
         final List samples = (List) parsed.samples
         if( samples.isEmpty() ) {
@@ -171,10 +176,7 @@ class SamplesheetParser {
             ? resolveExistingPath(baseDir, requireString(parsed.dna_mo_map, 'dna_mo_map'))
             : null
         final Map defaults = normalizedDefaults(options)
-        final String defaultLigationWhitelist = resolveExistingPath(
-            baseDir,
-            requireString(defaults.shared.ligation_whitelist, 'ligation_barcode_whitelist')
-        )
+        final String defaultLigationWhitelist = sharedResources.ligation_barcode_whitelist
 
         final List<Map> parsedRows = []
 
@@ -217,6 +219,8 @@ class SamplesheetParser {
                     cell_bc_len                : requireInt(cellBarcode.bc_len ?: defaults.rna.cell.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
                     cell_hd                    : requireInt(cellBarcode.hd ?: defaults.rna.cell.hd, "samples[${idx}].barcodes.cell.hd"),
                     cell_tag                   : optionalString(cellBarcode.tag, defaults.rna.cell.tag.toString()),
+                    rna_ref_base_dir           : sharedResources.rna_ref_base_dir,
+                    rna_align_species          : sharedResources.rna_align_species,
                     library_name               : libraryName,
                     sb_group_map               : sbGroupMap
                 ]
@@ -259,6 +263,9 @@ class SamplesheetParser {
                     cell_bc_len                   : requireInt(cellBarcode.bc_len ?: defaults.dna.cell.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
                     cell_hd                       : requireInt(cellBarcode.hd ?: defaults.dna.cell.hd, "samples[${idx}].barcodes.cell.hd"),
                     cell_tag                      : optionalString(cellBarcode.tag, defaults.dna.cell.tag.toString()),
+                    dna_bwa_reference             : sharedResources.dna_bwa_reference,
+                    dna_blacklist_bed             : sharedResources.dna_blacklist_bed,
+                    dna_effective_genome_size     : sharedResources.dna_effective_genome_size,
                     library_name                  : libraryName,
                     sb_group_map                  : sbGroupMap,
                     mo_map                        : dnaMoMap
@@ -425,9 +432,6 @@ class SamplesheetParser {
     private static Map normalizedDefaults(final Map options) {
         final Map barcodeDefaults = asMap(options.barcode_defaults ?: [:], 'barcode_defaults')
         return [
-            shared: [
-                ligation_whitelist: options.ligation_barcode_whitelist
-            ],
             rna: [
                 sample: asMap(barcodeDefaults.rna?.sample, 'barcode_defaults.rna.sample'),
                 umi   : asMap(barcodeDefaults.rna?.umi, 'barcode_defaults.rna.umi'),
@@ -439,6 +443,55 @@ class SamplesheetParser {
                 cell    : asMap(barcodeDefaults.dna?.cell, 'barcode_defaults.dna.cell')
             ]
         ]
+    }
+
+    private static Map resolveSharedResources(final Map parsed, final File baseDir, final Map options) {
+        final Map resources = parsed.resources ? asMap(parsed.resources, 'resources') : [:]
+
+        return [
+            ligation_barcode_whitelist: resolveExistingPath(
+                baseDir,
+                requireString(
+                    firstDefined(resources.ligation_barcode_whitelist, parsed.ligation_barcode_whitelist, options.ligation_barcode_whitelist),
+                    'resources.ligation_barcode_whitelist or --ligation_barcode_whitelist'
+                )
+            ),
+            rna_ref_base_dir: resolveOptionalPath(
+                baseDir,
+                firstDefined(resources.rna_ref_base_dir, parsed.rna_ref_base_dir, options.rna_ref_base_dir)
+            ),
+            rna_align_species: firstDefined(
+                resources.rna_align_species,
+                parsed.rna_align_species,
+                options.rna_align_species
+            )?.toString()?.trim()?.toLowerCase(),
+            dna_bwa_reference: resolveOptionalPath(
+                baseDir,
+                firstDefined(resources.dna_bwa_reference, parsed.dna_bwa_reference, options.dna_bwa_reference)
+            ),
+            dna_blacklist_bed: resolveOptionalPath(
+                baseDir,
+                firstDefined(resources.dna_blacklist_bed, parsed.dna_blacklist_bed, options.dna_blacklist_bed)
+            ),
+            dna_effective_genome_size: firstDefined(
+                resources.dna_effective_genome_size,
+                parsed.dna_effective_genome_size,
+                options.dna_effective_genome_size
+            )?.toString()?.trim()
+        ]
+    }
+
+    private static Object firstDefined(final Object... values) {
+        for( final Object value : values ) {
+            if( value == null ) {
+                continue
+            }
+            if( value instanceof CharSequence && !value.toString().trim() ) {
+                continue
+            }
+            return value
+        }
+        return null
     }
 
     private static Map asMap(final Object value, final String fieldName) {
@@ -496,6 +549,16 @@ class SamplesheetParser {
         if( !resolved.exists() ) {
             throw new IllegalArgumentException("Referenced file not found: ${resolved}")
         }
+        return resolved.canonicalPath
+    }
+
+    private static String resolveOptionalPath(final File baseDir, final Object rawPath) {
+        final String normalized = rawPath?.toString()?.trim()
+        if( !normalized ) {
+            return null
+        }
+
+        final File resolved = new File(normalized).isAbsolute() ? new File(normalized) : new File(baseDir, normalized)
         return resolved.canonicalPath
     }
 }

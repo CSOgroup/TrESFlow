@@ -1,5 +1,13 @@
 library_name: REALDATATESTLIB
 
+resources:
+  ligation_barcode_whitelist: ligation_barcode_whitelist.txt
+  rna_ref_base_dir: /mnt/dataFast/ahrmad
+  rna_align_species: human
+  dna_bwa_reference: /mnt/dataFast/ahrmad/hg38_bwamem2_index/hg38.fa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/hg38-blacklist.v2.bed
+  dna_effective_genome_size: 2913022398
+
 samples:
   day15:
     groups:

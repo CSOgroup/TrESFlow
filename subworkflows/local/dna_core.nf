@@ -6,6 +6,7 @@
  *   - internally derived sample-barcode group map TSV used to derive the effective DNA SB whitelist
  *   - internally derived DNA modality-barcode whitelist plus the configured ligation whitelist
  *   - internally derived DNA modality map TSV and shared sample-barcode group map TSV for Split_ReadsV2 dna mode
+ *   - DNA alignment resources carried through sample metadata
  * Outputs:
  *   - DNA FASTQs tagged with SB, MO, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged DNA reads
@@ -126,9 +127,9 @@ workflow DNA_CORE {
                 splitR1,
                 splitR2,
                 rgHeader,
-                params.dna_bwa_reference as String,
-                params.dna_blacklist_bed as String,
-                (params.dna_effective_genome_size as String)
+                metaFromFastq.dna_bwa_reference as String,
+                metaFromFastq.dna_blacklist_bed as String,
+                (metaFromFastq.dna_effective_genome_size as String)
             )
         }
 
@@ -144,7 +145,7 @@ workflow DNA_CORE {
                 metaFromBam,
                 noDupBam,
                 noDupBai,
-                (params.dna_effective_genome_size as String)
+                (metaFromBam.dna_effective_genome_size as String)
             )
         }
 

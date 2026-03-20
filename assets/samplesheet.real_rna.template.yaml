@@ -3,6 +3,11 @@
 
 library_name: REALDATATESTLIB
 
+resources:
+  ligation_barcode_whitelist: ligation_barcode_whitelist.txt
+  rna_ref_base_dir: /path/to/reference_base_dir
+  rna_align_species: human
+
 samples:
   day15:
     groups:

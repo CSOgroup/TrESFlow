@@ -6,6 +6,7 @@
  *   - RNA cell-barcode whitelist
  *   - internally derived sample-barcode group map TSV, used both to derive the
  *     effective RNA sample-barcode whitelist and to split grouped RNA reads
+ *   - RNA alignment reference base dir carried through sample metadata
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
@@ -103,8 +104,8 @@ workflow RNA_CORE {
                 splitName,
                 meta,
                 usam,
-                params.rna_ref_base_dir as String,
-                params.rna_align_species as String
+                meta.rna_ref_base_dir as String,
+                meta.rna_align_species as String
             )
         }
 

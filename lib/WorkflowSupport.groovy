@@ -10,7 +10,9 @@ class WorkflowSupport {
     static String requireBwaMem2Prefix(final String rawPrefix) {
         final String prefix = rawPrefix?.toString()?.trim()
         if( !prefix ) {
-            throw new IllegalArgumentException("Missing required parameter for DNA alignment: --dna_bwa_reference")
+            throw new IllegalArgumentException(
+                "Missing required DNA alignment resource: resources.dna_bwa_reference or --dna_bwa_reference"
+            )
         }
 
         final List<String> suffixes = ['.0123', '.amb', '.ann', '.bwt.2bit.64', '.pac']
@@ -32,16 +34,18 @@ class WorkflowSupport {
 
         if( !species ) {
             throw new IllegalArgumentException(
-                "Missing required parameter for RNA alignment: --rna_align_species human|mouse"
+                "Missing required RNA alignment resource: resources.rna_align_species or --rna_align_species (human|mouse)"
             )
         }
         if( !(species in ['human', 'mouse']) ) {
             throw new IllegalArgumentException(
-                "Invalid --rna_align_species '${species}'. Supported values: human, mouse"
+                "Invalid RNA align species '${species}'. Supported values: human, mouse"
             )
         }
         if( !refBaseDir ) {
-            throw new IllegalArgumentException("Missing required parameter for RNA alignment: --rna_ref_base_dir")
+            throw new IllegalArgumentException(
+                "Missing required RNA alignment resource: resources.rna_ref_base_dir or --rna_ref_base_dir"
+            )
         }
 
         final List<String> requiredRefPaths = species == 'human'
@@ -69,7 +73,9 @@ class WorkflowSupport {
         final String effSizeRaw = rawEffectiveGenomeSize?.toString()?.trim()
 
         if( !blacklistBed ) {
-            throw new IllegalArgumentException("Missing required parameter for DNA alignment: --dna_blacklist_bed")
+            throw new IllegalArgumentException(
+                "Missing required DNA alignment resource: resources.dna_blacklist_bed or --dna_blacklist_bed"
+            )
         }
 
         final File blacklistFile = new File(blacklistBed)
@@ -79,7 +85,7 @@ class WorkflowSupport {
 
         if( !effSizeRaw ) {
             throw new IllegalArgumentException(
-                "Missing required parameter for DNA alignment: --dna_effective_genome_size"
+                "Missing required DNA alignment resource: resources.dna_effective_genome_size or --dna_effective_genome_size"
             )
         }
 
