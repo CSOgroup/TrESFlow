@@ -32,7 +32,7 @@ process TAG_RNA_UMI {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_tag_umi.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Tag_UMI.codon" \\
+      --script "${params.core_scripts_dir}/Tag_UMI.codon" \\
       --i2 "${rawR2}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\

@@ -22,11 +22,11 @@
  *
  * Notes:
  *   - This is intentionally the strongest truthful boundary before one future sc_process.py call.
- *   - The stage dir includes a readiness note describing the current remaining blocker on this server:
- *     SnapATAC2 annotation loading still requires a local/cached gene annotation for a real sc_process run.
+ *   - The stage dir includes a readiness note describing the current observed blocker
+ *     after the SnapATAC cache/runtime bootstrap fix on this server.
  */
 
-import PipelineSupport
+import WorkflowSupport
 
 process STAGE_SC_PROCESS_INPUTS {
     tag "${stageLabel}"
@@ -41,13 +41,13 @@ process STAGE_SC_PROCESS_INPUTS {
     path("sc_process_stage"), emit: stage_dir
 
     script:
-    def soloArgs = PipelineSupport.asPathList(rnaSoloDirs).collect { path ->
+    def soloArgs = WorkflowSupport.asPathList(rnaSoloDirs).collect { path ->
         "--rna-solo-dir \"${path}\""
     }.join(" \\\n          ")
-    def filteredBamArgs = PipelineSupport.asPathList(rnaFilteredBams).collect { path ->
+    def filteredBamArgs = WorkflowSupport.asPathList(rnaFilteredBams).collect { path ->
         "--rna-filtered-bam \"${path}\""
     }.join(" \\\n          ")
-    def dnaNoDupArgs = PipelineSupport.asPathList(dnaNoDupBams).collect { path ->
+    def dnaNoDupArgs = WorkflowSupport.asPathList(dnaNoDupBams).collect { path ->
         "--dna-nodup-bam \"${path}\""
     }.join(" \\\n          ")
 

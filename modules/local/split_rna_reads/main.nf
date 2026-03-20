@@ -37,7 +37,7 @@ process SPLIT_RNA_READS {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_split_reads_rna.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Split_ReadsV2.codon" \\
+      --script "${params.core_scripts_dir}/Split_ReadsV2.codon" \\
       --r1 "${trimmedR1}" \\
       --r2 "${trimmedR2}" \\
       --sb-group-map "${sbGroupMap}" \\

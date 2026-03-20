@@ -17,7 +17,7 @@
  *       human -> <ref_base_dir>/GRCh38_TrES/star and <ref_base_dir>/hg38.chrom.sizes
  *       mouse -> <ref_base_dir>/GRCm39_TrES/star and <ref_base_dir>/mm39.chrom.sizes
  *   - The script auto-detects CB length from CB:Z: or CR:Z: in the input unmapped SAM.
- *   - This wrapper preserves the upstream shell script as the real execution path.
+ *   - Real execution uses the repo-owned core runtime copy under scripts/core_runtime/.
  */
 
 process ALIGN_RNA {
@@ -74,7 +74,7 @@ EOF
         export SAMTOOLS_BIN="${params.runtime_samtools}"
         export BEDGRAPH_TO_BIGWIG_BIN="${params.runtime_bedgraph_to_bigwig}"
 
-        bash "${params.upstream_dir}/AlignRNA.sh" \\
+        bash "${params.core_scripts_dir}/AlignRNA.sh" \\
           "${splitName}" \\
           "${usam}" \\
           "${refBaseDir}" \\

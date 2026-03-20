@@ -1,5 +1,5 @@
 /*
- * Subworkflow: INITIAL_DNA_TAGGING
+ * Subworkflow: DNA_CORE
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
  *   - raw DNA I1 / I2 / R1 / R2 FASTQs
@@ -14,10 +14,10 @@
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
  *   - duplicate-filtered NoDup BAMs and indexes
  *   - bigWig coverage tracks from the NoDup BAMs
- *   - barcode count/stat files from all wrapped upstream DNA tagging steps
+ *   - barcode count/stat files from all wrapped DNA tagging steps
  */
 
-import PipelineSupport
+import WorkflowSupport
 
 include { TAG_DNA_SAMPLE_BARCODE }   from '../../modules/local/tag_dna_sb/main'
 include { TAG_DNA_MODALITY_BARCODE } from '../../modules/local/tag_dna_modality/main'
@@ -29,7 +29,7 @@ include { MARK_DUPLICATES_DNA }      from '../../modules/local/mark_duplicates_d
 include { SPLIT_DUPLICATES_DNA }     from '../../modules/local/split_duplicates_dna/main'
 include { BAM_COVERAGE_DNA }         from '../../modules/local/bam_coverage_dna/main'
 
-workflow INITIAL_DNA_TAGGING {
+workflow DNA_CORE {
     take:
     ch_dna_samples
 
@@ -79,11 +79,11 @@ workflow INITIAL_DNA_TAGGING {
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1BySplit = PipelineSupport.asPathList(splitR1s).collectEntries { path ->
+            def r1BySplit = WorkflowSupport.asPathList(splitR1s).collectEntries { path ->
                 def splitName = path.getName().replaceFirst('_R1\\.fq\\.gz$', '')
                 [(splitName): path]
             }
-            def r2BySplit = PipelineSupport.asPathList(splitR2s).collectEntries { path ->
+            def r2BySplit = WorkflowSupport.asPathList(splitR2s).collectEntries { path ->
                 def splitName = path.getName().replaceFirst('_R2\\.fq\\.gz$', '')
                 [(splitName): path]
             }
@@ -99,7 +99,7 @@ workflow INITIAL_DNA_TAGGING {
 
     ch_align_rg = SPLIT_DNA_READS.out.rg_headers
         .flatMap { sampleId, meta, rgHeaders ->
-            PipelineSupport.asPathList(rgHeaders).collect { rgHeader ->
+            WorkflowSupport.asPathList(rgHeaders).collect { rgHeader ->
                 def splitName = rgHeader.getName().replaceFirst('^SAM_RG_Header_', '').replaceFirst('\\.tsv$', '')
                 tuple(splitName, sampleId, meta, rgHeader)
             }

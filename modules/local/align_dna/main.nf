@@ -15,7 +15,7 @@
  *   - properly paired mapped reads per barcode TSV emitted directly by AlignDNA.sh
  *
  * Notes:
- *   - This wrapper preserves the upstream shell script as the real execution path.
+ *   - Real execution uses the repo-owned core runtime copy under scripts/core_runtime/.
  *   - AlignDNA.sh internally hardcodes threads and the good-barcode threshold.
  */
 
@@ -57,7 +57,7 @@ EOF
         export BWA_MEM2_BIN="${params.runtime_bwa_mem2}"
         export SAMTOOLS_BIN="${params.runtime_samtools}"
 
-        bash "${params.upstream_dir}/AlignDNA.sh" \\
+        bash "${params.core_scripts_dir}/AlignDNA.sh" \\
           "${modality}" \\
           "${sampleGroup}" \\
           "${splitR1}" \\

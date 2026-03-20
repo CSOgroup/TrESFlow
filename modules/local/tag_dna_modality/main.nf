@@ -33,7 +33,7 @@ process TAG_DNA_MODALITY_BARCODE {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Tag.codon" \\
+      --script "${params.core_scripts_dir}/Tag.codon" \\
       --i2 "${i2}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\

@@ -37,7 +37,7 @@ process TAG_RNA_SAMPLE_BARCODE {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Tag.codon" \\
+      --script "${params.core_scripts_dir}/Tag.codon" \\
       --i2 "${r2}" \\
       --r1 "${r1}" \\
       --r2 "${r2}" \\

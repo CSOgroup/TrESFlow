@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl = 2
 
-import PipelineSupport
+import RuntimeSupport
 
 def enforcePinnedCodonSeq() {
     final File preflight = new File(projectDir.toString(), 'bin/check_codon_seq_host.sh')
@@ -53,12 +53,12 @@ def enforcePinnedCodonSeq() {
     'runtime gatk': params.runtime_gatk,
     'runtime codon': params.runtime_codon,
 ].each { label, path ->
-    PipelineSupport.validateConfiguredExecutable(label, path as String)
+    RuntimeSupport.validateConfiguredExecutable(label, path as String)
 }
 final String codonPreflightOutput = enforcePinnedCodonSeq()
-PipelineSupport.writeRuntimeContract(
+RuntimeSupport.writeRuntimeContract(
     (params.outdir ?: 'results').toString(),
-    PipelineSupport.configuredRuntimeTools(params),
+    RuntimeSupport.configuredRuntimeTools(params),
     codonPreflightOutput
 )
 

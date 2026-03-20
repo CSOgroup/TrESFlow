@@ -1,12 +1,12 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, runs the implemented DNA workflow through `_NoDup.bam` plus `bamCoverage`, and keeps any downstream `sc_process.py` preparation or execution explicitly optional.
+TrESFlow is a Nextflow DSL2 pipeline that now owns the **implemented core runtime** inside this repo. It parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, runs the implemented DNA workflow through `_NoDup.bam` plus `bamCoverage`, and keeps downstream `sc_process.py` staging/execution explicitly optional.
 
 ## Current slice
 
-- `TAG_RNA_SAMPLE_BARCODE` wraps `upstream/source_scripts/Tag.codon` for the RNA sample-barcode step.
-- `TAG_RNA_UMI` wraps `upstream/source_scripts/Tag_UMI.codon` for the RNA UMI step.
-- `TAG_RNA_CELL_BARCODE` wraps `upstream/source_scripts/Tag_Lig3.codon` for the RNA cell-barcode step.
+- `TAG_RNA_SAMPLE_BARCODE` wraps the repo-owned core runtime `Tag.codon` copy for the RNA sample-barcode step.
+- `TAG_RNA_UMI` wraps the repo-owned core runtime `Tag_UMI.codon` copy for the RNA UMI step.
+- `TAG_RNA_CELL_BARCODE` wraps the repo-owned core runtime `Tag_Lig3.codon` copy for the RNA cell-barcode step.
 - `TRIM_RNA_FASTQS` wraps the immediate upstream RNA `trim_galore` step after CB tagging.
 - `SPLIT_RNA_READS` wraps the immediate upstream RNA `Split_ReadsV2.codon` step in `rna` mode after trimming.
 - `FQ_TO_SAM` wraps the immediate upstream RNA `FqToSAM.codon` step after read splitting.
@@ -20,7 +20,8 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `MARK_DUPLICATES_DNA` wraps the immediate upstream DNA `gatk MarkDuplicates` step after direct `AlignDNA.sh` BAM outputs.
 - `SPLIT_DUPLICATES_DNA` wraps the immediate upstream `samtools view` plus `samtools index` steps that emit DNA `_NoDup.bam` outputs after `MarkDuplicates`.
 - `BAM_COVERAGE_DNA` wraps the immediate upstream `bamCoverage` step on DNA `_NoDup.bam` inputs.
-- `STAGE_SC_PROCESS_INPUTS` optionally stages the first true shared downstream boundary: a flat workdir containing grouped RNA align outputs plus DNA `_NoDup.bam` inputs, `pairs.tsv`, and staging manifests for one future `sc_process.py` call.
+- `STAGE_SC_PROCESS_INPUTS` optionally stages the first true shared downstream boundary: a flat workdir containing grouped RNA align outputs plus DNA `_NoDup.bam` inputs, `pairs.tsv`, and staging manifests.
+- `RUN_SC_PROCESS` optionally runs the single downstream `sc_process.py` call against that staged workdir with explicit `SNAP_DATA_DIR`, `HOME`, `MPLCONFIGDIR`, and `NUMBA_CACHE_DIR` runtime bindings.
 - `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through DNA `_NoDup.bam` plus coverage outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - `-profile test_multiome` runs both mock modality branches and explicitly exercises the optional shared staging boundary.
@@ -35,7 +36,9 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - An optional shared staging boundary is available under `shared_stage/` when enabled explicitly.
 - This repo still does not reproduce the second erroneous `sc_process.py` invocation from `MAINLAUNCH.sh`.
 - The single downstream `sc_process.py` analysis remains explicitly optional and is not part of the mandatory core workflow.
-- Downstream RNA `.ubam` conversion and real `sc_process.py` execution remain intentionally out of scope for the current implementation because the current server setup still lacks the local SnapATAC annotation dependency that the upstream script needs.
+- Downstream RNA `.ubam` conversion remains out of scope for the current implementation.
+- The optional `sc_process.py` path now uses the local SnapATAC cache at `/home/annan/.cache/snapatac2` explicitly by default instead of introducing a new user-supplied annotation input.
+- The implemented core workflow no longer depends on `upstream/source_scripts/` at runtime; those files remain in the repo for provenance and comparison only.
 - Every run also writes `pipeline_info/runtime_contract.tsv`, which records the configured explicit runtime binaries plus the host Codon/Seq preflight output.
 
 ## Implemented Boundaries
@@ -70,7 +73,12 @@ The upstream DNA order relevant to this repo is:
 10. `bamCoverage`
 
 This repo currently implements the next DNA boundary: steps 1 through 10.
-When both RNA and DNA rows are present and `--stage_sc_process_inputs true` is set, the repo also stages the strongest truthful shared boundary before one future `sc_process.py` call.
+When both RNA and DNA rows are present and `--stage_sc_process_inputs true` is set, the repo also stages the strongest truthful shared boundary before the optional downstream `sc_process.py` path.
+
+## Architecture
+
+- Repo-maintained architecture view: `docs/architecture/implemented_pipeline.md`
+- Generated Nextflow DAG/report artifacts still land under `outdir/pipeline_info/`
 
 ## Layout
 
@@ -81,9 +89,9 @@ When both RNA and DNA rows are present and `--stage_sc_process_inputs true` is s
 - `conf/test_dna.config`
 - `conf/test_multiome.config`
 - `workflows/treseq.nf`
-- `subworkflows/local/initial_rna_tagging.nf`
-- `subworkflows/local/initial_dna_tagging.nf`
-- `subworkflows/local/shared_sc_stage.nf`
+- `subworkflows/local/rna_core.nf`
+- `subworkflows/local/dna_core.nf`
+- `subworkflows/local/optional_sc_process.nf`
 - `modules/local/tag_rna_sb/main.nf`
 - `modules/local/tag_rna_umi/main.nf`
 - `modules/local/tag_rna_cell_barcode/main.nf`
@@ -101,6 +109,9 @@ When both RNA and DNA rows are present and `--stage_sc_process_inputs true` is s
 - `modules/local/split_duplicates_dna/main.nf`
 - `modules/local/bam_coverage_dna/main.nf`
 - `modules/local/stage_sc_process_inputs/main.nf`
+- `modules/local/run_sc_process/main.nf`
+- `scripts/core_runtime/`
+- `docs/architecture/implemented_pipeline.md`
 - `assets/samplesheet.example.yaml`
 - `assets/samplesheet.dna.example.yaml`
 - `assets/samplesheet.multiome.example.yaml`
@@ -133,8 +144,12 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
 
 ## Optional CLI params
 
-- `--upstream_dir`
-  Default: `./upstream/source_scripts`
+- `--core_scripts_dir`
+  Default: `./scripts/core_runtime`
+  Repo-owned core runtime script directory used by the implemented RNA and DNA branches.
+- `--optional_sc_process_script`
+  Default: `./upstream/source_scripts/sc_process.py`
+  Explicit optional downstream entrypoint. This is intentionally separate from the core runtime path.
 - `--runtime_bin_dir`
   Default: `/home/annan/micromamba/envs/tres/bin`
   Shared base directory for the env-bound executable defaults below.
@@ -167,7 +182,10 @@ If the samplesheet contains any DNA samples, real and mock DNA runs also require
   Optional downstream prep toggle. When `true`, the pipeline stages `shared_stage/sc_process_stage/` after the validated RNA and DNA branches finish.
 - `--run_sc_process`
   Default: `false`
-  Optional downstream analysis toggle reserved for one future single `sc_process.py` call. This checkout fails fast if you enable it, because real `sc_process.py` execution is not yet wired and still needs a local SnapATAC-compatible gene annotation.
+  Optional downstream analysis toggle for one and only one `sc_process.py` call. When `true`, the pipeline stages shared inputs automatically and then launches the optional downstream analysis with explicit `SNAP_DATA_DIR`, `HOME`, `MPLCONFIGDIR`, and `NUMBA_CACHE_DIR` runtime bindings.
+- `--runtime_snap_data_dir`
+  Default: `/home/annan/.cache/snapatac2`
+  Optional shared-analysis runtime cache path. When `--run_sc_process true`, `RUN_SC_PROCESS` exports `SNAP_DATA_DIR` to this directory so `snap.genome.hg38` / `snap.genome.mm39` resolve from the local SnapATAC cache deterministically.
 - `--max_cpus`
   Default: `40`
   Total CPU budget for the local executor. Real runs distribute that budget as `ALIGN_RNA=int(max_cpus/2)`, `TRIM_RNA_FASTQS=min(8, int(max_cpus/5))`, `TRIM_DNA_FASTQS=min(8, int(max_cpus/5))`, `SPLIT_RNA_READS=min(4, int(max_cpus/10))`, `SPLIT_DNA_READS=min(4, int(max_cpus/10))`, `ALIGN_DNA=max_cpus`, `MARK_DUPLICATES_DNA=1`, and `1` CPU for the remaining wrapped processes.
@@ -260,7 +278,7 @@ For DNA sample-barcode tagging and DNA split, `sb_group_map` is the shared sampl
 `dna_mo_map` is the launcher-style modality map TSV consumed by `Split_ReadsV2.codon` in `dna` mode.
 The supported DNA MO-map form for this repo is the launcher-style 4-column TSV: `sample<TAB>sb_group<TAB>mark<TAB>mo_bc`.
 DNA alignment uses explicit CLI inputs matching `AlignDNA.sh`: `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
-The current strongest shared downstream boundary is a staged flat workdir for one future `sc_process.py` call; the shared analysis itself remains blocked on a local SnapATAC gene annotation dependency.
+The current strongest shared downstream boundary is a staged flat workdir for one optional `sc_process.py` call, and the optional analysis path now uses the local SnapATAC cache explicitly instead of requiring a new annotation input by default.
 
 ## Running the test profile
 
@@ -302,7 +320,12 @@ Optional downstream toggles:
 - `--stage_sc_process_inputs true`
   Stages `shared_stage/sc_process_stage/` after the core RNA and DNA branches complete.
 - `--run_sc_process true`
-  Reserved for one future downstream `sc_process.py` call. It is explicit and off by default. In the current checkout it fails fast with a clear message instead of attempting hidden network-dependent behavior.
+  Runs one optional downstream `sc_process.py` call. It is explicit and off by default. Enabling it also stages the shared downstream workdir automatically and binds `SNAP_DATA_DIR` explicitly to `--runtime_snap_data_dir`.
+
+Optional downstream output locations:
+
+- stage-only boundary: `outdir/shared_stage/sc_process_stage/`
+- optional analysis workdir: `outdir/shared_stage/sc_process_run/`
 
 Example core multiome run without downstream staging:
 
@@ -456,7 +479,9 @@ That stage directory contains:
 - DNA `*_NoDup.bam` and `*_NoDup.bam.bai` files
 
 This is the strongest truthful shared boundary before one future `sc_process.py` call.
-On this server, a direct `sc_process.py` attempt against that staged layout still fails because SnapATAC2 tries to fetch the human/hg38 Gencode annotation `gencode.v41.basic.annotation.gff3.gz` from `ftp.ebi.ac.uk` when no local cached/provided annotation is available.
+On this server, the optional `sc_process.py` runtime now gets past SnapATAC annotation resolution by using the local cache at `/home/annan/.cache/snapatac2` explicitly. The current next hard failure in a real run is later inside `snap.metrics.tsse`, where at least one group reaches:
+
+- `RuntimeError: one of the following keys must be present in the '.obsm': 'fragment_single', 'fragment_paired'`
 
 ## Acceptance Criteria
 
@@ -464,11 +489,11 @@ On this server, a direct `sc_process.py` attempt against that staged layout stil
 - `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA `_NoDup.bam` plus coverage outputs.
 - `nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome_core --stage_sc_process_inputs false` succeeds without emitting `shared_stage/`.
 - `nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome --stage_sc_process_inputs true` succeeds through the optional shared staging boundary and emits `shared_stage/sc_process_stage/`.
-- `nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome_sc_process --run_sc_process true` fails fast with a clear message instead of attempting an unsupported or network-dependent `sc_process.py` run.
+- `nextflow run . --samplesheet assets/test_realdata/samplesheet.real_multiome.yaml --outdir results/test_real_multiome_sc_process --rna_ref_base_dir /path/to/rna_ref_base --rna_align_species human --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398 --run_sc_process true` launches one optional `sc_process.py` call with `SNAP_DATA_DIR=/home/annan/.cache/snapatac2` and gets past annotation resolution; any remaining failure is later inside the upstream downstream-analysis logic.
 - `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_postalign --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398` succeeds through direct DNA `_NoDup.bam` outputs on a host with Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, `samtools`, `bamCoverage`, and `gatk`.
 - If any `_NoDup.bam` has zero mapped reads, `BAM_COVERAGE_DNA` skips coverage for that split with a warning.
 - Full server-side validation of non-empty real `bamCoverage` outputs is still pending.
-- The strongest honest shared boundary is `shared_stage/sc_process_stage/` when optional staging is enabled; the single shared `sc_process.py` call is still blocked by the missing local SnapATAC annotation dependency and is not part of the default contract.
+- The strongest honest shared boundary remains `shared_stage/sc_process_stage/` when optional staging is enabled; the optional single `sc_process.py` call is now wired, uses the local SnapATAC cache explicitly, and is still not part of the default contract.
 - The DNA sample-barcode whitelist is derived from `sb_group_map`; a separate DNA sample-barcode whitelist is not part of the pipeline contract.
 - RNA output locations remain `tagging/`, `split/`, `usam/`, `align/`, and `pipeline_info/`.
 - DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, `dna_dedup/`, `dna_nodup/`, `dna_coverage/`, and `pipeline_info/`.
@@ -619,11 +644,12 @@ Every pipeline run currently requires the following on the host:
 - `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
 - `/home/annan/micromamba/envs/tres/bin/bamCoverage`
 - `/home/annan/micromamba/envs/tres/bin/gatk`
-- the read-only upstream scripts under `upstream/source_scripts/`
+- the repo-owned core runtime scripts under `scripts/core_runtime/`
 
 For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and shared sample-barcode group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
 For real DNA alignment runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files, plus `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
-For one future real `sc_process.py` run, you will also need a local SnapATAC-compatible gene annotation available on the server; without that, the upstream script currently attempts to download `gencode.v41.basic.annotation.gff3.gz` for the human/hg38 path.
+For the optional real `sc_process.py` path on this server, the pipeline now binds `SNAP_DATA_DIR` to `/home/annan/.cache/snapatac2` by default, so `snap.genome.hg38` / `snap.genome.mm39` resolve from the local SnapATAC cache instead of requiring a new user-supplied annotation input by default.
+The read-only `upstream/source_scripts/` tree remains in the repo only for provenance and comparison. The current core workflow does not execute from that directory anymore.
 By default on this server, the pipeline binds the current implemented task executables explicitly to `/home/annan/micromamba/envs/tres/bin`. It does not rely on prepending that directory to `PATH` for the implemented slice. Override the individual `--runtime_*` params if you need different binaries.
 `--dna_bwa_reference` is a bwa-mem2 index prefix; the base path itself may be a prefix rather than a regular file, but the sidecars `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac` must exist.
 
@@ -702,7 +728,7 @@ Still host-dependent:
 - Codon `0.16.3`: `/home/annan/.codon/bin/codon`
 - Seq `0.11.3`: `/home/annan/.codon/lib/codon/plugins/seq`
 - system shell tools such as `bash`, `sort`, `awk`, `grep`, `head`, `tail`, `cat`, `mv`, and `rm`
-- the read-only upstream scripts under `upstream/source_scripts/`
+- the optional downstream `sc_process.py` entrypoint, defaulting to `upstream/source_scripts/sc_process.py`
 
 Current Docker limitation:
 

@@ -33,7 +33,7 @@ process SPLIT_DNA_READS {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_split_reads_dna.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Split_ReadsV2.codon" \\
+      --script "${params.core_scripts_dir}/Split_ReadsV2.codon" \\
       --r1 "${trimmedR1}" \\
       --r2 "${trimmedR2}" \\
       --mo-map "${moMap}" \\

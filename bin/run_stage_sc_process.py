@@ -91,12 +91,12 @@ def write_readiness_note(path: Path, species: str, genome: str, exact_pairs):
         "- DNA NoDup BAMs are staged with launcher-style names.",
         "- RNA STARsolo directories are staged with launcher-style names.",
         "- pairs.tsv contains exact dna_group_key -> rna_sample mappings when grouped names match.",
+        "- Optional RUN_SC_PROCESS on this server can resolve snap.genome.* annotations from the local SnapATAC cache when SNAP_DATA_DIR points at /home/annan/.cache/snapatac2.",
         "",
-        "Current blocker before one shared sc_process.py call on this server:",
-        "- sc_process.py triggers SnapATAC2 TSSE annotation loading.",
-        "- Without a local cached/provided gene annotation, SnapATAC2 attempts a network download.",
-        "- The last observed missing remote file for the human/hg38 path was:",
-        "  gencode.v41.basic.annotation.gff3.gz from ftp.ebi.ac.uk",
+        "Current observed blocker after the runtime bootstrap fix on this server:",
+        "- Real sc_process.py execution now gets past SnapATAC annotation resolution and scanpy import.",
+        "- The next hard failure is inside snap.metrics.tsse for at least one real group:",
+        "  RuntimeError: one of the following keys must be present in the '.obsm': 'fragment_single', 'fragment_paired'",
     ]
 
     with open(path, "wt", encoding="utf-8") as handle:

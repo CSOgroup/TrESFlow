@@ -32,7 +32,7 @@ process FQ_TO_SAM {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/FqToSAM.codon" \\
+      --script "${params.core_scripts_dir}/FqToSAM.codon" \\
       --r1 "${splitR1}" \\
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"

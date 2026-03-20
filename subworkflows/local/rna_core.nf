@@ -1,21 +1,21 @@
 /*
- * Subworkflow: INITIAL_RNA_TAGGING
+ * Subworkflow: RNA_CORE
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
  *   - raw RNA I1 / R1 / R2 FASTQs
  *   - RNA cell-barcode whitelist
- *   - sample-barcode group map TSV, used both to derive the effective sample-barcode whitelist
- *     and later by Split_ReadsV2 rna mode
+ *   - shared sample-barcode group map TSV, used both to derive the effective
+ *     RNA sample-barcode whitelist and to split grouped RNA reads
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
  *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
  *   - AlignRNA STARsolo outputs from each grouped RNA unmapped SAM
- *   - barcode count/stat files from all wrapped upstream steps
+ *   - barcode count/stat files from all wrapped RNA steps
  */
 
-import PipelineSupport
+import WorkflowSupport
 
 include { TAG_RNA_SAMPLE_BARCODE } from '../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
@@ -25,7 +25,7 @@ include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/mai
 include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
 include { ALIGN_RNA }              from '../../modules/local/align_rna/main'
 
-workflow INITIAL_RNA_TAGGING {
+workflow RNA_CORE {
     take:
     ch_rna_samples
 
@@ -75,12 +75,12 @@ workflow INITIAL_RNA_TAGGING {
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1ByGroup = PipelineSupport.asPathList(splitR1s).collectEntries { path ->
+            def r1ByGroup = WorkflowSupport.asPathList(splitR1s).collectEntries { path ->
                 def name = path.getName()
                 def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R1\\.fq\\.gz$', '')
                 [(group): path]
             }
-            def r2ByGroup = PipelineSupport.asPathList(splitR2s).collectEntries { path ->
+            def r2ByGroup = WorkflowSupport.asPathList(splitR2s).collectEntries { path ->
                 def name = path.getName()
                 def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R2\\.fq\\.gz$', '')
                 [(group): path]

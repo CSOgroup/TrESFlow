@@ -33,7 +33,7 @@ process TAG_DNA_CELL_BARCODE {
     """
     "${params.runtime_python}" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
-      --script "${params.upstream_dir}/Tag_Lig3.codon" \\
+      --script "${params.core_scripts_dir}/Tag_Lig3.codon" \\
       --i1 "${i1}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
