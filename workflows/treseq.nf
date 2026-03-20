@@ -13,12 +13,15 @@
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage
  *      through the DNA-only post-alignment prep boundary before shared downstream work.
+ *  10. When both modalities are present, stage one flat shared workdir that matches the
+ *      input layout expected by one future sc_process.py call.
  */
 
 import PipelineSupport
 
 include { INITIAL_RNA_TAGGING } from '../subworkflows/local/initial_rna_tagging'
 include { INITIAL_DNA_TAGGING } from '../subworkflows/local/initial_dna_tagging'
+include { SHARED_SC_STAGE } from '../subworkflows/local/shared_sc_stage'
 
 def toRnaSampleInput(final Map row) {
     tuple(
@@ -45,6 +48,17 @@ def toDnaSampleInput(final Map row) {
         file(row.mo_map),
         file(row.sb_group_map)
     )
+}
+
+def sharedGenomeFromSpecies(final String rawSpecies) {
+    final String species = rawSpecies?.toString()?.trim()?.toLowerCase()
+    if( species == 'human' ) {
+        return 'hg38'
+    }
+    if( species == 'mouse' ) {
+        return 'mm39'
+    }
+    return null
 }
 
 workflow TRESEQ {
@@ -95,6 +109,35 @@ workflow TRESEQ {
     INITIAL_RNA_TAGGING(ch_rna_samples)
     INITIAL_DNA_TAGGING(ch_dna_samples)
 
+    def ch_shared_stage_dir = Channel.empty()
+    if( rnaRows && dnaRows ) {
+        final String sharedSpecies = (params.rna_align_species ?: '').toString().trim().toLowerCase()
+        final String sharedGenome = sharedGenomeFromSpecies(sharedSpecies)
+        final String sharedStageLabel = (sampleRows[0].library_name ?: 'shared_stage').toString()
+        final String sharedSbGroupMap = (dnaRows ? dnaRows[0].sb_group_map : rnaRows[0].sb_group_map).toString()
+        final String sharedMoMap = dnaRows[0].mo_map.toString()
+
+        Channel
+            .value(
+                tuple(
+                    sharedStageLabel,
+                    sharedSpecies,
+                    sharedGenome,
+                    file(sharedMoMap),
+                    file(sharedSbGroupMap)
+                )
+            )
+            .set { ch_shared_stage_meta }
+
+        SHARED_SC_STAGE(
+            INITIAL_RNA_TAGGING.out.aligned_solo_dirs,
+            INITIAL_RNA_TAGGING.out.aligned_filtered_bams,
+            INITIAL_DNA_TAGGING.out.nodup_bams,
+            ch_shared_stage_meta
+        )
+        ch_shared_stage_dir = SHARED_SC_STAGE.out.stage_dir
+    }
+
     emit:
     tagged_fastqs     = INITIAL_RNA_TAGGING.out.tagged_fastqs
     trimmed_fastqs    = INITIAL_RNA_TAGGING.out.trimmed_fastqs
@@ -120,4 +163,5 @@ workflow TRESEQ {
     dna_nodup_bais = INITIAL_DNA_TAGGING.out.nodup_bais
     dna_coverage_bigwigs = INITIAL_DNA_TAGGING.out.coverage_bigwigs
     dna_barcode_reports = INITIAL_DNA_TAGGING.out.barcode_reports
+    shared_sc_stage = ch_shared_stage_dir
 }

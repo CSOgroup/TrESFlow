@@ -1,6 +1,6 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, and now also implements the immediate DNA-only post-MarkDuplicates prep through duplicate-filtered DNA `_NoDup.bam` plus `bamCoverage` wrappers.
+TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `upstream/source_scripts/`. The current implementation is intentionally small: it parses a single YAML samplesheet, runs the implemented RNA workflow through `AlignRNA.sh`, runs the implemented DNA workflow through `_NoDup.bam` plus `bamCoverage`, and now also stages one flat shared workdir when both modalities are present.
 
 ## Current slice
 
@@ -20,8 +20,10 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - `MARK_DUPLICATES_DNA` wraps the immediate upstream DNA `gatk MarkDuplicates` step after direct `AlignDNA.sh` BAM outputs.
 - `SPLIT_DUPLICATES_DNA` wraps the immediate upstream `samtools view` plus `samtools index` steps that emit DNA `_NoDup.bam` outputs after `MarkDuplicates`.
 - `BAM_COVERAGE_DNA` wraps the immediate upstream `bamCoverage` step on DNA `_NoDup.bam` inputs.
+- `STAGE_SC_PROCESS_INPUTS` stages the first true shared downstream boundary: a flat workdir containing grouped RNA align outputs plus DNA `_NoDup.bam` inputs, `pairs.tsv`, and staging manifests for one future `sc_process.py` call.
 - `-profile test` uses lightweight mock wrappers for the wrapped RNA steps, but the pipeline still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
 - `-profile test_dna` uses lightweight mock wrappers for the wrapped DNA steps through DNA `_NoDup.bam` plus coverage outputs, and still enforces host Codon `0.16.3` and Seq `0.11.3` before any run starts.
+- `-profile test_multiome` runs both mock modality branches and exercises the shared staging boundary.
 - Every pipeline run requires host-installed Codon `0.16.3` and Seq `0.11.3`.
 - For normal execution on this server, the pipeline binds `python3`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, and `bwa-mem2` explicitly to `/home/annan/micromamba/envs/tres/bin/...`.
 - `gatk` remains explicitly pinned outside that env at `/mnt/dataFast/ahrmad/gatk-4.6.0.0/gatk`.
@@ -30,8 +32,9 @@ TrESFlow is a Nextflow DSL2 wrapper around the read-only source material in `ups
 - A separate `test_real_rna` profile is available for external/local validation data through the full implemented RNA boundary.
 - An optional `docker` profile containerizes the current Python wrapper steps for the smoke-test path only.
 - Pinning the real-mode toolchain does not change the mock `-profile test` or `-profile test,docker` paths.
-- The first true shared downstream step is still one future `sc_process.py` call. This repo does not reproduce the second erroneous `sc_process.py` invocation from `MAINLAUNCH.sh`.
-- Downstream RNA `.ubam` conversion and the single shared `sc_process.py` analysis remain intentionally out of scope for the current implementation.
+- The first true shared downstream boundary is now the staged flat workdir under `shared_stage/`.
+- This repo still does not reproduce the second erroneous `sc_process.py` invocation from `MAINLAUNCH.sh`.
+- Downstream RNA `.ubam` conversion and the single shared `sc_process.py` analysis remain intentionally out of scope for the current implementation because the current server setup still lacks the local SnapATAC annotation dependency that the upstream script needs.
 - Every run also writes `pipeline_info/runtime_contract.tsv`, which records the configured explicit runtime binaries plus the host Codon/Seq preflight output.
 
 ## Implemented Boundaries
@@ -66,7 +69,7 @@ The upstream DNA order relevant to this repo is:
 10. `bamCoverage`
 
 This repo currently implements the next DNA boundary: steps 1 through 10.
-The first remaining shared downstream step is still one future `sc_process.py` call.
+When both RNA and DNA rows are present in one samplesheet, the repo also stages the strongest truthful shared boundary before one future `sc_process.py` call.
 
 ## Layout
 
@@ -75,9 +78,11 @@ The first remaining shared downstream step is still one future `sc_process.py` c
 - `conf/base.config`
 - `conf/test.config`
 - `conf/test_dna.config`
+- `conf/test_multiome.config`
 - `workflows/treseq.nf`
 - `subworkflows/local/initial_rna_tagging.nf`
 - `subworkflows/local/initial_dna_tagging.nf`
+- `subworkflows/local/shared_sc_stage.nf`
 - `modules/local/tag_rna_sb/main.nf`
 - `modules/local/tag_rna_umi/main.nf`
 - `modules/local/tag_rna_cell_barcode/main.nf`
@@ -94,10 +99,14 @@ The first remaining shared downstream step is still one future `sc_process.py` c
 - `modules/local/mark_duplicates_dna/main.nf`
 - `modules/local/split_duplicates_dna/main.nf`
 - `modules/local/bam_coverage_dna/main.nf`
+- `modules/local/stage_sc_process_inputs/main.nf`
 - `assets/samplesheet.example.yaml`
 - `assets/samplesheet.dna.example.yaml`
+- `assets/samplesheet.multiome.example.yaml`
 - `assets/samplesheet.real_rna.template.yaml`
 - `assets/testdata/`
+- `assets/test_realdata/samplesheet.real_multiome.yaml`
+- `bin/run_stage_sc_process.py`
 - `scripts/install_codon_0.16.3.sh`
 
 ## Required CLI params
@@ -238,7 +247,7 @@ For DNA sample-barcode tagging and DNA split, `sb_group_map` is the shared sampl
 `dna_mo_map` is the launcher-style modality map TSV consumed by `Split_ReadsV2.codon` in `dna` mode.
 The supported DNA MO-map form for this repo is the launcher-style 4-column TSV: `sample<TAB>sb_group<TAB>mark<TAB>mo_bc`.
 DNA alignment uses explicit CLI inputs matching `AlignDNA.sh`: `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
-Shared downstream analysis remains intentionally out of scope.
+The current strongest shared downstream boundary is a staged flat workdir for one future `sc_process.py` call; the shared analysis itself remains blocked on a local SnapATAC gene annotation dependency.
 
 ## Running the test profile
 
@@ -258,6 +267,15 @@ nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.ya
 
 Expected DNA outputs land under `results/test_dna/dna_tagging/`, `results/test_dna/dna_split/`, `results/test_dna/dna_align/`, `results/test_dna/dna_dedup/`, `results/test_dna/dna_nodup/`, and `results/test_dna/dna_coverage/`:
 sample-barcode-tagged FASTQs, sample-plus-modality-tagged FASTQs, SB/MO/CB count and stats files, CB tag records, trimmed `_val_1` / `_val_2` DNA FASTQs, split per-group per-mark FASTQ pairs, `SAM_RG_Header_*.tsv` files, mocked aligned BAMs, mocked BAM indexes, mocked per-barcode count TSVs, mocked `_MarkedDup.bam` outputs, mocked `_NoDup.bam` outputs, and mocked bigWig coverage tracks.
+
+## Running the Multiome Test Profile
+
+```bash
+nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome
+```
+
+This path keeps the validated RNA and DNA mock boundaries intact and then stages a flat shared workdir under `results/test_multiome/shared_stage/sc_process_stage/`.
+That directory contains the grouped RNA `Solo.outGeneFull/` dirs, grouped RNA filtered BAMs, DNA `_NoDup.bam` inputs, `mo_map.tsv`, `sb_group_map.tsv`, `pairs.tsv`, `stage_manifest.tsv`, and `sc_process_readiness.txt`.
 
 ## Real RNA Validation
 
@@ -381,16 +399,39 @@ Expected outputs through the implemented DNA boundary when `sb_group_map`, `dna_
 - `outdir/dna_coverage/` with one `<sample>_<group>_<mark>_NoDup.bw` per valid group and mark combination whose `_NoDup.bam` contains mapped reads
 - `outdir/pipeline_info/` with the configured Nextflow report artifacts
 
+## Shared Stage Boundary
+
+When one samplesheet contains both RNA and DNA rows, the pipeline now stages a flat shared workdir at:
+
+- `outdir/shared_stage/sc_process_stage/`
+
+That stage directory contains:
+
+- `mo_map.tsv`
+- `sb_group_map.tsv`
+- `pairs.tsv` with exact `dna_group_key -> rna_sample` mappings when grouped names match
+- `stage_manifest.tsv`
+- `sc_process_readiness.txt`
+- grouped RNA `*.Solo.outGeneFull/` directories
+- grouped RNA `*.filtered_cells.bam` files
+- DNA `*_NoDup.bam` and `*_NoDup.bam.bai` files
+
+This is the strongest truthful shared boundary before one future `sc_process.py` call.
+On this server, a direct `sc_process.py` attempt against that staged layout still fails because SnapATAC2 tries to fetch the human/hg38 Gencode annotation `gencode.v41.basic.annotation.gff3.gz` from `ftp.ebi.ac.uk` when no local cached/provided annotation is available.
+
 ## Acceptance Criteria
 
 - `nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test` succeeds through mocked RNA `AlignRNA.sh` outputs.
 - `nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna` succeeds through mocked DNA `_NoDup.bam` plus coverage outputs.
+- `nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome` succeeds through the shared staging boundary and emits `shared_stage/sc_process_stage/`.
 - `nextflow run . --samplesheet assets/samplesheet.dna.RealDATAexample.yaml --outdir results/test_dna_real_postalign --dna_bwa_reference /path/to/bwa_index_prefix --dna_blacklist_bed /path/to/blacklist.bed --dna_effective_genome_size 2913022398` succeeds through direct DNA `_NoDup.bam` outputs on a host with Codon `0.16.3`, Seq `0.11.3`, `trim_galore`, `bwa-mem2`, `samtools`, `bamCoverage`, and `gatk`.
 - If any `_NoDup.bam` has zero mapped reads, `BAM_COVERAGE_DNA` skips coverage for that split with a warning.
 - Full server-side validation of non-empty real `bamCoverage` outputs is still pending.
+- The strongest honest shared boundary is `shared_stage/sc_process_stage/`; the single shared `sc_process.py` call is still blocked by the missing local SnapATAC annotation dependency.
 - The DNA sample-barcode whitelist is derived from `sb_group_map`; a separate DNA sample-barcode whitelist is not part of the pipeline contract.
 - RNA output locations remain `tagging/`, `split/`, `usam/`, `align/`, and `pipeline_info/`.
 - DNA output locations for the current slice are `dna_tagging/`, `dna_split/`, `dna_align/`, `dna_dedup/`, `dna_nodup/`, `dna_coverage/`, and `pipeline_info/`.
+- When both modalities are present, the shared staging output location is `shared_stage/`.
 - The pipeline still writes Nextflow `timeline`, `report`, `trace`, and `DAG` artifacts under `${params.outdir}/pipeline_info/`.
 - The pipeline also writes `${params.outdir}/pipeline_info/runtime_contract.tsv` so the configured explicit runtime binaries are easy to verify after a run.
 
@@ -437,6 +478,17 @@ nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.ya
 
 This path uses the bundled mock wrappers for the current DNA boundary through `_NoDup.bam` plus coverage outputs, and startup still fails unless host Codon `0.16.3` and Seq `0.11.3` are installed.
 This mock path emits `dna_split/`, `dna_align/`, `dna_dedup/`, `dna_nodup/`, and `dna_coverage/` outputs.
+
+### Host + Multiome Test
+
+Supported on native Linux and macOS hosts:
+
+```bash
+nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome
+```
+
+This path runs both mock modality branches and then emits `shared_stage/sc_process_stage/`.
+It is the current integration test for the first shared downstream boundary before one future `sc_process.py` call.
 
 ### Host + Real RNA Validation
 
@@ -531,6 +583,7 @@ Every pipeline run currently requires the following on the host:
 
 For the `test_real_rna` profile specifically, you also need an external/local samplesheet plus the referenced `I1`, `R1`, `R2`, cell whitelist, and shared sample-barcode group map files. The real-RNA sample id must match the `sample` column in that map. For the current example, that value is `day15`.
 For real DNA alignment runs, you also need the referenced `I1`, `I2`, `R1`, `R2`, DNA modality whitelist, ligation whitelist, `sb_group_map`, and `dna_mo_map` files, plus `--dna_bwa_reference`, `--dna_blacklist_bed`, and `--dna_effective_genome_size`.
+For one future real `sc_process.py` run, you will also need a local SnapATAC-compatible gene annotation available on the server; without that, the upstream script currently attempts to download `gencode.v41.basic.annotation.gff3.gz` for the human/hg38 path.
 By default on this server, the pipeline binds the current implemented runtime tools explicitly to `/home/annan/micromamba/envs/tres/bin`, and also prepends that directory to `PATH` as a compatibility fallback. Override the individual `--runtime_*` params if you need different binaries.
 `--dna_bwa_reference` is a bwa-mem2 index prefix; the base path itself may be a prefix rather than a regular file, but the sidecars `${prefix}.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, and `.pac` must exist.
 
