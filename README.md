@@ -1,7 +1,7 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 pipeline that owns the **implemented core runtime**
-inside this repo.
+TrESFlow is a Nextflow DSL2 pipeline that owns the implemented core runtime in
+this repo.
 
 - Core workflow:
   - RNA through `ALIGN_RNA`
@@ -10,7 +10,7 @@ inside this repo.
   - shared staging
   - one optional `sc_process.py` call
 
-Architecture/DAG view:
+Architecture/DAG:
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
 
 ## Workflow Boundaries
@@ -42,27 +42,29 @@ Architecture/DAG view:
 - `STAGE_SC_PROCESS_INPUTS`
 - `RUN_SC_PROCESS`
 
-`RUN_SC_PROCESS` is explicit and optional. The core pipeline is complete without
-it, and the workflow design allows only one `sc_process.py` call.
+The core workflow is complete without `RUN_SC_PROCESS`. The workflow design
+allows only one `sc_process.py` call.
+
+## Validation Policy
+
+Real-data runs are the primary validation target for this repo.
+
+The only retained non-real path is the minimal `-profile test` smoke test,
+because [`AGENTS.md`](AGENTS.md) requires the repo to keep an end-to-end
+`-profile test` path with a minimal dataset.
+
+Current validation focus:
+
+- real RNA
+- real DNA
+- optional real multiome staging and downstream analysis
 
 ## Quick Start
 
-Mock RNA core:
+Minimal required smoke test:
 
 ```bash
 nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
-```
-
-Mock DNA core:
-
-```bash
-nextflow run . -profile test_dna --samplesheet assets/samplesheet.dna.example.yaml --outdir results/test_dna
-```
-
-Mock multiome plus shared staging:
-
-```bash
-nextflow run . -profile test_multiome --samplesheet assets/samplesheet.multiome.example.yaml --outdir results/test_multiome
 ```
 
 Real RNA validation:
@@ -87,17 +89,21 @@ nextflow run . \
   --dna_effective_genome_size 2913022398
 ```
 
-Optional shared staging only:
+Optional real shared staging:
 
 ```bash
 nextflow run . \
-  -profile test_multiome \
-  --samplesheet assets/samplesheet.multiome.example.yaml \
-  --outdir results/test_multiome_stage \
+  --samplesheet assets/test_realdata/samplesheet.real_multiome.yaml \
+  --outdir results/test_real_multiome_stage \
+  --rna_ref_base_dir /path/to/reference_base \
+  --rna_align_species human \
+  --dna_bwa_reference /path/to/bwa_index_prefix \
+  --dna_blacklist_bed /path/to/blacklist.bed \
+  --dna_effective_genome_size 2913022398 \
   --stage_sc_process_inputs true
 ```
 
-Optional downstream analysis:
+Optional real downstream analysis:
 
 ```bash
 nextflow run . \
@@ -138,8 +144,8 @@ Every run writes:
 - `${outdir}/pipeline_info/runtime_contract.tsv`
 
 The implemented core workflow runs from [`scripts/core_runtime/`](scripts/core_runtime/).
-The read-only [`upstream/source_scripts/`](upstream/source_scripts/) tree remains
-for provenance and for the optional `sc_process.py` entrypoint only.
+[`upstream/source_scripts/`](upstream/source_scripts/) remains for provenance
+and for the optional downstream `sc_process.py` entrypoint only.
 
 ## Inputs and Params
 
@@ -196,8 +202,7 @@ exist: `.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, `.pac`.
 
 `RUN_SC_PROCESS` binds `SNAP_DATA_DIR` explicitly. By default on this server it
 uses `/home/annan/.cache/snapatac2`, so `snap.genome.hg38` and
-`snap.genome.mm39` resolve from the local SnapATAC cache instead of requiring a
-new user-supplied annotation file by default.
+`snap.genome.mm39` resolve from the local SnapATAC cache.
 
 ### Runtime and layout overrides
 
@@ -212,15 +217,14 @@ new user-supplied annotation file by default.
 
 ## Example Samplesheets
 
-Committed examples:
+Committed examples and templates:
 
-- RNA mock: [`assets/samplesheet.example.yaml`](assets/samplesheet.example.yaml)
-- DNA mock: [`assets/samplesheet.dna.example.yaml`](assets/samplesheet.dna.example.yaml)
-- Multiome mock: [`assets/samplesheet.multiome.example.yaml`](assets/samplesheet.multiome.example.yaml)
-- Real RNA template: [`assets/samplesheet.real_rna.template.yaml`](assets/samplesheet.real_rna.template.yaml)
-- Real multiome example: [`assets/test_realdata/samplesheet.real_multiome.yaml`](assets/test_realdata/samplesheet.real_multiome.yaml)
+- minimal smoke test: [`assets/samplesheet.example.yaml`](assets/samplesheet.example.yaml)
+- real RNA template: [`assets/samplesheet.real_rna.template.yaml`](assets/samplesheet.real_rna.template.yaml)
+- real DNA example: [`assets/samplesheet.dna.RealDATAexample.yaml`](assets/samplesheet.dna.RealDATAexample.yaml)
+- real multiome example: [`assets/test_realdata/samplesheet.real_multiome.yaml`](assets/test_realdata/samplesheet.real_multiome.yaml)
 
-Committed test assets live under:
+Committed data assets used by the current repo:
 
 - [`assets/testdata/`](assets/testdata/)
 - [`assets/test_realdata/`](assets/test_realdata/)
@@ -263,9 +267,9 @@ Key owned paths:
 - [`scripts/core_runtime/`](scripts/core_runtime/)
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
 
-## Additional Profiles
+## Additional Runtime Profiles
 
-Local dev micromamba/conda support:
+Optional local dev micromamba/conda overlay:
 
 ```bash
 micromamba env create -f envs/first_slice.yml
@@ -273,14 +277,14 @@ micromamba activate tres
 nextflow run . -profile test,conda_dev --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-Docker smoke path:
+Optional Docker overlay for the retained smoke path:
 
 ```bash
 docker build -f docker/first_slice.Dockerfile -t tresflow-first-slice:py312 .
 nextflow run . -profile test,docker --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-Neither of those removes the current pinned host Codon/Seq requirement.
+Neither overlay removes the current pinned host Codon/Seq requirement.
 
 ## Validation Status
 
@@ -292,11 +296,10 @@ Current validated boundaries on this server:
 
 Current acceptance criteria:
 
-- `-profile test` succeeds through mocked RNA `ALIGN_RNA`
-- `-profile test_dna` succeeds through mocked DNA `BAM_COVERAGE_DNA`
-- `-profile test_multiome` succeeds through shared staging
+- `-profile test` succeeds through the retained minimal smoke path
 - `-profile test_real_rna` succeeds through real RNA `ALIGN_RNA`
-- real DNA validation succeeds through direct `_NoDup.bam` outputs and reaches the coverage wrapper with the established server runtime contract
+- real DNA validation succeeds through the current real DNA boundary on this server
+- optional multiome staging and optional `sc_process.py` remain real-data-only paths
 
 ## Troubleshooting
 
@@ -314,6 +317,6 @@ bash scripts/install_codon_0.16.3.sh
 
 Known runtime notes:
 
-- `bamCoverage` can be long-running on this server; treat it as a runtime/performance characteristic unless there is a distinct configuration or contract error.
+- `bamCoverage` can be long-running on this server; treat that as a runtime/performance characteristic unless there is a distinct configuration or contract error.
 - The optional `sc_process.py` path is not part of the mandatory core workflow.
-- The optional downstream runtime now gets past SnapATAC annotation resolution using the local cache, but later downstream analysis issues remain outside the core workflow contract.
+- The optional downstream runtime gets past SnapATAC annotation resolution using the local cache, but later downstream analysis issues remain outside the core workflow contract.
