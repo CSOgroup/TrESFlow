@@ -13,9 +13,17 @@ class SamplesheetParser {
         }
 
         final def parsed = new YamlSlurper().parse(sheetFile)
-        if( !(parsed instanceof Map) || !parsed.samples ) {
+        if( !(parsed instanceof Map) ) {
+            throw new IllegalArgumentException("Samplesheet must be a top-level YAML mapping: ${samplesheetPath}")
+        }
+        if( !(parsed.resources instanceof Map) || ((Map) parsed.resources).isEmpty() ) {
             throw new IllegalArgumentException(
-                "Samplesheet must contain a non-empty top-level 'samples:' mapping or list: ${samplesheetPath}"
+                "Samplesheet must contain a non-empty top-level 'resources:' mapping: ${samplesheetPath}"
+            )
+        }
+        if( !(parsed.samples instanceof Map) || ((Map) parsed.samples).isEmpty() ) {
+            throw new IllegalArgumentException(
+                "Samplesheet must contain a non-empty top-level 'samples:' mapping: ${samplesheetPath}"
             )
         }
 
@@ -23,17 +31,7 @@ class SamplesheetParser {
         final String libraryName = requireString(parsed.library_name, 'library_name')
         final Map sharedResources = resolveSharedResources(parsed, baseDir, options)
 
-        if( parsed.samples instanceof Map ) {
-            return parseUnified(parsed, baseDir, libraryName, options, sharedResources)
-        }
-
-        if( parsed.samples instanceof List ) {
-            return parseLegacy(parsed, baseDir, libraryName, options, sharedResources)
-        }
-
-        throw new IllegalArgumentException(
-            "Top-level 'samples:' must be either a mapping of sample ids or a non-empty list"
-        )
+        return parseUnified(parsed, baseDir, libraryName, options, sharedResources)
     }
 
     private static List<Map> parseUnified(
@@ -151,149 +149,6 @@ class SamplesheetParser {
         }
 
         return samples
-    }
-
-    private static List<Map> parseLegacy(
-        final Map parsed,
-        final File baseDir,
-        final String libraryName,
-        final Map options,
-        final Map sharedResources
-    ) {
-        final List samples = (List) parsed.samples
-        if( samples.isEmpty() ) {
-            throw new IllegalArgumentException("Samplesheet must contain a non-empty top-level 'samples:' list")
-        }
-
-        final String sbGroupMap = resolveExistingPath(
-            baseDir,
-            requireString(parsed.sb_group_map, 'sb_group_map')
-        )
-        final boolean hasDnaSamples = samples.any { sample ->
-            sample instanceof Map && sample.modality?.toString()?.trim()?.equalsIgnoreCase('dna')
-        }
-        final String dnaMoMap = hasDnaSamples
-            ? resolveExistingPath(baseDir, requireString(parsed.dna_mo_map, 'dna_mo_map'))
-            : null
-        final Map defaults = normalizedDefaults(options)
-        final String defaultLigationWhitelist = sharedResources.ligation_barcode_whitelist
-
-        final List<Map> parsedRows = []
-
-        for( int idx = 0; idx < samples.size(); idx++ ) {
-            final def row = samples[idx]
-            if( !(row instanceof Map) ) {
-                throw new IllegalArgumentException("samples[${idx}] must be a mapping")
-            }
-
-            final String sampleId = requireString(row.id, "samples[${idx}].id")
-            final String modality = requireString(row.modality, "samples[${idx}].modality").toLowerCase()
-
-            final Map reads = asMap(row.reads, "samples[${idx}].reads")
-            final Map barcodes = asMap(row.barcodes, "samples[${idx}].barcodes")
-            final Map sampleBarcode = asMap(barcodes.sample, "samples[${idx}].barcodes.sample")
-            final Map cellBarcode = barcodes.cell ? asMap(barcodes.cell, "samples[${idx}].barcodes.cell") : [:]
-
-            if( modality == 'rna' ) {
-                final Map umiBarcode = asMap(barcodes.umi, "samples[${idx}].barcodes.umi")
-
-                parsedRows << [
-                    id                         : sampleId,
-                    modality                   : modality,
-                    i1                         : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
-                    r1                         : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
-                    r2                         : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
-                    sample_bc_len              : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
-                    sample_bc_start            : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
-                    sample_hd                  : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),
-                    sample_tag                 : optionalString(sampleBarcode.tag, 'SB'),
-                    sample_first_pass          : optionalString(sampleBarcode.first_pass, 'first_pass'),
-                    sample_reverse_complement  : toDirection(
-                        sampleBarcode.containsKey('reverse_complement') ? sampleBarcode.reverse_complement : true,
-                        "samples[${idx}].barcodes.sample.reverse_complement"
-                    ),
-                    umi_bc_len                 : requireInt(umiBarcode.bc_len, "samples[${idx}].barcodes.umi.bc_len"),
-                    umi_bc_start               : requireInt(umiBarcode.bc_start, "samples[${idx}].barcodes.umi.bc_start"),
-                    umi_tag                    : optionalString(umiBarcode.tag, 'UM'),
-                    cell_whitelist             : resolveLegacyCellWhitelist(baseDir, cellBarcode, defaultLigationWhitelist, idx),
-                    cell_bc_len                : requireInt(cellBarcode.bc_len ?: defaults.rna.cell.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
-                    cell_hd                    : requireInt(cellBarcode.hd ?: defaults.rna.cell.hd, "samples[${idx}].barcodes.cell.hd"),
-                    cell_tag                   : optionalString(cellBarcode.tag, defaults.rna.cell.tag.toString()),
-                    rna_ref_base_dir           : sharedResources.rna_ref_base_dir,
-                    rna_align_species          : sharedResources.rna_align_species,
-                    library_name               : libraryName,
-                    sb_group_map               : sbGroupMap
-                ]
-                continue
-            }
-
-            if( modality == 'dna' ) {
-                final Map modalityBarcode = asMap(barcodes.modality, "samples[${idx}].barcodes.modality")
-
-                parsedRows << [
-                    id                            : sampleId,
-                    modality                      : modality,
-                    i1                            : resolveExistingPath(baseDir, requireString(reads.i1, "samples[${idx}].reads.i1")),
-                    i2                            : resolveExistingPath(baseDir, requireString(reads.i2, "samples[${idx}].reads.i2")),
-                    r1                            : resolveExistingPath(baseDir, requireString(reads.r1, "samples[${idx}].reads.r1")),
-                    r2                            : resolveExistingPath(baseDir, requireString(reads.r2, "samples[${idx}].reads.r2")),
-                    sample_bc_len                 : requireInt(sampleBarcode.bc_len, "samples[${idx}].barcodes.sample.bc_len"),
-                    sample_bc_start               : requireInt(sampleBarcode.bc_start, "samples[${idx}].barcodes.sample.bc_start"),
-                    sample_hd                     : requireInt(sampleBarcode.hd, "samples[${idx}].barcodes.sample.hd"),
-                    sample_tag                    : optionalString(sampleBarcode.tag, 'SB'),
-                    sample_first_pass             : optionalString(sampleBarcode.first_pass, 'first_pass'),
-                    sample_reverse_complement     : toDirection(
-                        sampleBarcode.containsKey('reverse_complement') ? sampleBarcode.reverse_complement : true,
-                        "samples[${idx}].barcodes.sample.reverse_complement"
-                    ),
-                    modality_whitelist            : resolveExistingPath(
-                        baseDir,
-                        requireString(modalityBarcode.whitelist, "samples[${idx}].barcodes.modality.whitelist")
-                    ),
-                    modality_bc_len               : requireInt(modalityBarcode.bc_len, "samples[${idx}].barcodes.modality.bc_len"),
-                    modality_bc_start             : requireInt(modalityBarcode.bc_start, "samples[${idx}].barcodes.modality.bc_start"),
-                    modality_hd                   : requireInt(modalityBarcode.hd, "samples[${idx}].barcodes.modality.hd"),
-                    modality_tag                  : optionalString(modalityBarcode.tag, 'MO'),
-                    modality_first_pass           : optionalString(modalityBarcode.first_pass, 'not_first_pass'),
-                    modality_reverse_complement   : toDirection(
-                        modalityBarcode.containsKey('reverse_complement') ? modalityBarcode.reverse_complement : true,
-                        "samples[${idx}].barcodes.modality.reverse_complement"
-                    ),
-                    cell_whitelist                : resolveLegacyCellWhitelist(baseDir, cellBarcode, defaultLigationWhitelist, idx),
-                    cell_bc_len                   : requireInt(cellBarcode.bc_len ?: defaults.dna.cell.bc_len, "samples[${idx}].barcodes.cell.bc_len"),
-                    cell_hd                       : requireInt(cellBarcode.hd ?: defaults.dna.cell.hd, "samples[${idx}].barcodes.cell.hd"),
-                    cell_tag                      : optionalString(cellBarcode.tag, defaults.dna.cell.tag.toString()),
-                    dna_bwa_reference             : sharedResources.dna_bwa_reference,
-                    dna_blacklist_bed             : sharedResources.dna_blacklist_bed,
-                    dna_effective_genome_size     : sharedResources.dna_effective_genome_size,
-                    library_name                  : libraryName,
-                    sb_group_map                  : sbGroupMap,
-                    mo_map                        : dnaMoMap
-                ]
-                continue
-            }
-
-            throw new IllegalArgumentException(
-                "Unsupported modality for sample '${sampleId}': '${modality}'. Supported values: rna, dna"
-            )
-        }
-
-        return parsedRows
-    }
-
-    private static String resolveLegacyCellWhitelist(
-        final File baseDir,
-        final Map cellBarcode,
-        final String defaultLigationWhitelist,
-        final int idx
-    ) {
-        if( cellBarcode?.whitelist ) {
-            return resolveExistingPath(
-                baseDir,
-                requireString(cellBarcode.whitelist, "samples[${idx}].barcodes.cell.whitelist")
-            )
-        }
-        return defaultLigationWhitelist
     }
 
     private static LinkedHashMap<String, List<String>> parseGroups(final Map groupsConfig, final String sampleId) {
@@ -446,36 +301,34 @@ class SamplesheetParser {
     }
 
     private static Map resolveSharedResources(final Map parsed, final File baseDir, final Map options) {
-        final Map resources = parsed.resources ? asMap(parsed.resources, 'resources') : [:]
+        final Map resources = asMap(parsed.resources, 'resources')
 
         return [
             ligation_barcode_whitelist: resolveExistingPath(
                 baseDir,
                 requireString(
-                    firstDefined(resources.ligation_barcode_whitelist, parsed.ligation_barcode_whitelist, options.ligation_barcode_whitelist),
+                    firstDefined(resources.ligation_barcode_whitelist, options.ligation_barcode_whitelist),
                     'resources.ligation_barcode_whitelist or --ligation_barcode_whitelist'
                 )
             ),
             rna_ref_base_dir: resolveOptionalPath(
                 baseDir,
-                firstDefined(resources.rna_ref_base_dir, parsed.rna_ref_base_dir, options.rna_ref_base_dir)
+                firstDefined(resources.rna_ref_base_dir, options.rna_ref_base_dir)
             ),
             rna_align_species: firstDefined(
                 resources.rna_align_species,
-                parsed.rna_align_species,
                 options.rna_align_species
             )?.toString()?.trim()?.toLowerCase(),
             dna_bwa_reference: resolveOptionalPath(
                 baseDir,
-                firstDefined(resources.dna_bwa_reference, parsed.dna_bwa_reference, options.dna_bwa_reference)
+                firstDefined(resources.dna_bwa_reference, options.dna_bwa_reference)
             ),
             dna_blacklist_bed: resolveOptionalPath(
                 baseDir,
-                firstDefined(resources.dna_blacklist_bed, parsed.dna_blacklist_bed, options.dna_blacklist_bed)
+                firstDefined(resources.dna_blacklist_bed, options.dna_blacklist_bed)
             ),
             dna_effective_genome_size: firstDefined(
                 resources.dna_effective_genome_size,
-                parsed.dna_effective_genome_size,
                 options.dna_effective_genome_size
             )?.toString()?.trim()
         ]
@@ -507,23 +360,6 @@ class SamplesheetParser {
             throw new IllegalArgumentException("Missing required field: ${fieldName}")
         }
         return out
-    }
-
-    private static int requireInt(final Object value, final String fieldName) {
-        if( value == null ) {
-            throw new IllegalArgumentException("Missing required field: ${fieldName}")
-        }
-        try {
-            return value as int
-        }
-        catch( Exception ignored ) {
-            throw new IllegalArgumentException("${fieldName} must be an integer")
-        }
-    }
-
-    private static String optionalString(final Object value, final String defaultValue) {
-        final String out = value?.toString()?.trim()
-        return out ?: defaultValue
     }
 
     private static String toDirection(final Object value, final String fieldName) {

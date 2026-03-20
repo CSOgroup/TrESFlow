@@ -239,8 +239,8 @@ The DNA `mark_barcodes` mapping in the YAML is now the source of truth for:
 
 Required in the run contract:
 
-- `resources.rna_ref_base_dir` in the samplesheet, or `--rna_ref_base_dir` as a fallback
-- `resources.rna_align_species` in the samplesheet, or `--rna_align_species` as a fallback
+- `resources.rna_ref_base_dir`
+- `resources.rna_align_species`
 
 Reference layout:
 
@@ -251,21 +251,17 @@ Reference layout:
 
 Required in the run contract:
 
-- `resources.dna_bwa_reference` in the samplesheet, or `--dna_bwa_reference` as a fallback
-- `resources.dna_blacklist_bed` in the samplesheet, or `--dna_blacklist_bed` as a fallback
-- `resources.dna_effective_genome_size` in the samplesheet, or `--dna_effective_genome_size` as a fallback
+- `resources.dna_bwa_reference`
+- `resources.dna_blacklist_bed`
+- `resources.dna_effective_genome_size`
 
 `--dna_bwa_reference` is a bwa-mem2 index prefix. The following sidecars must
 exist: `.0123`, `.amb`, `.ann`, `.bwt.2bit.64`, `.pac`.
 
 ### Defaulted barcode resources and tag settings
 
-The ligation barcode whitelist is now part of the preferred samplesheet
-contract under `resources.ligation_barcode_whitelist`.
-
-If it is omitted from the YAML, the fallback is:
-
-- `--ligation_barcode_whitelist`
+The ligation barcode whitelist is part of the supported samplesheet contract
+under `resources.ligation_barcode_whitelist`.
 
 The default server config points it at:
 
@@ -305,14 +301,8 @@ uses `/home/annan/.cache/snapatac2`, so `snap.genome.hg38` and
 `--max_cpus` defaults to `40`.
 
 The samplesheet is the primary source of truth for shared run resources.
-Existing CLI params remain available as fallbacks when a resource is omitted
-from the YAML.
-
-### Legacy compatibility
-
-The parser still accepts the older list-style YAML contract as a compatibility
-shim. That path is kept for low-risk transition only. The supported public
-contract is the hierarchical YAML shown above.
+Existing CLI params remain available only as explicit overrides for advanced
+use; they are not a second public samplesheet contract.
 
 ## Example Samplesheets
 
