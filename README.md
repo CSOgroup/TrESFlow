@@ -88,11 +88,6 @@ Committed examples:
 - canonical real example: [`assets/samplesheet.real.example.yaml`](assets/samplesheet.real.example.yaml)
 - generic template: [`assets/samplesheet.template.yaml`](assets/samplesheet.template.yaml)
 
-Repo validation fixtures kept for developer convenience:
-
-- RNA-only: [`assets/test_realdata/samplesheet.real_rna.yaml`](assets/test_realdata/samplesheet.real_rna.yaml)
-- DNA-only: [`assets/test_realdata/samplesheet.real_dna.yaml`](assets/test_realdata/samplesheet.real_dna.yaml)
-
 ## Runtime Contract
 
 The primary runtime contract is one environment root:
@@ -135,6 +130,15 @@ Shared run resources come from the samplesheet `resources:` block. CLI params re
 - `--dna_blacklist_bed`
 - `--dna_effective_genome_size`
 - `--max_cpus`
+
+Default local CPU budget:
+
+- `--max_cpus 64`
+- `RNA_STARSOLO_ALIGN` and `RNA_COVERAGE` reserve up to `24` cores each.
+- `RNA_FILTERED_BAM`, trim, split, duplicate-filter, and DNA coverage helper steps reserve up to `8` cores each.
+- `ALIGN_DNA` reserves up to `32` cores.
+- tagging, `FQ_TO_SAM`, and `MARK_DUPLICATES_DNA` stay at `1` core.
+- These are scheduler reservations. `ALIGN_DNA` still wraps an upstream script with its own internal thread behavior, so its Nextflow CPU value primarily controls local concurrency.
 
 Every run writes:
 

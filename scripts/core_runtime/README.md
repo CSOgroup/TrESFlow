@@ -1,14 +1,12 @@
 # Core Runtime Scripts
 
-This directory contains the **repo-owned runtime copies** of the currently
-validated core workflow scripts.
+This directory contains the active repo-owned runtime for the validated core workflow.
 
 Purpose:
 
-- remove runtime dependence on `upstream/source_scripts/` for the implemented core pipeline
-- preserve the validated behavior of the current RNA and DNA branches
-- keep the upstream source tree available only for provenance and comparison
-- make the pipeline easier to reason about by keeping the active runtime here
+- keep the implemented core pipeline runnable without runtime dependence on `upstream/source_scripts/`
+- preserve the validated RNA and DNA behavior in repo-owned code
+- keep `upstream/source_scripts/` only as provenance
 
 The current core runtime set is:
 
@@ -27,5 +25,4 @@ Ownership rules:
 
 - edits to files in this directory are pipeline changes and should be reviewed like any other repo code
 - keep behavior aligned with the validated workflow unless a deliberate contract change is documented
-- do not point the core Nextflow modules back at `upstream/source_scripts/` except for temporary debugging
 - prefer targeted readability improvements over large rewrites of biological logic
