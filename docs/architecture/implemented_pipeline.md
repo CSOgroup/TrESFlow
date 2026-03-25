@@ -2,7 +2,7 @@
 
 Core workflow only:
 
-- RNA through `ALIGN_RNA`
+- RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through `BAM_COVERAGE_DNA`
 
 ```mermaid
@@ -37,8 +37,10 @@ flowchart TD
         RNA3[TRIM_RNA_FASTQS]
         RNA4[SPLIT_RNA_READS]
         RNA5[FQ_TO_SAM]
-        RNA6[ALIGN_RNA]
-        RNA0 --> RNA1 --> RNA2 --> RNA3 --> RNA4 --> RNA5 --> RNA6
+        RNA6[RNA_STARSOLO_ALIGN]
+        RNA7[RNA_FILTERED_BAM]
+        RNA8[RNA_COVERAGE]
+        RNA0 --> RNA1 --> RNA2 --> RNA3 --> RNA4 --> RNA5 --> RNA6 --> RNA7 --> RNA8
     end
 
     subgraph DNA_Core[DNA Core]

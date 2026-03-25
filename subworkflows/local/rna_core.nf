@@ -12,7 +12,7 @@
  *   - trim_galore paired-end FASTQs from the CB-tagged reads
  *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
- *   - AlignRNA STARsolo outputs from each grouped RNA unmapped SAM
+ *   - STARsolo outputs, filtered BAMs, and bigWigs from the decomposed RNA alignment path
  *   - barcode count/stat files from all wrapped RNA steps
  */
 
@@ -24,7 +24,9 @@ include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcod
 include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/main'
 include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/main'
 include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
-include { ALIGN_RNA }              from '../../modules/local/align_rna/main'
+include { RNA_STARSOLO_ALIGN }     from '../../modules/local/rna_starsolo_align/main'
+include { RNA_FILTERED_BAM }       from '../../modules/local/rna_filtered_bam/main'
+include { RNA_COVERAGE }           from '../../modules/local/rna_coverage/main'
 
 workflow RNA_CORE {
     take:
@@ -87,8 +89,8 @@ workflow RNA_CORE {
 
     FQ_TO_SAM(ch_fq_to_sam_input)
 
-    // Align each grouped unmapped SAM independently.
-    ch_align_rna_input = FQ_TO_SAM.out.usam
+    // Align each grouped unmapped SAM independently with STARsolo.
+    ch_starsolo_input = FQ_TO_SAM.out.usam
         .map { splitName, meta, usam ->
             tuple(
                 splitName,
@@ -99,7 +101,28 @@ workflow RNA_CORE {
             )
         }
 
-    ALIGN_RNA(ch_align_rna_input)
+    RNA_STARSOLO_ALIGN(ch_starsolo_input)
+
+    ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
+        .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
+        .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
+            tuple(splitName, metaFromSolo, soloDir, alignedBam)
+        }
+
+    RNA_FILTERED_BAM(ch_filtered_bam_input)
+
+    ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
+        .map { splitName, meta, filteredBam ->
+            tuple(
+                splitName,
+                meta,
+                filteredBam,
+                meta.rna_ref_base_dir as String,
+                meta.rna_align_species as String
+            )
+        }
+
+    RNA_COVERAGE(ch_coverage_input)
 
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)
@@ -111,9 +134,9 @@ workflow RNA_CORE {
     split_fastqs     = SPLIT_RNA_READS.out.split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     usam_files       = FQ_TO_SAM.out.usam
-    aligned_solo_dirs = ALIGN_RNA.out.solo_dir
-    aligned_filtered_bams = ALIGN_RNA.out.filtered_bam
-    aligned_stranded_bigwigs = ALIGN_RNA.out.stranded_bw
-    aligned_unstranded_bigwigs = ALIGN_RNA.out.unstranded_bw
+    aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
+    aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+    aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
+    aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports
 }

@@ -1,6 +1,6 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES core workflow in this repo: RNA through `ALIGN_RNA` and DNA through `BAM_COVERAGE_DNA`.
+TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES core workflow in this repo: RNA through the repo-owned alignment/filtered-BAM/coverage path and DNA through `BAM_COVERAGE_DNA`.
 
 ## Workflow Summary
 
@@ -12,7 +12,9 @@ RNA core:
 4. `TRIM_RNA_FASTQS`
 5. `SPLIT_RNA_READS`
 6. `FQ_TO_SAM`
-7. `ALIGN_RNA`
+7. `RNA_STARSOLO_ALIGN`
+8. `RNA_FILTERED_BAM`
+9. `RNA_COVERAGE`
 
 DNA core:
 

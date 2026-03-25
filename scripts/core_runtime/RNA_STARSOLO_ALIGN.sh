@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-#   ./AlignRNA.sh SAMPLE_NAME TAGGED.usam REF_BASE_DIR OUTDIR THREADS SPECIES
+#   ./RNA_STARSOLO_ALIGN.sh SAMPLE_NAME TAGGED.usam REF_BASE_DIR OUTDIR THREADS SPECIES
 # SPECIES: human | mouse
 
 set -euo pipefail
@@ -10,7 +10,6 @@ if [[ $# -lt 6 ]]; then
     exit 1
 fi
 
-# Input Variables
 sample_name="${1}"
 USAM_IN="${2}"
 path_ref="${3}"
@@ -18,16 +17,11 @@ outdir="${4}"
 threads="${5}"
 species="${6}"
 STAR_BIN="${STAR_BIN:-STAR}"
-SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
-BEDGRAPH_TO_BIGWIG_BIN="${BEDGRAPH_TO_BIGWIG_BIN:-bedGraphToBigWig}"
 
-# References
 path_refDB="${path_ref}/GRCh38_TrES/star"
-path_refCHROMSIZES="${path_ref}/hg38.chrom.sizes"
 
 if [[ "${species}" == "mouse" ]]; then
     path_refDB="${path_ref}/GRCm39_TrES/star"
-    path_refCHROMSIZES="${path_ref}/mm39.chrom.sizes"
 elif [[ "${species}" != "human" ]]; then
     echo "ERROR: SPECIES must be 'human' or 'mouse' (got: ${species})" >&2
     exit 1
@@ -38,10 +32,8 @@ if [[ ! -s "${USAM_IN}" ]]; then
     exit 1
 fi
 
-# Fixed UMI length
 UMIlen=10
 
-# Auto-detect CBlen from CB tag or from CR tag (fallback: len(CR)-UMIlen)
 CBlen="$(
   awk -v UMIlen="${UMIlen}" '
     BEGIN { FS="\t" }
@@ -66,18 +58,14 @@ if [[ -z "${CBlen}" ]] || [[ "${CBlen}" -le 0 ]]; then
   exit 1
 fi
 
-# UMI starts right after CB
 UMIstart=$(( CBlen + 1 ))
 
 echo "Using species=${species}"
 echo "Detected CBlen=${CBlen} => UMIstart=${UMIstart} UMIlen=${UMIlen}"
 echo "Using STAR_BIN=${STAR_BIN}"
-echo "Using SAMTOOLS_BIN=${SAMTOOLS_BIN}"
-echo "Using BEDGRAPH_TO_BIGWIG_BIN=${BEDGRAPH_TO_BIGWIG_BIN}"
 
 ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&2
 
-# STAR run: mapping + STARsolo from SAM
 "${STAR_BIN}" \
   --genomeDir "${path_refDB}" \
   --runThreadN "${threads}" \
@@ -118,50 +106,3 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --outSAMunmapped None \
   --soloOutFileNames "Solo.out" "features.tsv" "barcodes.tsv" "matrix.mtx" \
   --outFileNamePrefix "${outdir}/${sample_name}."
-
-BARCODES="${outdir}/${sample_name}.Solo.outGeneFull/filtered/barcodes.tsv"
-INBAM="${outdir}/${sample_name}.Aligned.sortedByCoord.out.bam"
-OUTBAM="${outdir}/${sample_name}.filtered_cells.bam"
-
-"${SAMTOOLS_BIN}" view --threads ${threads} --with-header --exclude-flags 0x100 --require-flags 0x1,0x2 --tag-file RG:${BARCODES} --output ${OUTBAM} ${INBAM}
-"${SAMTOOLS_BIN}" index --threads ${threads} ${INBAM}
-
-rm "${outdir}/${sample_name}.Aligned.sortedByCoord.out.bam"*
-
-"${STAR_BIN}" \
-  --runMode inputAlignmentsFromBAM \
-  --runThreadN "${threads}" \
-  --genomeDir "${path_refDB}" \
-  --inputBAMfile "${OUTBAM}" \
-  --outWigType bedGraph \
-  --outWigStrand Stranded \
-  --outWigNorm RPM \
-  --outWigReferencesPrefix chr \
-  --outFileNamePrefix "${outdir}/${sample_name}.stranded_"
-
-"${STAR_BIN}" \
-  --runMode inputAlignmentsFromBAM \
-  --runThreadN "${threads}" \
-  --genomeDir "${path_refDB}" \
-  --inputBAMfile "${OUTBAM}" \
-  --outWigType bedGraph \
-  --outWigStrand Unstranded \
-  --outWigNorm RPM \
-  --outWigReferencesPrefix chr \
-  --outFileNamePrefix "${outdir}/${sample_name}.unstranded_"
-
-# Stranded:
-for f in "${outdir}/${sample_name}.stranded_Signal.Unique.str"*.bg; do
-  sort -k1,1 -k2,2n "$f" > "${f%.bedGraph}.sorted.bg"
-  "${BEDGRAPH_TO_BIGWIG_BIN}" "${f%.bedGraph}.sorted.bg" "${path_refCHROMSIZES}" "${f%.bg}.bw"
-done
-
-# Unstranded:
-for f in "${outdir}/${sample_name}.unstranded_Signal.Unique.str"*.bg; do
-  sort -k1,1 -k2,2n "$f" > "${f%.bedGraph}.sorted.bg"
-  "${BEDGRAPH_TO_BIGWIG_BIN}" "${f%.bedGraph}.sorted.bg" "${path_refCHROMSIZES}" "${f%.bg}.bw"
-done
-
-# Keep cleanup close to original, but avoid deleting unrelated bg files
-rm -f "${outdir}/${sample_name}"*.bg \
-      "${outdir}/${sample_name}"*.bg

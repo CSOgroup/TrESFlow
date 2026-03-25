@@ -17,7 +17,9 @@ The current core runtime set is:
 - `Tag_Lig3.codon`
 - `Split_ReadsV2.codon`
 - `FqToSAM.codon`
-- `AlignRNA.sh`
+- `RNA_STARSOLO_ALIGN.sh`
+- `RNA_FILTERED_BAM.sh`
+- `RNA_COVERAGE.sh`
 - `AlignDNA.sh`
 - `utils.codon`
 

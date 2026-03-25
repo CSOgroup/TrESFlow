@@ -8,8 +8,10 @@
  *   5. Run the upstream RNA trim_galore step via a thin wrapper.
  *   6. Run the upstream RNA Split_ReadsV2 step in rna mode via a thin wrapper.
  *   7. Run the upstream RNA FqToSAM step via a thin wrapper.
- *   8. Run the upstream RNA AlignRNA.sh step via a thin wrapper.
- *   9. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
+ *   8. Run STARsolo alignment from grouped RNA unmapped SAMs.
+ *   9. Generate filtered RNA BAMs from the STARsolo barcode calls.
+ *  10. Generate stranded and unstranded RNA bigWigs from the filtered BAMs.
+ *  11. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
