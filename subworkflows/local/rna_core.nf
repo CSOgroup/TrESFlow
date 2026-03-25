@@ -31,12 +31,14 @@ workflow RNA_CORE {
     ch_rna_samples
 
     main:
+    // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, r1, r2, sbGroupMap)
     }
 
     TAG_RNA_SAMPLE_BARCODE(ch_sb_input)
 
+    // Add UMIs after sample-barcode tagging.
     ch_raw_r2 = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, r2)
     }
@@ -49,6 +51,7 @@ workflow RNA_CORE {
 
     TAG_RNA_UMI(ch_umi_input)
 
+    // Add ligation-derived cell barcodes from I1.
     ch_cb_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, i1, cellWhitelist)
     }
@@ -62,6 +65,7 @@ workflow RNA_CORE {
     TAG_RNA_CELL_BARCODE(ch_cb_input)
     TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
 
+    // Split trimmed reads by sample-barcode group before FQ_TO_SAM.
     ch_split_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, sbGroupMap)
     }
@@ -76,28 +80,14 @@ workflow RNA_CORE {
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1ByGroup = WorkflowSupport.asPathList(splitR1s).collectEntries { path ->
-                def name = path.getName()
-                def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R1\\.fq\\.gz$', '')
-                [(group): path]
-            }
-            def r2ByGroup = WorkflowSupport.asPathList(splitR2s).collectEntries { path ->
-                def name = path.getName()
-                def group = name.replaceFirst("^${sampleId}_", '').replaceFirst('_R2\\.fq\\.gz$', '')
-                [(group): path]
-            }
-
-            def groups = (r1ByGroup.keySet() + r2ByGroup.keySet()).unique().sort()
-            groups.collect { group ->
-                if( !r1ByGroup.containsKey(group) || !r2ByGroup.containsKey(group) ) {
-                    throw new IllegalStateException("Missing split FASTQ mate for sample '${sampleId}' group '${group}'")
-                }
-                tuple("${sampleId}_${group}", meta, r1ByGroup[group], r2ByGroup[group])
+            WorkflowSupport.pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
+                tuple(split.splitName, meta, split.r1, split.r2)
             }
         }
 
     FQ_TO_SAM(ch_fq_to_sam_input)
 
+    // Align each grouped unmapped SAM independently.
     ch_align_rna_input = FQ_TO_SAM.out.usam
         .map { splitName, meta, usam ->
             tuple(

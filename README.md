@@ -74,6 +74,7 @@ Notes:
 
 - `resources` holds shared run resources for the whole run.
 - Each biological sample appears once under `samples:`.
+- Omit the `rna:` or `dna:` block when a sample has only one modality.
 - `groups.<group>.sb_barcodes` is the source of truth for sample-barcode grouping.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and per-sample DNA modality whitelist files are derived internally under `${outdir}/pipeline_info/derived_contract/`.
@@ -82,9 +83,13 @@ Notes:
 Committed examples:
 
 - smoke test: [`assets/samplesheet.example.yaml`](assets/samplesheet.example.yaml)
-- real RNA template: [`assets/samplesheet.real_rna.template.yaml`](assets/samplesheet.real_rna.template.yaml)
-- real RNA example: [`assets/test_realdata/samplesheet.real_rna.yaml`](assets/test_realdata/samplesheet.real_rna.yaml)
-- real DNA example: [`assets/samplesheet.dna.RealDATAexample.yaml`](assets/samplesheet.dna.RealDATAexample.yaml)
+- canonical real example: [`assets/samplesheet.real.example.yaml`](assets/samplesheet.real.example.yaml)
+- generic template: [`assets/samplesheet.template.yaml`](assets/samplesheet.template.yaml)
+
+Repo validation fixtures kept for developer convenience:
+
+- RNA-only: [`assets/test_realdata/samplesheet.real_rna.yaml`](assets/test_realdata/samplesheet.real_rna.yaml)
+- DNA-only: [`assets/test_realdata/samplesheet.real_dna.yaml`](assets/test_realdata/samplesheet.real_dna.yaml)
 
 ## Runtime Contract
 
@@ -137,6 +142,8 @@ Every run writes:
 - `${outdir}/pipeline_info/flowchart.html`
 - `${outdir}/pipeline_info/runtime_contract.tsv`
 
+The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_runtime/). `upstream/source_scripts/` is kept only as provenance for the vendored core code.
+
 ## Quick Start
 
 Smoke test:
@@ -145,21 +152,12 @@ Smoke test:
 nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
-Real RNA:
+Canonical real example:
 
 ```bash
 nextflow run . \
-  -profile test_real_rna \
-  --samplesheet assets/test_realdata/samplesheet.real_rna.yaml \
-  --outdir results/test_real_rna
-```
-
-Real DNA:
-
-```bash
-nextflow run . \
-  --samplesheet assets/samplesheet.dna.RealDATAexample.yaml \
-  --outdir results/test_dna_real
+  --samplesheet assets/samplesheet.real.example.yaml \
+  --outdir results/test_real
 ```
 
 ## Outputs

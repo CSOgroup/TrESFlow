@@ -1,7 +1,9 @@
+# Developer validation fixture for the real DNA-only path.
+
 library_name: REALDATATESTLIB
 
 resources:
-  ligation_barcode_whitelist: test_realdata/ligation_barcode_whitelist.txt
+  ligation_barcode_whitelist: ligation_barcode_whitelist.txt
   dna_bwa_reference: /mnt/dataFast/ahrmad/hg38_bwamem2_index/hg38.fa
   dna_blacklist_bed: /mnt/dataFast/ahrmad/hg38-blacklist.v2.bed
   dna_effective_genome_size: 2913022398
@@ -16,10 +18,10 @@ samples:
 
     dna:
       reads:
-        i1: test_realdata/day15_DNA_I1.fq.gz
-        i2: test_realdata/day15_DNA_I2.fq.gz
-        r1: test_realdata/day15_DNA_R1.fq.gz
-        r2: test_realdata/day15_DNA_R2.fq.gz
+        i1: day15_DNA_I1.fq.gz
+        i2: day15_DNA_I2.fq.gz
+        r1: day15_DNA_R1.fq.gz
+        r2: day15_DNA_R2.fq.gz
       mark_barcodes:
         H3K27me3: AGGCTATA
         H3K27ac: GCCTCTAT

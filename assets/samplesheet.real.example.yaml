@@ -1,0 +1,33 @@
+library_name: REALDATATESTLIB
+
+resources:
+  ligation_barcode_whitelist: test_realdata/ligation_barcode_whitelist.txt
+  rna_ref_base_dir: /mnt/dataFast/ahrmad
+  rna_align_species: human
+  dna_bwa_reference: /mnt/dataFast/ahrmad/hg38_bwamem2_index/hg38.fa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/hg38-blacklist.v2.bed
+  dna_effective_genome_size: 2913022398
+
+samples:
+  day15:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
+      Co2:
+        sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+
+    rna:
+      reads:
+        i1: test_realdata/day15_I1.fq.gz
+        r1: test_realdata/day15_R1.fq.gz
+        r2: test_realdata/day15_R2.fq.gz
+
+    dna:
+      reads:
+        i1: test_realdata/day15_DNA_I1.fq.gz
+        i2: test_realdata/day15_DNA_I2.fq.gz
+        r1: test_realdata/day15_DNA_R1.fq.gz
+        r2: test_realdata/day15_DNA_R2.fq.gz
+      mark_barcodes:
+        H3K27me3: AGGCTATA
+        H3K27ac: GCCTCTAT

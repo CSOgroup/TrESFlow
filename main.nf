@@ -4,7 +4,9 @@ nextflow.enable.dsl = 2
 
 import RuntimeSupport
 
-def enforcePinnedCodonSeq() {
+// The runtime contract is enforced once up front so every downstream task sees
+// the same validated toolchain and the same pinned Codon/Seq preflight result.
+def runCodonSeqPreflight() {
     final File preflight = new File(projectDir.toString(), 'bin/check_codon_seq_host.sh')
     final String codonBin = (params.runtime_codon ?: '').toString().trim()
     final String codonHome = (params.codon_home ?: '').toString().trim()
@@ -42,26 +44,13 @@ def enforcePinnedCodonSeq() {
     return output
 }
 
-[
-    ['runtime environment prefix', RuntimeSupport.runtimeEnvPrefix(params)],
-    ['runtime bin dir', RuntimeSupport.runtimeBinDir(params)],
-].each { label, path ->
-    RuntimeSupport.validateConfiguredDirectory(label as String, path as String)
-}
-
-RuntimeSupport.standardRuntimeTools(params).each { tool ->
-    RuntimeSupport.validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
-}
-RuntimeSupport.validateConfiguredExecutable('runtime codon', params.runtime_codon as String)
-final String codonPreflightOutput = enforcePinnedCodonSeq()
+RuntimeSupport.validateRuntimeContract(params)
+final String codonPreflightOutput = runCodonSeqPreflight()
 RuntimeSupport.writeRuntimeContract(
     (params.outdir ?: 'results').toString(),
     RuntimeSupport.configuredRuntimeTools(params),
     codonPreflightOutput,
-    [
-        runtime_env_prefix: RuntimeSupport.runtimeEnvPrefix(params),
-        runtime_bin_dir   : RuntimeSupport.runtimeBinDir(params),
-    ]
+    RuntimeSupport.runtimeContext(params)
 )
 
 include { TRESEQ } from './workflows/treseq'

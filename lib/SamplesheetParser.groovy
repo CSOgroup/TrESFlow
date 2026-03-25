@@ -41,6 +41,9 @@ class SamplesheetParser {
         final Map options,
         final Map sharedResources
     ) {
+        // Internally the workflow still runs one modality row at a time. The
+        // public contract stays hierarchical; the parser is where that view is
+        // flattened into RNA and DNA work rows plus derived helper files.
         final Map defaults = normalizedDefaults(options)
         final String ligationWhitelist = sharedResources.ligation_barcode_whitelist
         final File derivedDir = prepareDerivedDir(options)
@@ -66,73 +69,121 @@ class SamplesheetParser {
             }
 
             if( rnaConfig ) {
-                final Map reads = asMap(rnaConfig.reads, "samples.${sampleId}.rna.reads")
-                samples << [
-                    id                        : sampleId,
-                    modality                  : 'rna',
-                    i1                        : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.rna.reads.i1")),
-                    r1                        : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.rna.reads.r1")),
-                    r2                        : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.rna.reads.r2")),
-                    sample_bc_len             : defaults.rna.sample.bc_len as int,
-                    sample_bc_start           : defaults.rna.sample.bc_start as int,
-                    sample_hd                 : defaults.rna.sample.hd as int,
-                    sample_tag                : defaults.rna.sample.tag.toString(),
-                    sample_first_pass         : defaults.rna.sample.first_pass.toString(),
-                    sample_reverse_complement : toDirection(defaults.rna.sample.reverse_complement, 'barcode_defaults.rna.sample.reverse_complement'),
-                    umi_bc_len                : defaults.rna.umi.bc_len as int,
-                    umi_bc_start              : defaults.rna.umi.bc_start as int,
-                    umi_tag                   : defaults.rna.umi.tag.toString(),
-                    cell_whitelist            : ligationWhitelist,
-                    cell_bc_len               : defaults.rna.cell.bc_len as int,
-                    cell_hd                   : defaults.rna.cell.hd as int,
-                    cell_tag                  : defaults.rna.cell.tag.toString(),
-                    rna_ref_base_dir          : sharedResources.rna_ref_base_dir,
-                    rna_align_species         : sharedResources.rna_align_species,
-                    library_name              : libraryName,
-                    group_definitions         : normalizedGroups
-                ]
+                samples << buildRnaRow(
+                    sampleId,
+                    libraryName,
+                    baseDir,
+                    normalizedGroups,
+                    rnaConfig,
+                    defaults,
+                    ligationWhitelist,
+                    sharedResources
+                )
             }
 
             if( dnaConfig ) {
-                final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
-                final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
-                    dnaConfig.mark_barcodes,
-                    sampleId
+                samples << buildDnaRow(
+                    sampleId,
+                    libraryName,
+                    baseDir,
+                    normalizedGroups,
+                    dnaConfig,
+                    defaults,
+                    ligationWhitelist,
+                    sharedResources
                 )
-
-                samples << [
-                    id                          : sampleId,
-                    modality                    : 'dna',
-                    i1                          : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.dna.reads.i1")),
-                    i2                          : resolveExistingPath(baseDir, requireString(reads.i2, "samples.${sampleId}.dna.reads.i2")),
-                    r1                          : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.dna.reads.r1")),
-                    r2                          : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.dna.reads.r2")),
-                    sample_bc_len               : defaults.dna.sample.bc_len as int,
-                    sample_bc_start             : defaults.dna.sample.bc_start as int,
-                    sample_hd                   : defaults.dna.sample.hd as int,
-                    sample_tag                  : defaults.dna.sample.tag.toString(),
-                    sample_first_pass           : defaults.dna.sample.first_pass.toString(),
-                    sample_reverse_complement   : toDirection(defaults.dna.sample.reverse_complement, 'barcode_defaults.dna.sample.reverse_complement'),
-                    modality_bc_len             : defaults.dna.modality.bc_len as int,
-                    modality_bc_start           : defaults.dna.modality.bc_start as int,
-                    modality_hd                 : defaults.dna.modality.hd as int,
-                    modality_tag                : defaults.dna.modality.tag.toString(),
-                    modality_first_pass         : defaults.dna.modality.first_pass.toString(),
-                    modality_reverse_complement : toDirection(defaults.dna.modality.reverse_complement, 'barcode_defaults.dna.modality.reverse_complement'),
-                    cell_whitelist              : ligationWhitelist,
-                    cell_bc_len                 : defaults.dna.cell.bc_len as int,
-                    cell_hd                     : defaults.dna.cell.hd as int,
-                    cell_tag                    : defaults.dna.cell.tag.toString(),
-                    dna_bwa_reference           : sharedResources.dna_bwa_reference,
-                    dna_blacklist_bed           : sharedResources.dna_blacklist_bed,
-                    dna_effective_genome_size   : sharedResources.dna_effective_genome_size,
-                    library_name                : libraryName,
-                    group_definitions           : normalizedGroups,
-                    mark_barcodes               : markBarcodes
-                ]
             }
         }
 
+        return attachDerivedArtifacts(derivedDir, samples)
+    }
+
+    private static Map buildRnaRow(
+        final String sampleId,
+        final String libraryName,
+        final File baseDir,
+        final LinkedHashMap<String, List<String>> normalizedGroups,
+        final Map rnaConfig,
+        final Map defaults,
+        final String ligationWhitelist,
+        final Map sharedResources
+    ) {
+        final Map reads = asMap(rnaConfig.reads, "samples.${sampleId}.rna.reads")
+        return [
+            id                        : sampleId,
+            modality                  : 'rna',
+            i1                        : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.rna.reads.i1")),
+            r1                        : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.rna.reads.r1")),
+            r2                        : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.rna.reads.r2")),
+            sample_bc_len             : defaults.rna.sample.bc_len as int,
+            sample_bc_start           : defaults.rna.sample.bc_start as int,
+            sample_hd                 : defaults.rna.sample.hd as int,
+            sample_tag                : defaults.rna.sample.tag.toString(),
+            sample_first_pass         : defaults.rna.sample.first_pass.toString(),
+            sample_reverse_complement : toDirection(defaults.rna.sample.reverse_complement, 'barcode_defaults.rna.sample.reverse_complement'),
+            umi_bc_len                : defaults.rna.umi.bc_len as int,
+            umi_bc_start              : defaults.rna.umi.bc_start as int,
+            umi_tag                   : defaults.rna.umi.tag.toString(),
+            cell_whitelist            : ligationWhitelist,
+            cell_bc_len               : defaults.rna.cell.bc_len as int,
+            cell_hd                   : defaults.rna.cell.hd as int,
+            cell_tag                  : defaults.rna.cell.tag.toString(),
+            rna_ref_base_dir          : sharedResources.rna_ref_base_dir,
+            rna_align_species         : sharedResources.rna_align_species,
+            library_name              : libraryName,
+            group_definitions         : normalizedGroups,
+        ]
+    }
+
+    private static Map buildDnaRow(
+        final String sampleId,
+        final String libraryName,
+        final File baseDir,
+        final LinkedHashMap<String, List<String>> normalizedGroups,
+        final Map dnaConfig,
+        final Map defaults,
+        final String ligationWhitelist,
+        final Map sharedResources
+    ) {
+        final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
+        final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
+            dnaConfig.mark_barcodes,
+            sampleId
+        )
+
+        return [
+            id                          : sampleId,
+            modality                    : 'dna',
+            i1                          : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.dna.reads.i1")),
+            i2                          : resolveExistingPath(baseDir, requireString(reads.i2, "samples.${sampleId}.dna.reads.i2")),
+            r1                          : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.dna.reads.r1")),
+            r2                          : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.dna.reads.r2")),
+            sample_bc_len               : defaults.dna.sample.bc_len as int,
+            sample_bc_start             : defaults.dna.sample.bc_start as int,
+            sample_hd                   : defaults.dna.sample.hd as int,
+            sample_tag                  : defaults.dna.sample.tag.toString(),
+            sample_first_pass           : defaults.dna.sample.first_pass.toString(),
+            sample_reverse_complement   : toDirection(defaults.dna.sample.reverse_complement, 'barcode_defaults.dna.sample.reverse_complement'),
+            modality_bc_len             : defaults.dna.modality.bc_len as int,
+            modality_bc_start           : defaults.dna.modality.bc_start as int,
+            modality_hd                 : defaults.dna.modality.hd as int,
+            modality_tag                : defaults.dna.modality.tag.toString(),
+            modality_first_pass         : defaults.dna.modality.first_pass.toString(),
+            modality_reverse_complement : toDirection(defaults.dna.modality.reverse_complement, 'barcode_defaults.dna.modality.reverse_complement'),
+            cell_whitelist              : ligationWhitelist,
+            cell_bc_len                 : defaults.dna.cell.bc_len as int,
+            cell_hd                     : defaults.dna.cell.hd as int,
+            cell_tag                    : defaults.dna.cell.tag.toString(),
+            dna_bwa_reference           : sharedResources.dna_bwa_reference,
+            dna_blacklist_bed           : sharedResources.dna_blacklist_bed,
+            dna_effective_genome_size   : sharedResources.dna_effective_genome_size,
+            library_name                : libraryName,
+            group_definitions           : normalizedGroups,
+            mark_barcodes               : markBarcodes,
+        ]
+    }
+
+    private static List<Map> attachDerivedArtifacts(final File derivedDir, final List<Map> samples) {
         final File sbGroupMapFile = writeSbGroupMap(derivedDir, samples)
         final List<Map> dnaRows = samples.findAll { it.modality == 'dna' }
         final File dnaMoMapFile = dnaRows ? writeDnaMoMap(derivedDir, dnaRows) : null

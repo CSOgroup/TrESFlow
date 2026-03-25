@@ -1,3 +1,5 @@
+# Developer validation fixture for the real RNA-only path.
+
 library_name: REALDATATESTLIB
 
 resources:

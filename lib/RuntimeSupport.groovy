@@ -61,6 +61,25 @@ class RuntimeSupport {
         ]
     }
 
+    static Map runtimeContext(final Map params) {
+        return [
+            runtime_env_prefix: runtimeEnvPrefix(params),
+            runtime_bin_dir   : runtimeBinDir(params),
+        ]
+    }
+
+    static void validateRuntimeContract(final Map params) {
+        runtimeContext(params).each { label, path ->
+            validateConfiguredDirectory(label.replace('_', ' '), path as String)
+        }
+
+        standardRuntimeTools(params).each { tool ->
+            validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
+        }
+
+        validateConfiguredExecutable('runtime codon', params.runtime_codon as String)
+    }
+
     static void writeRuntimeContract(
         final String rawOutdir,
         final List<Map> configuredTools,

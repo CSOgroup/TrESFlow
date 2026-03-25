@@ -35,12 +35,14 @@ workflow DNA_CORE {
     ch_dna_samples
 
     main:
+    // Tag sample barcodes from the DNA I2 stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, i2, r1, r2, sbGroupMap)
     }
 
     TAG_DNA_SAMPLE_BARCODE(ch_sb_input)
 
+    // Add modality barcodes from the same I2 read set.
     ch_mo_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, i2, modalityWhitelist)
     }
@@ -53,6 +55,7 @@ workflow DNA_CORE {
 
     TAG_DNA_MODALITY_BARCODE(ch_mo_input)
 
+    // Add ligation-derived cell barcodes from I1.
     ch_cb_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, i1, cellWhitelist)
     }
@@ -66,6 +69,7 @@ workflow DNA_CORE {
     TAG_DNA_CELL_BARCODE(ch_cb_input)
     TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged)
 
+    // Split trimmed DNA reads by sample-barcode group and modality mark.
     ch_split_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, moMap, sbGroupMap)
     }
@@ -80,50 +84,28 @@ workflow DNA_CORE {
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            def r1BySplit = WorkflowSupport.asPathList(splitR1s).collectEntries { path ->
-                def splitName = path.getName().replaceFirst('_R1\\.fq\\.gz$', '')
-                [(splitName): path]
-            }
-            def r2BySplit = WorkflowSupport.asPathList(splitR2s).collectEntries { path ->
-                def splitName = path.getName().replaceFirst('_R2\\.fq\\.gz$', '')
-                [(splitName): path]
-            }
-
-            def splitNames = (r1BySplit.keySet() + r2BySplit.keySet()).unique().sort()
-            splitNames.collect { splitName ->
-                if( !r1BySplit.containsKey(splitName) || !r2BySplit.containsKey(splitName) ) {
-                    throw new IllegalStateException("Missing split FASTQ mate for DNA split '${splitName}'")
-                }
-                tuple(splitName, sampleId, meta, r1BySplit[splitName], r2BySplit[splitName])
+            WorkflowSupport.pairDnaSplitFastqs(splitR1s, splitR2s).collect { split ->
+                tuple(split.splitName, sampleId, meta, split.r1, split.r2)
             }
         }
 
     ch_align_rg = SPLIT_DNA_READS.out.rg_headers
         .flatMap { sampleId, meta, rgHeaders ->
-            WorkflowSupport.asPathList(rgHeaders).collect { rgHeader ->
-                def splitName = rgHeader.getName().replaceFirst('^SAM_RG_Header_', '').replaceFirst('\\.tsv$', '')
-                tuple(splitName, sampleId, meta, rgHeader)
+            WorkflowSupport.collectDnaRgHeaders(rgHeaders).collect { rg ->
+                tuple(rg.splitName, sampleId, meta, rg.rgHeader)
             }
         }
 
     ch_align_input = ch_align_fastqs
         .join(ch_align_rg)
         .map { splitName, sampleId, metaFromFastq, splitR1, splitR2, sampleIdFromRg, metaFromRg, rgHeader ->
-            def suffix = splitName.replaceFirst("^${sampleId}_", '')
-            def tokens = suffix.tokenize('_')
-            if( tokens.size() < 2 ) {
-                throw new IllegalStateException("Unable to derive DNA group and modality from split output '${splitName}'")
-            }
-
-            def group = tokens[0]
-            def modality = tokens[1..-1].join('_')
-            def sampleGroup = "${sampleId}_${group}"
+            def splitMeta = WorkflowSupport.parseDnaSplitName(sampleId, splitName)
 
             tuple(
                 splitName,
                 metaFromFastq,
-                sampleGroup,
-                modality,
+                splitMeta.sampleGroup,
+                splitMeta.modality,
                 splitR1,
                 splitR2,
                 rgHeader,
@@ -133,6 +115,7 @@ workflow DNA_CORE {
             )
         }
 
+    // Finish the DNA core with alignment, duplicate marking, NoDup extraction, and coverage.
     ALIGN_DNA(ch_align_input)
     MARK_DUPLICATES_DNA(ALIGN_DNA.out.bam)
     SPLIT_DUPLICATES_DNA(MARK_DUPLICATES_DNA.out.bam)

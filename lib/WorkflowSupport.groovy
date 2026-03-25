@@ -7,6 +7,88 @@ class WorkflowSupport {
         return [value]
     }
 
+    static List<Map> pairRnaSplitFastqs(final String sampleId, final Object splitR1s, final Object splitR2s) {
+        final Map<String, Object> r1ByGroup = asPathList(splitR1s).collectEntries { path ->
+            final String name = path.getName()
+            final String group = name
+                .replaceFirst("^${sampleId}_", '')
+                .replaceFirst('_R1\\.fq\\.gz$', '')
+            [(group): path]
+        }
+        final Map<String, Object> r2ByGroup = asPathList(splitR2s).collectEntries { path ->
+            final String name = path.getName()
+            final String group = name
+                .replaceFirst("^${sampleId}_", '')
+                .replaceFirst('_R2\\.fq\\.gz$', '')
+            [(group): path]
+        }
+
+        final List<String> groups = (r1ByGroup.keySet() + r2ByGroup.keySet()).unique().sort()
+        return groups.collect { group ->
+            if( !r1ByGroup.containsKey(group) || !r2ByGroup.containsKey(group) ) {
+                throw new IllegalStateException(
+                    "Missing split FASTQ mate for sample '${sampleId}' group '${group}'"
+                )
+            }
+
+            [
+                splitName: "${sampleId}_${group}",
+                r1       : r1ByGroup[group],
+                r2       : r2ByGroup[group],
+            ]
+        }
+    }
+
+    static List<Map> pairDnaSplitFastqs(final Object splitR1s, final Object splitR2s) {
+        final Map<String, Object> r1BySplit = asPathList(splitR1s).collectEntries { path ->
+            [(path.getName().replaceFirst('_R1\\.fq\\.gz$', '')): path]
+        }
+        final Map<String, Object> r2BySplit = asPathList(splitR2s).collectEntries { path ->
+            [(path.getName().replaceFirst('_R2\\.fq\\.gz$', '')): path]
+        }
+
+        final List<String> splitNames = (r1BySplit.keySet() + r2BySplit.keySet()).unique().sort()
+        return splitNames.collect { splitName ->
+            if( !r1BySplit.containsKey(splitName) || !r2BySplit.containsKey(splitName) ) {
+                throw new IllegalStateException("Missing split FASTQ mate for DNA split '${splitName}'")
+            }
+
+            [
+                splitName: splitName,
+                r1       : r1BySplit[splitName],
+                r2       : r2BySplit[splitName],
+            ]
+        }
+    }
+
+    static List<Map> collectDnaRgHeaders(final Object rgHeaders) {
+        return asPathList(rgHeaders).collect { rgHeader ->
+            [
+                splitName: rgHeader.getName()
+                    .replaceFirst('^SAM_RG_Header_', '')
+                    .replaceFirst('\\.tsv$', ''),
+                rgHeader : rgHeader,
+            ]
+        }
+    }
+
+    static Map parseDnaSplitName(final String sampleId, final String splitName) {
+        final String suffix = splitName.replaceFirst("^${sampleId}_", '')
+        final List<String> tokens = suffix.tokenize('_')
+        if( tokens.size() < 2 ) {
+            throw new IllegalStateException(
+                "Unable to derive DNA group and modality from split output '${splitName}'"
+            )
+        }
+
+        final String group = tokens[0]
+        return [
+            group     : group,
+            modality  : tokens[1..-1].join('_'),
+            sampleGroup: "${sampleId}_${group}",
+        ]
+    }
+
     static String requireBwaMem2Prefix(final String rawPrefix) {
         final String prefix = rawPrefix?.toString()?.trim()
         if( !prefix ) {

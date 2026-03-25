@@ -1,0 +1,37 @@
+# Generic hierarchical samplesheet template.
+# Keep one biological sample entry per sample under `samples:`.
+# Omit the `rna:` or `dna:` block if that modality is not present.
+
+library_name: YOUR_LIBRARY_NAME
+
+resources:
+  ligation_barcode_whitelist: /path/to/ligation_barcode_whitelist.txt
+  rna_ref_base_dir: /path/to/reference_base_dir
+  rna_align_species: human
+  dna_bwa_reference: /path/to/bwa_index_prefix
+  dna_blacklist_bed: /path/to/blacklist.bed
+  dna_effective_genome_size: 2913022398
+
+samples:
+  sample_id:
+    groups:
+      group_a:
+        sb_barcodes: [AAAA, CCCC]
+      group_b:
+        sb_barcodes: [GGGG, TTTT]
+
+    rna:
+      reads:
+        i1: /path/to/sample_I1.fq.gz
+        r1: /path/to/sample_R1.fq.gz
+        r2: /path/to/sample_R2.fq.gz
+
+    dna:
+      reads:
+        i1: /path/to/sample_DNA_I1.fq.gz
+        i2: /path/to/sample_DNA_I2.fq.gz
+        r1: /path/to/sample_DNA_R1.fq.gz
+        r2: /path/to/sample_DNA_R2.fq.gz
+      mark_barcodes:
+        H3K27me3: AGGCTATA
+        H3K27ac: GCCTCTAT

@@ -57,6 +57,7 @@ flowchart TD
 
 Notes:
 
+- One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - RNA and DNA remain independent branches in the same workflow.
 - The supported public contract is the hierarchical YAML samplesheet only.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
