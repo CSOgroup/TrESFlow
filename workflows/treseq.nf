@@ -1,6 +1,6 @@
 /*
  * Workflow: TRESEQ
- * Current slice:
+ * Core workflow:
  *   1. Parse a single hierarchical YAML samplesheet.
  *   2. Run the upstream RNA sample-barcode tagging step (Tag.codon) via a thin wrapper.
  *   3. Run the upstream RNA UMI tagging step (Tag_UMI.codon) via a thin wrapper.
@@ -11,18 +11,13 @@
  *   8. Run the upstream RNA AlignRNA.sh step via a thin wrapper.
  *   9. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
- *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage
- *      through the DNA-only post-alignment prep boundary before shared downstream work.
- *  10. Optionally stage one flat shared downstream workdir.
- *  11. Optionally run one and only one sc_process.py call after that shared stage exists.
+ *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
 
 import WorkflowSupport
-import RuntimeSupport
 
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
-include { OPTIONAL_SC_PROCESS } from '../subworkflows/local/optional_sc_process'
 
 def toRnaSampleInput(final Map row) {
     tuple(
@@ -51,25 +46,6 @@ def toDnaSampleInput(final Map row) {
     )
 }
 
-def parseBooleanParam(final Object rawValue, final String paramName) {
-    if( rawValue instanceof Boolean ) {
-        return (Boolean) rawValue
-    }
-
-    final String normalized = rawValue?.toString()?.trim()?.toLowerCase()
-    if( !normalized ) {
-        return false
-    }
-    if( normalized in ['true', '1', 'yes', 'y'] ) {
-        return true
-    }
-    if( normalized in ['false', '0', 'no', 'n'] ) {
-        return false
-    }
-
-    error "Invalid --${paramName} '${rawValue}'. Supported boolean values: true, false"
-}
-
 workflow TRESEQ {
     main:
     if( !params.samplesheet ) {
@@ -92,17 +68,9 @@ workflow TRESEQ {
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     final int maxCpus = params.max_cpus as int
-    final boolean stageScProcessInputs = parseBooleanParam(params.stage_sc_process_inputs, 'stage_sc_process_inputs')
-    final boolean runScProcess = parseBooleanParam(params.run_sc_process, 'run_sc_process')
-    final boolean enableSharedStage = stageScProcessInputs || runScProcess
 
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
-    }
-
-    if( enableSharedStage && !(rnaRows && dnaRows) ) {
-        final String flagName = runScProcess ? '--run_sc_process' : '--stage_sc_process_inputs'
-        error "${flagName} requires both RNA and DNA samples in the same YAML samplesheet"
     }
 
     if( rnaRows ) {
@@ -125,18 +93,6 @@ workflow TRESEQ {
         }
     }
 
-    if( runScProcess ) {
-        try {
-            RuntimeSupport.validateConfiguredDirectory(
-                'runtime SnapATAC cache',
-                params.runtime_snap_data_dir as String
-            )
-        }
-        catch( IllegalStateException e ) {
-            error e.message
-        }
-    }
-
     Channel
         .fromList(rnaRows)
         .map { row -> toRnaSampleInput(row) }
@@ -149,38 +105,6 @@ workflow TRESEQ {
 
     RNA_CORE(ch_rna_samples)
     DNA_CORE(ch_dna_samples)
-
-    def ch_shared_stage_dir = Channel.empty()
-    def ch_sc_process_run_dir = Channel.empty()
-    if( enableSharedStage ) {
-        final String sharedSpecies = (rnaRows[0].rna_align_species ?: '').toString().trim().toLowerCase()
-        final String sharedGenome = WorkflowSupport.sharedGenomeFromSpecies(sharedSpecies)
-        final String sharedStageLabel = (sampleRows[0].library_name ?: 'shared_stage').toString()
-        final String sharedSbGroupMap = (dnaRows ? dnaRows[0].sb_group_map : rnaRows[0].sb_group_map).toString()
-        final String sharedMoMap = dnaRows[0].mo_map.toString()
-
-        Channel
-            .value(
-                tuple(
-                    sharedStageLabel,
-                    sharedSpecies,
-                    sharedGenome,
-                    file(sharedMoMap),
-                    file(sharedSbGroupMap)
-                )
-            )
-            .set { ch_shared_stage_meta }
-
-        OPTIONAL_SC_PROCESS(
-            RNA_CORE.out.aligned_solo_dirs,
-            RNA_CORE.out.aligned_filtered_bams,
-            DNA_CORE.out.nodup_bams,
-            ch_shared_stage_meta,
-            runScProcess
-        )
-        ch_shared_stage_dir = OPTIONAL_SC_PROCESS.out.stage_dir
-        ch_sc_process_run_dir = OPTIONAL_SC_PROCESS.out.run_dir
-    }
 
     emit:
     tagged_fastqs     = RNA_CORE.out.tagged_fastqs
@@ -207,6 +131,4 @@ workflow TRESEQ {
     dna_nodup_bais = DNA_CORE.out.nodup_bais
     dna_coverage_bigwigs = DNA_CORE.out.coverage_bigwigs
     dna_barcode_reports = DNA_CORE.out.barcode_reports
-    shared_sc_stage = ch_shared_stage_dir
-    sc_process_run = ch_sc_process_run_dir
 }

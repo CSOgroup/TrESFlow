@@ -105,15 +105,4 @@ class WorkflowSupport {
             )
         }
     }
-
-    static String sharedGenomeFromSpecies(final String rawSpecies) {
-        final String species = rawSpecies?.toString()?.trim()?.toLowerCase()
-        if( species == 'human' ) {
-            return 'hg38'
-        }
-        if( species == 'mouse' ) {
-            return 'mm39'
-        }
-        return null
-    }
 }

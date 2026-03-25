@@ -25,7 +25,3 @@ Ownership rules:
 - edits to files in this directory are pipeline changes and should be reviewed like any other repo code
 - keep behavior aligned with the validated workflow unless a deliberate contract change is documented
 - do not point the core Nextflow modules back at `upstream/source_scripts/` except for temporary debugging
-
-The optional downstream `sc_process.py` path is intentionally separate and may
-still use the upstream source tree until that optional component is refactored
-independently.
