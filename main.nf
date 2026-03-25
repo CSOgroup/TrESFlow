@@ -43,23 +43,25 @@ def enforcePinnedCodonSeq() {
 }
 
 [
-    'runtime python3': params.runtime_python,
-    'runtime trim_galore': params.runtime_trim_galore,
-    'runtime STAR': params.runtime_star,
-    'runtime samtools': params.runtime_samtools,
-    'runtime bedGraphToBigWig': params.runtime_bedgraph_to_bigwig,
-    'runtime bwa-mem2': params.runtime_bwa_mem2,
-    'runtime bamCoverage': params.runtime_bam_coverage,
-    'runtime gatk': params.runtime_gatk,
-    'runtime codon': params.runtime_codon,
+    ['runtime environment prefix', RuntimeSupport.runtimeEnvPrefix(params)],
+    ['runtime bin dir', RuntimeSupport.runtimeBinDir(params)],
 ].each { label, path ->
-    RuntimeSupport.validateConfiguredExecutable(label, path as String)
+    RuntimeSupport.validateConfiguredDirectory(label as String, path as String)
 }
+
+RuntimeSupport.standardRuntimeTools(params).each { tool ->
+    RuntimeSupport.validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
+}
+RuntimeSupport.validateConfiguredExecutable('runtime codon', params.runtime_codon as String)
 final String codonPreflightOutput = enforcePinnedCodonSeq()
 RuntimeSupport.writeRuntimeContract(
     (params.outdir ?: 'results').toString(),
     RuntimeSupport.configuredRuntimeTools(params),
-    codonPreflightOutput
+    codonPreflightOutput,
+    [
+        runtime_env_prefix: RuntimeSupport.runtimeEnvPrefix(params),
+        runtime_bin_dir   : RuntimeSupport.runtimeBinDir(params),
+    ]
 )
 
 include { TRESEQ } from './workflows/treseq'

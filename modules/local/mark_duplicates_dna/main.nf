@@ -52,14 +52,14 @@ EOF
     }
     else {
         """
-        if [[ ! -x "${params.runtime_gatk}" ]]; then
-          echo "Missing configured GATK executable at ${params.runtime_gatk}" >&2
+        if [[ ! -x "\$GATK_BIN" ]]; then
+          echo "Missing configured GATK executable at \$GATK_BIN" >&2
           exit 1
         fi
 
-        echo "Using GATK_BIN=${params.runtime_gatk}"
+        echo "Using GATK_BIN=\$GATK_BIN"
 
-        "${params.runtime_gatk}" MarkDuplicates \\
+        "\$GATK_BIN" MarkDuplicates \\
           -I "${alignedBam}" \\
           -O "${splitName}_MarkedDup.bam" \\
           -M "${splitName}.DuplicateMetrics.txt" \\

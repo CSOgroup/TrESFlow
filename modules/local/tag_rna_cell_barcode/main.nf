@@ -31,7 +31,7 @@ process TAG_RNA_CELL_BARCODE {
     def mode = task.ext.mock ? 'mock' : 'real'
 
     """
-    "${params.runtime_python}" "${projectDir}/bin/run_tag_lig3.py" \\
+    "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
       --script "${params.core_scripts_dir}/Tag_Lig3.codon" \\
       --i1 "${i1}" \\

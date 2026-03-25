@@ -1,5 +1,16 @@
 class RuntimeSupport {
 
+    private static final List<Map> STANDARD_RUNTIME_TOOLS = [
+        [name: 'python3', binary: 'python3'],
+        [name: 'trim_galore', binary: 'trim_galore'],
+        [name: 'STAR', binary: 'STAR'],
+        [name: 'samtools', binary: 'samtools'],
+        [name: 'bedGraphToBigWig', binary: 'bedGraphToBigWig'],
+        [name: 'bwa-mem2', binary: 'bwa-mem2'],
+        [name: 'bamCoverage', binary: 'bamCoverage'],
+        [name: 'gatk', binary: 'gatk'],
+    ]
+
     static void validateConfiguredExecutable(final String label, final String rawPath) {
         final String path = rawPath?.toString()?.trim()
         if( !path ) {
@@ -28,16 +39,24 @@ class RuntimeSupport {
         }
     }
 
+    static String runtimeEnvPrefix(final Map params) {
+        return (params.runtime_env_prefix ?: '').toString().trim()
+    }
+
+    static String runtimeBinDir(final Map params) {
+        final String envPrefix = runtimeEnvPrefix(params)
+        return envPrefix ? "${envPrefix}/bin" : ''
+    }
+
+    static List<Map> standardRuntimeTools(final Map params) {
+        final String binDir = runtimeBinDir(params)
+        return STANDARD_RUNTIME_TOOLS.collect { tool ->
+            [name: tool.name, path: (binDir ? "${binDir}/${tool.binary}" : ''), used: 'yes']
+        }
+    }
+
     static List<Map> configuredRuntimeTools(final Map params) {
-        return [
-            [name: 'python3', path: (params.runtime_python ?: '').toString(), used: 'yes'],
-            [name: 'trim_galore', path: (params.runtime_trim_galore ?: '').toString(), used: 'yes'],
-            [name: 'STAR', path: (params.runtime_star ?: '').toString(), used: 'yes'],
-            [name: 'samtools', path: (params.runtime_samtools ?: '').toString(), used: 'yes'],
-            [name: 'bedGraphToBigWig', path: (params.runtime_bedgraph_to_bigwig ?: '').toString(), used: 'yes'],
-            [name: 'bwa-mem2', path: (params.runtime_bwa_mem2 ?: '').toString(), used: 'yes'],
-            [name: 'bamCoverage', path: (params.runtime_bam_coverage ?: '').toString(), used: 'yes'],
-            [name: 'gatk', path: (params.runtime_gatk ?: '').toString(), used: 'yes'],
+        return standardRuntimeTools(params) + [
             [name: 'codon', path: (params.runtime_codon ?: '').toString(), used: 'yes'],
         ]
     }
@@ -45,7 +64,8 @@ class RuntimeSupport {
     static void writeRuntimeContract(
         final String rawOutdir,
         final List<Map> configuredTools,
-        final String codonPreflightOutput
+        final String codonPreflightOutput,
+        final Map runtimeContext = [:]
     ) {
         final File pipelineInfoDir = new File((rawOutdir ?: 'results').toString(), 'pipeline_info')
         if( !pipelineInfoDir.exists() ) {
@@ -60,6 +80,11 @@ class RuntimeSupport {
             final String path = (tool.path ?: '').toString()
             final boolean exists = path ? new File(path).exists() : false
             builder.append("${tool.name}\t${path}\t${exists}\t${tool.used}\n")
+        }
+
+        builder.append("\n[runtime_environment]\n")
+        runtimeContext.each { key, value ->
+            builder.append("${key}\t${(value ?: '').toString()}\n")
         }
 
         builder.append("\n[host_codon_seq_preflight]\n")

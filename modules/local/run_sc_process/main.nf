@@ -36,8 +36,8 @@ process RUN_SC_PROCESS {
 
     script:
     """
-    if [[ ! -x "${params.runtime_python}" ]]; then
-      echo "Missing configured shared runtime executable: ${params.runtime_python}" >&2
+    if [[ ! -x "\$PYTHON3_BIN" ]]; then
+      echo "Missing configured shared runtime executable: \$PYTHON3_BIN" >&2
       exit 1
     fi
 
@@ -75,7 +75,7 @@ process RUN_SC_PROCESS {
     echo "Using MPLCONFIGDIR=\$MPLCONFIGDIR"
     echo "Using NUMBA_CACHE_DIR=\$NUMBA_CACHE_DIR"
 
-    "${params.runtime_python}" "${params.optional_sc_process_script}" \\
+    "\$PYTHON3_BIN" "${params.optional_sc_process_script}" \\
       --workdir "sc_process_run" \\
       --mo-map "sc_process_run/mo_map.tsv" \\
       --sb-map-dna "sc_process_run/sb_group_map.tsv" \\

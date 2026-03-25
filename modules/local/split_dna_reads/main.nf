@@ -31,7 +31,7 @@ process SPLIT_DNA_READS {
     def mode = task.ext.mock ? 'mock' : 'real'
 
     """
-    "${params.runtime_python}" "${projectDir}/bin/run_split_reads_dna.py" \\
+    "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_dna.py" \\
       --mode "${mode}" \\
       --script "${params.core_scripts_dir}/Split_ReadsV2.codon" \\
       --r1 "${trimmedR1}" \\

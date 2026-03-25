@@ -46,14 +46,14 @@ process SPLIT_DUPLICATES_DNA {
     }
     else {
         """
-        if [[ ! -x "${params.runtime_samtools}" ]]; then
-          echo "Missing configured DNA runtime executable: ${params.runtime_samtools}" >&2
+        if [[ ! -x "\$SAMTOOLS_BIN" ]]; then
+          echo "Missing configured DNA runtime executable: \$SAMTOOLS_BIN" >&2
           exit 1
         fi
 
-        echo "Using SAMTOOLS_BIN=${params.runtime_samtools}"
+        echo "Using SAMTOOLS_BIN=\$SAMTOOLS_BIN"
 
-        "${params.runtime_samtools}" view \\
+        "\$SAMTOOLS_BIN" view \\
           --threads "${task.cpus}" \\
           --bam \\
           --with-header \\
@@ -62,7 +62,7 @@ process SPLIT_DUPLICATES_DNA {
           --unoutput "${splitName}_NoDup.bam" \\
           "${markedDupBam}"
 
-        "${params.runtime_samtools}" index \\
+        "\$SAMTOOLS_BIN" index \\
           --threads "${task.cpus}" \\
           --bai \\
           --output "${splitName}_NoDup.bam.bai" \\

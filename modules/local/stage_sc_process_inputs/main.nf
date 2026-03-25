@@ -52,12 +52,12 @@ process STAGE_SC_PROCESS_INPUTS {
     }.join(" \\\n          ")
 
     """
-    if [[ ! -x "${params.runtime_python}" ]]; then
-      echo "Missing configured shared runtime executable: ${params.runtime_python}" >&2
+    if [[ ! -x "\$PYTHON3_BIN" ]]; then
+      echo "Missing configured shared runtime executable: \$PYTHON3_BIN" >&2
       exit 1
     fi
 
-    "${params.runtime_python}" "${projectDir}/bin/run_stage_sc_process.py" \\
+    "\$PYTHON3_BIN" "${projectDir}/bin/run_stage_sc_process.py" \\
       --stage-dir "sc_process_stage" \\
       --mo-map "${moMap}" \\
       --sb-group-map "${sbGroupMap}" \\

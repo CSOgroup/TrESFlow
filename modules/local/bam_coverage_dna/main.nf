@@ -43,17 +43,17 @@ process BAM_COVERAGE_DNA {
     }
     else {
         """
-        for required_bin in "${params.runtime_samtools}" "${params.runtime_bam_coverage}"; do
+        for required_bin in "\$SAMTOOLS_BIN" "\$BAMCOVERAGE_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured DNA runtime executable: \${required_bin}" >&2
             exit 1
           fi
         done
 
-        echo "Using SAMTOOLS_BIN=${params.runtime_samtools}"
-        echo "Using BAMCOVERAGE_BIN=${params.runtime_bam_coverage}"
+        echo "Using SAMTOOLS_BIN=\$SAMTOOLS_BIN"
+        echo "Using BAMCOVERAGE_BIN=\$BAMCOVERAGE_BIN"
 
-        mapped_reads="\$("${params.runtime_samtools}" view -c -F 4 "${noDupBam}")"
+        mapped_reads="\$("\$SAMTOOLS_BIN" view -c -F 4 "${noDupBam}")"
         if [[ "\${mapped_reads}" -eq 0 ]]; then
           echo "Skipping bamCoverage for ${splitName}: ${noDupBam} has zero mapped reads" >&2
           exit 0
@@ -62,7 +62,7 @@ process BAM_COVERAGE_DNA {
         export MPLCONFIGDIR="\$(mktemp -d /tmp/mplconfig-${splitName}.XXXXXX)"
         trap 'rm -rf "\${MPLCONFIGDIR}"' EXIT
 
-        "${params.runtime_bam_coverage}" \\
+        "\$BAMCOVERAGE_BIN" \\
           -p "${task.cpus}" \\
           -bs 100 \\
           --extendReads \\

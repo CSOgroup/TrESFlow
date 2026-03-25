@@ -33,11 +33,11 @@ process TRIM_DNA_FASTQS {
     def mode = task.ext.mock ? 'mock' : 'real'
 
     """
-    "${params.runtime_python}" "${projectDir}/bin/run_trim_galore.py" \\
+    "\$PYTHON3_BIN" "${projectDir}/bin/run_trim_galore.py" \\
       --mode "${mode}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
-      --trim-galore-bin "${params.runtime_trim_galore}" \\
+      --trim-galore-bin "\$TRIM_GALORE_BIN" \\
       --quality 10 \\
       --cores ${task.cpus} \\
       --length 20 \\

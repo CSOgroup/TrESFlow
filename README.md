@@ -104,18 +104,33 @@ nextflow run . \
 
 ## Runtime Contract
 
-Default executable bindings on this server:
+The primary runtime contract is one environment root:
 
-- `python3`: `/home/annan/micromamba/envs/tres/bin/python3`
-- `trim_galore`: `/home/annan/micromamba/envs/tres/bin/trim_galore`
-- `STAR`: `/home/annan/micromamba/envs/tres/bin/STAR`
-- `samtools`: `/home/annan/micromamba/envs/tres/bin/samtools`
-- `bedGraphToBigWig`: `/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig`
-- `bwa-mem2`: `/home/annan/micromamba/envs/tres/bin/bwa-mem2`
-- `bamCoverage`: `/home/annan/micromamba/envs/tres/bin/bamCoverage`
-- `gatk`: `/home/annan/micromamba/envs/tres/bin/gatk`
+- `--runtime_env_prefix`
 
-Current explicit exception:
+On this server it defaults to:
+
+- `/home/annan/micromamba/envs/tres`
+
+The pipeline derives its standard executables from:
+
+- `${runtime_env_prefix}/bin`
+
+Derived standard executables:
+
+- `python3`
+- `trim_galore`
+- `STAR`
+- `samtools`
+- `bedGraphToBigWig`
+- `bwa-mem2`
+- `bamCoverage`
+- `gatk`
+
+`nextflow` itself should also be launched from the intended environment, but
+the workflow does not try to choose its own launcher binary.
+
+Current explicit exceptions outside that env:
 
 - Codon `0.16.3`: `/home/annan/.codon/bin/codon`
 - Seq `0.11.3`: `/home/annan/.codon/lib/codon/plugins/seq`
@@ -292,10 +307,10 @@ uses `/home/annan/.cache/snapatac2`, so `snap.genome.hg38` and
 ### Runtime and layout overrides
 
 - `--core_scripts_dir`
-- `--runtime_bin_dir`
-- individual `--runtime_*` params
+- `--runtime_env_prefix`
 - `--runtime_codon`
 - `--codon_home`
+- `--runtime_snap_data_dir`
 - `--max_cpus`
 
 `--max_cpus` defaults to `40`.

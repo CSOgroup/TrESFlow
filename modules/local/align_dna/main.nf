@@ -47,15 +47,12 @@ EOF
     }
     else {
         """
-        for required_bin in "${params.runtime_bwa_mem2}" "${params.runtime_samtools}"; do
+        for required_bin in "\$BWA_MEM2_BIN" "\$SAMTOOLS_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured DNA runtime executable: \${required_bin}" >&2
             exit 1
           fi
         done
-
-        export BWA_MEM2_BIN="${params.runtime_bwa_mem2}"
-        export SAMTOOLS_BIN="${params.runtime_samtools}"
 
         bash "${params.core_scripts_dir}/AlignDNA.sh" \\
           "${modality}" \\
