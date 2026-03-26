@@ -108,16 +108,9 @@ The pipeline derives these standard executables from `${runtime_env_prefix}/bin`
 - `bwa-mem2`
 - `bamCoverage`
 - `gatk`
+- `codon`
 
-Explicit exceptions that remain outside that env:
-
-- `--runtime_codon`
-- `--codon_home`
-
-On this server those default to:
-
-- Codon `0.16.3`: `/home/annan/.codon/bin/codon`
-- Seq `0.11.3`: `/home/annan/.codon/lib/codon/plugins/seq`
+Seq `0.11.3` is expected under `${runtime_env_prefix}/lib/codon/plugins/seq`.
 
 `nextflow` itself should be launched from the intended environment. The workflow does not choose its own launcher binary.
 
@@ -190,5 +183,5 @@ DNA publishes:
 
 - Missing RNA alignment resources: set `resources.rna_ref_base_dir` and `resources.rna_align_species` in the YAML, or use the matching CLI overrides.
 - Missing DNA alignment resources: set `resources.dna_bwa_reference`, `resources.dna_blacklist_bed`, and `resources.dna_effective_genome_size` in the YAML, or use the matching CLI overrides.
-- Codon/Seq preflight failures: confirm `/home/annan/.codon/bin/codon` is `0.16.3` and the Seq plugin under `/home/annan/.codon/lib/codon/plugins/seq` is `0.11.3`, or override `--runtime_codon` and `--codon_home`.
+- Codon/Seq preflight failures: confirm `${runtime_env_prefix}/bin/codon` is `0.16.3` and `${runtime_env_prefix}/lib/codon/plugins/seq` is `0.11.3`. Use `scripts/install_codon_0.16.3.sh` to install both into the environment prefix.
 - Long `bamCoverage` tasks on this server are treated as a runtime/performance characteristic, not a pipeline logic blocker, unless they fail with a distinct configuration or execution error.

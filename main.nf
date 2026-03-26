@@ -8,8 +8,8 @@ import RuntimeSupport
 // the same validated toolchain and the same pinned Codon/Seq preflight result.
 def runCodonSeqPreflight() {
     final File preflight = new File(projectDir.toString(), 'bin/check_codon_seq_host.sh')
-    final String codonBin = (params.runtime_codon ?: '').toString().trim()
-    final String codonHome = (params.codon_home ?: '').toString().trim()
+    final String codonBin = RuntimeSupport.runtimeToolPath(params, 'codon')
+    final String codonHome = RuntimeSupport.runtimeCodonHome(params)
 
     if( !preflight.exists() ) {
         throw new IllegalStateException(

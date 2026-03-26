@@ -3,10 +3,7 @@ set -euo pipefail
 
 REQUIRED_CODON_VERSION="0.16.3"
 REQUIRED_SEQ_VERSION="0.11.3"
-CODON_HOME_DIR="${CODON_HOME:-${HOME}/.codon}"
 CODON_BIN_CONFIGURED="${CODON_BIN:-}"
-SEQ_PLUGIN_DIR="${CODON_HOME_DIR}/lib/codon/plugins/seq"
-SEQ_PLUGIN_TOML="${SEQ_PLUGIN_DIR}/plugin.toml"
 
 extract_semver() {
   local value="${1:-}"
@@ -14,7 +11,6 @@ extract_semver() {
 }
 
 echo "Checking pinned Codon/Seq host prerequisites for every pipeline run"
-echo "CODON_HOME=${CODON_HOME_DIR}"
 echo "required_codon_version=${REQUIRED_CODON_VERSION}"
 echo "required_seq_version=${REQUIRED_SEQ_VERSION}"
 
@@ -28,12 +24,18 @@ if [[ -n "${CODON_BIN_CONFIGURED}" ]]; then
 else
   if ! command -v codon >/dev/null 2>&1; then
     echo "ERROR: 'codon' is not on PATH and CODON_BIN is not configured." >&2
-    echo "Install Codon ${REQUIRED_CODON_VERSION} with scripts/install_codon_0.16.3.sh and ensure the binary is on PATH, or configure CODON_BIN explicitly." >&2
+    echo "Install Codon ${REQUIRED_CODON_VERSION} with scripts/install_codon_0.16.3.sh into the active environment prefix, or configure CODON_BIN explicitly." >&2
     exit 1
   fi
   CODON_BIN="$(command -v codon)"
   CODON_PATH_SOURCE="PATH"
 fi
+
+CODON_HOME_DIR="${CODON_HOME:-$(cd "$(dirname "${CODON_BIN}")/.." && pwd -P)}"
+SEQ_PLUGIN_DIR="${CODON_HOME_DIR}/lib/codon/plugins/seq"
+SEQ_PLUGIN_TOML="${SEQ_PLUGIN_DIR}/plugin.toml"
+
+echo "CODON_HOME=${CODON_HOME_DIR}"
 
 CODON_VERSION_RAW="$("${CODON_BIN}" --version 2>/dev/null | head -n 1 || true)"
 CODON_VERSION="$(extract_semver "${CODON_VERSION_RAW}")"

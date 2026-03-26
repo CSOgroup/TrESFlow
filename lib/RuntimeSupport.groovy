@@ -9,6 +9,7 @@ class RuntimeSupport {
         [name: 'bwa-mem2', binary: 'bwa-mem2'],
         [name: 'bamCoverage', binary: 'bamCoverage'],
         [name: 'gatk', binary: 'gatk'],
+        [name: 'codon', binary: 'codon'],
     ]
 
     static void validateConfiguredExecutable(final String label, final String rawPath) {
@@ -48,23 +49,30 @@ class RuntimeSupport {
         return envPrefix ? "${envPrefix}/bin" : ''
     }
 
-    static List<Map> standardRuntimeTools(final Map params) {
+    static String runtimeToolPath(final Map params, final String binary) {
         final String binDir = runtimeBinDir(params)
+        return binDir ? "${binDir}/${binary}" : ''
+    }
+
+    static String runtimeCodonHome(final Map params) {
+        return runtimeEnvPrefix(params)
+    }
+
+    static List<Map> standardRuntimeTools(final Map params) {
         return STANDARD_RUNTIME_TOOLS.collect { tool ->
-            [name: tool.name, path: (binDir ? "${binDir}/${tool.binary}" : ''), used: 'yes']
+            [name: tool.name, path: runtimeToolPath(params, tool.binary), used: 'yes']
         }
     }
 
     static List<Map> configuredRuntimeTools(final Map params) {
-        return standardRuntimeTools(params) + [
-            [name: 'codon', path: (params.runtime_codon ?: '').toString(), used: 'yes'],
-        ]
+        return standardRuntimeTools(params)
     }
 
     static Map runtimeContext(final Map params) {
         return [
             runtime_env_prefix: runtimeEnvPrefix(params),
             runtime_bin_dir   : runtimeBinDir(params),
+            codon_home        : runtimeCodonHome(params),
         ]
     }
 
@@ -76,8 +84,6 @@ class RuntimeSupport {
         standardRuntimeTools(params).each { tool ->
             validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
         }
-
-        validateConfiguredExecutable('runtime codon', params.runtime_codon as String)
     }
 
     static void writeRuntimeContract(
