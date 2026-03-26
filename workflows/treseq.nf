@@ -14,12 +14,14 @@
  *  11. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
  *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
+ *  12. Summarize the completed RNA and DNA core outputs into user-facing QC tables and plots.
  */
 
 import WorkflowSupport
 
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
+include { CORE_QC }  from '../subworkflows/local/core_qc'
 
 def toRnaCoreInput(final Map row) {
     tuple(
@@ -115,6 +117,44 @@ workflow TRESEQ {
     RNA_CORE(ch_rna_samples)
     DNA_CORE(ch_dna_samples)
 
+    final def ch_sb_group_map = Channel.value(file(sampleRows[0].sb_group_map))
+    final def ch_dna_mo_map = dnaRows ? Channel.value(file(dnaRows[0].mo_map)) : Channel.empty()
+
+    final def ch_rna_sample_counts = rnaRows
+        ? RNA_CORE.out.sample_barcode_counts.map { sampleId, counts -> counts }.collect()
+        : Channel.empty()
+    final def ch_rna_cell_counts = rnaRows
+        ? RNA_CORE.out.cell_barcode_counts.map { sampleId, counts -> counts }.collect()
+        : Channel.empty()
+    final def ch_rna_solo_dirs = rnaRows
+        ? RNA_CORE.out.aligned_solo_dirs.map { splitName, meta, soloDir -> soloDir }.collect()
+        : Channel.empty()
+
+    final def ch_dna_sample_counts = dnaRows
+        ? DNA_CORE.out.sample_barcode_counts.map { sampleId, counts -> counts }.collect()
+        : Channel.empty()
+    final def ch_dna_tag_records = dnaRows
+        ? DNA_CORE.out.cell_barcode_tag_records.map { sampleId, tagRecords -> tagRecords }.collect()
+        : Channel.empty()
+    final def ch_dna_aligned_bams = dnaRows
+        ? DNA_CORE.out.aligned_bams.map { splitName, meta, bam -> bam }.collect()
+        : Channel.empty()
+    final def ch_dna_nodup_bams = dnaRows
+        ? DNA_CORE.out.nodup_bams.map { splitName, meta, bam -> bam }.collect()
+        : Channel.empty()
+
+    CORE_QC(
+        ch_sb_group_map,
+        ch_rna_sample_counts,
+        ch_rna_cell_counts,
+        ch_rna_solo_dirs,
+        ch_dna_mo_map,
+        ch_dna_sample_counts,
+        ch_dna_tag_records,
+        ch_dna_aligned_bams,
+        ch_dna_nodup_bams
+    )
+
     emit:
     tagged_fastqs               = RNA_CORE.out.tagged_fastqs
     trimmed_fastqs              = RNA_CORE.out.trimmed_fastqs
@@ -124,7 +164,7 @@ workflow TRESEQ {
     aligned_solo_dirs           = RNA_CORE.out.aligned_solo_dirs
     aligned_filtered_bams       = RNA_CORE.out.aligned_filtered_bams
     aligned_stranded_bigwigs    = RNA_CORE.out.aligned_stranded_bigwigs
-    aligned_unstranded_bigwigs = RNA_CORE.out.aligned_unstranded_bigwigs
+    aligned_unstranded_bigwigs  = RNA_CORE.out.aligned_unstranded_bigwigs
     barcode_reports             = RNA_CORE.out.barcode_reports
     dna_tagged_fastqs           = DNA_CORE.out.tagged_fastqs
     dna_trimmed_fastqs          = DNA_CORE.out.trimmed_fastqs
@@ -140,4 +180,11 @@ workflow TRESEQ {
     dna_nodup_bais              = DNA_CORE.out.nodup_bais
     dna_coverage_bigwigs        = DNA_CORE.out.coverage_bigwigs
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
+    qc_rna_sample_table         = CORE_QC.out.rna_sample_table
+    qc_rna_group_table          = CORE_QC.out.rna_group_table
+    qc_rna_plots                = CORE_QC.out.rna_plots
+    qc_dna_sample_table         = CORE_QC.out.dna_sample_table
+    qc_dna_group_table          = CORE_QC.out.dna_group_table
+    qc_dna_group_mark_table     = CORE_QC.out.dna_group_mark_table
+    qc_dna_plots                = CORE_QC.out.dna_plots
 }

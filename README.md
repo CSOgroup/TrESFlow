@@ -28,6 +28,11 @@ DNA core:
 8. `SPLIT_DUPLICATES_DNA`
 9. `BAM_COVERAGE_DNA`
 
+QC reporting:
+
+- `RNA_QC` summarizes RNA sample-barcode counts, RNA cell-barcode counts, and `CellReads.stats` from STARsolo.
+- `DNA_QC` summarizes DNA sample-barcode counts, DNA tag records, aligned BAMs, and NoDup BAMs.
+
 Architecture/DAG:
 
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
@@ -167,6 +172,7 @@ RNA publishes:
 - `split/`
 - `usam/`
 - `align/`
+- `qc/`
 - `pipeline_info/`
 
 DNA publishes:
@@ -177,7 +183,17 @@ DNA publishes:
 - `dna_dedup/`
 - `dna_nodup/`
 - `dna_coverage/`
+- `qc/`
 - `pipeline_info/`
+
+`qc/` contains:
+
+- `rna_group_stage_counts.tsv`
+- `rna_sample_stage_counts.tsv`
+- `dna_group_stage_counts.tsv`
+- `dna_group_mark_stage_counts.tsv`
+- `dna_sample_stage_counts.tsv`
+- per-sample and per-group PNG plots under `qc/rna/` and `qc/dna/`
 
 ## Troubleshooting
 

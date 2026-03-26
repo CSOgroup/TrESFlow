@@ -134,6 +134,12 @@ workflow RNA_CORE {
     split_fastqs     = SPLIT_RNA_READS.out.split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     usam_files       = FQ_TO_SAM.out.usam
+    sample_barcode_counts = TAG_RNA_SAMPLE_BARCODE.out.metrics.map { sampleId, counts, stats ->
+        tuple(sampleId, counts)
+    }
+    cell_barcode_counts = TAG_RNA_CELL_BARCODE.out.metrics.map { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
+        tuple(sampleId, counts)
+    }
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
     aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw

@@ -47,6 +47,12 @@ EOF
 1 1 1
 EOF
 
+        cat > "${splitName}.Solo.outGeneFull/CellReads.stats" <<'EOF'
+CB	cbMatch	cbPerfect	cbMMunique	cbMMmultiple	genomeU	genomeM	featureU	featureM	exonic	intronic	exonicAS	intronicAS	mito	countedU	countedM	nUMIunique	nGenesUnique	nUMImulti	nGenesMulti
+mock_cell	1	1	0	0	1	0	1	0	0	0	0	0	0	1	0	1	1	0	0
+CBnotInPasslist	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+EOF
+
         printf 'mock aligned bam for %s\n' "${splitName}" > "${splitName}.Aligned.sortedByCoord.out.bam"
         """
     }
