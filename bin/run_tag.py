@@ -17,12 +17,18 @@ def open_maybe_gzip(path: Path, mode: str):
     return open(path, mode, encoding="utf-8")
 
 
+def open_maybe_gzip_binary(path: Path, mode: str):
+    if path.suffix == ".gz":
+        return gzip.open(path, mode)
+    return open(path, mode)
+
+
 def move_or_compress_fastq(source: Path, destination: Path):
     if source.suffix == destination.suffix:
         shutil.move(source, destination)
         return
 
-    with open_maybe_gzip(source, "rt") as src, open_maybe_gzip(destination, "wt") as dst:
+    with open_maybe_gzip_binary(source, "rb") as src, open_maybe_gzip_binary(destination, "wb") as dst:
         shutil.copyfileobj(src, dst)
     source.unlink()
 

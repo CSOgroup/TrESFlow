@@ -16,8 +16,14 @@ def open_maybe_gzip(path: Path, mode: str):
     return open(path, mode, encoding="utf-8")
 
 
+def open_maybe_gzip_binary(path: Path, mode: str):
+    if path.suffix == ".gz":
+        return gzip.open(path, mode)
+    return open(path, mode)
+
+
 def copy_as_gzip(source: Path, destination: Path):
-    with open_maybe_gzip(source, "rt") as src, gzip.open(destination, "wt") as dst:
+    with open_maybe_gzip_binary(source, "rb") as src, gzip.open(destination, "wb") as dst:
         shutil.copyfileobj(src, dst)
 
 

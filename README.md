@@ -157,6 +157,7 @@ Default local CPU budget:
 - `RNA_FILTERED_BAM`, trim, split, duplicate-filter, and DNA coverage helper steps reserve up to `8` cores each.
 - `ALIGN_DNA` reserves up to `32` cores.
 - tagging, `FQ_TO_SAM`, and `MARK_DUPLICATES_DNA` stay at `1` core.
+- Large tag stages now have explicit `6h` limits, and the RNA/DNA alignment-heavy stages no longer inherit the global `1h` timeout.
 - These are scheduler reservations. `ALIGN_DNA` still wraps an upstream script with its own internal thread behavior, so its Nextflow CPU value primarily controls local concurrency.
 
 Every run writes:
@@ -211,7 +212,7 @@ FASTQ retention policy:
 
 - `tagging/` and `dna_tagging/` keep barcode metrics and tag-record TSVs, not intermediate tag or trim FASTQs.
 - `split/` and `dna_split/` keep the final retained gzipped split FASTQs.
-- Earlier tag and trim FASTQs remain transient task inputs in `work/`.
+- Earlier tag and trim FASTQs remain transient task inputs in `work/`. Tag wrappers compress the retained task outputs and delete their temporary plain FASTQs before task exit.
 
 `qc/` contains:
 
