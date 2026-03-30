@@ -186,6 +186,12 @@ DNA publishes:
 - `qc/`
 - `pipeline_info/`
 
+FASTQ retention policy:
+
+- `tagging/` and `dna_tagging/` keep barcode metrics and tag-record TSVs, not intermediate tag or trim FASTQs.
+- `split/` and `dna_split/` keep the final retained gzipped split FASTQs.
+- Earlier tag and trim FASTQs remain transient task inputs in `work/`.
+
 `qc/` contains:
 
 - `rna_group_stage_counts.tsv`

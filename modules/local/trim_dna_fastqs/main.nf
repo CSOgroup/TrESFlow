@@ -21,8 +21,6 @@ process TRIM_DNA_FASTQS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_tagging", mode: 'copy', overwrite: true
-
     input:
     tuple val(sampleId), val(meta), path(taggedR1), path(taggedR2)
 

@@ -17,6 +17,16 @@ def open_maybe_gzip(path: Path, mode: str):
     return open(path, mode, encoding="utf-8")
 
 
+def move_or_compress_fastq(source: Path, destination: Path):
+    if source.suffix == destination.suffix:
+        shutil.move(source, destination)
+        return
+
+    with open_maybe_gzip(source, "rt") as src, open_maybe_gzip(destination, "wt") as dst:
+        shutil.copyfileobj(src, dst)
+    source.unlink()
+
+
 def fastq_iter(path: Path):
     with open_maybe_gzip(path, "rt") as handle:
         while True:
@@ -63,8 +73,8 @@ def resolve_codon_bin() -> str:
 def mock_tag_umi(args):
     umi_counts = Counter()
 
-    with open(args.output_r1, "wt", encoding="utf-8") as out_r1, open(
-        args.output_r2, "wt", encoding="utf-8"
+    with open_maybe_gzip(args.output_r1, "wt") as out_r1, open_maybe_gzip(
+        args.output_r2, "wt"
     ) as out_r2:
         for i2_rec, r1_rec, r2_rec in zip(
             fastq_iter(args.i2),
@@ -121,13 +131,40 @@ def real_tag_umi(args):
         ]
         subprocess.run(cmd, check=True)
 
-        expected_r1 = tmp_path / f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq"
-        expected_r2 = tmp_path / f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq"
+        expected_r1 = find_existing_output(
+            tmp_path,
+            [
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq.gz",
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fq.gz",
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq",
+                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fq",
+            ],
+            "tagged R1 FASTQ",
+        )
+        expected_r2 = find_existing_output(
+            tmp_path,
+            [
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq.gz",
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fq.gz",
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq",
+                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fq",
+            ],
+            "tagged R2 FASTQ",
+        )
         expected_counts = tmp_path / f"Reads_Per_Barcode_{args.sample}_{args.tag}.tsv"
 
-        shutil.move(expected_r1, args.output_r1)
-        shutil.move(expected_r2, args.output_r2)
+        move_or_compress_fastq(expected_r1, args.output_r1)
+        move_or_compress_fastq(expected_r2, args.output_r2)
         shutil.move(expected_counts, args.output_counts)
+
+
+def find_existing_output(base_dir: Path, candidate_names, label: str) -> Path:
+    for candidate_name in candidate_names:
+        candidate = base_dir / candidate_name
+        if candidate.exists():
+            return candidate
+    joined = ", ".join(str(base_dir / name) for name in candidate_names)
+    raise FileNotFoundError(f"Expected {label} in one of: {joined}")
 
 
 def stem_without_fastq_suffix(name: str) -> str:

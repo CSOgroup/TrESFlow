@@ -18,13 +18,15 @@ process TAG_DNA_MODALITY_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_tagging", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/dna_tagging", mode: 'copy', overwrite: true, saveAs: { filename ->
+        filename ==~ /.*\.(fastq|fq)(\.gz)?$/ ? null : filename
+    }
 
     input:
     tuple val(sampleId), val(meta), path(i2), path(taggedR1), path(taggedR2), path(modalityWhitelist)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality.R1.fastq"), path("${sampleId}.dna_sample_barcode_modality.R2.fastq"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality.R1.fastq.gz"), path("${sampleId}.dna_sample_barcode_modality.R2.fastq.gz"), emit: tagged
     tuple val(sampleId), path("${sampleId}.dna_modality.counts.tsv"), path("${sampleId}.dna_modality.stats.tsv"), emit: metrics
 
     script:
@@ -45,8 +47,8 @@ process TAG_DNA_MODALITY_BARCODE {
       --hd ${meta.modality_hd} \\
       --first-pass-arg "${meta.modality_first_pass}" \\
       --rev-comp-arg "${meta.modality_reverse_complement}" \\
-      --output-r1 "${sampleId}.dna_sample_barcode_modality.R1.fastq" \\
-      --output-r2 "${sampleId}.dna_sample_barcode_modality.R2.fastq" \\
+      --output-r1 "${sampleId}.dna_sample_barcode_modality.R1.fastq.gz" \\
+      --output-r2 "${sampleId}.dna_sample_barcode_modality.R2.fastq.gz" \\
       --output-counts "${sampleId}.dna_modality.counts.tsv" \\
       --output-stats "${sampleId}.dna_modality.stats.tsv"
     """

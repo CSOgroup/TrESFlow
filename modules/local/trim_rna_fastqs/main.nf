@@ -17,15 +17,13 @@
  *   - trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  *
  * Notes:
- *   - The upstream launcher deletes the untrimmed CB FASTQs after trimming.
- *     This Nextflow slice keeps those earlier module outputs published and advances on the trimmed files.
+ *   - Only the final split FASTQs remain published in results. These trimmed FASTQs stay in work/
+ *     as transient inputs to the split stage.
  */
 
 process TRIM_RNA_FASTQS {
     tag "${sampleId}"
     label 'codon_wrapper'
-
-    publishDir "${params.outdir}/tagging", mode: 'copy', overwrite: true
 
     input:
     tuple val(sampleId), val(meta), path(taggedR1), path(taggedR2)
