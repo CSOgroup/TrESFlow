@@ -1,6 +1,27 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES core workflow in this repo: RNA through the repo-owned alignment/filtered-BAM/coverage path and DNA through `BAM_COVERAGE_DNA`.
+TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES-seq core workflow in this repo.
+
+## Install
+
+Install your conda/mamba/micromamba env as follows (conda-forge & bioconda channels):
+```bash
+micromamba env create -n tres
+micromamba activate tres
+micromamba install pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn snapatac2
+micromamba install screen samtools bwa-mem2 star fastqc multiqc trim-galore deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
+```
+
+Download the repo and cd in it:
+```bash
+git clone git@github.com:AAnnan/TrESFlow.git
+cd TrESFlow
+```
+
+Install codon in your env:
+```bash
+./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix (for ex:/home/ahrmad/micromamba/envs/tres)
+```
 
 ## Workflow Summary
 
