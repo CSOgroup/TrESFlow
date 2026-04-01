@@ -1,27 +1,6 @@
 # TrESFlow
 
-TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES-seq core workflow in this repo.
-
-## Install
-
-Install your conda/mamba/micromamba env as follows (conda-forge & bioconda channels):
-```bash
-micromamba env create -n tres
-micromamba activate tres
-micromamba install pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn snapatac2
-micromamba install screen samtools bwa-mem2 star fastqc multiqc trim-galore deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
-```
-
-Download the repo and cd in it:
-```bash
-git clone git@github.com:AAnnan/TrESFlow.git
-cd TrESFlow
-```
-
-Install codon in your env:
-```bash
-./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix (for ex:/home/ahrmad/micromamba/envs/tres)
-```
+TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES core workflow in this repo: RNA through the repo-owned alignment/filtered-BAM/coverage path and DNA through `BAM_COVERAGE_DNA`.
 
 ## Workflow Summary
 
@@ -152,7 +131,6 @@ Default local CPU budget:
 - `RNA_FILTERED_BAM`, trim, split, duplicate-filter, and DNA coverage helper steps reserve up to `8` cores each.
 - `ALIGN_DNA` reserves up to `32` cores.
 - tagging, `FQ_TO_SAM`, and `MARK_DUPLICATES_DNA` stay at `1` core.
-- Large tag stages now have explicit `6h` limits, and the RNA/DNA alignment-heavy stages no longer inherit the global `1h` timeout.
 - These are scheduler reservations. `ALIGN_DNA` still wraps an upstream script with its own internal thread behavior, so its Nextflow CPU value primarily controls local concurrency.
 
 Every run writes:
@@ -201,24 +179,6 @@ DNA publishes:
 - `dna_coverage/`
 - `pipeline_info/`
 
-<<<<<<< HEAD
-FASTQ retention policy:
-
-- `tagging/` and `dna_tagging/` keep barcode metrics and tag-record TSVs, not intermediate tag or trim FASTQs.
-- `split/` and `dna_split/` keep the final retained gzipped split FASTQs.
-- Earlier tag and trim FASTQs remain transient task inputs in `work/`. Tag wrappers compress the retained task outputs and delete their temporary plain FASTQs before task exit.
-
-`qc/` contains:
-
-- `rna_group_stage_counts.tsv`
-- `rna_sample_stage_counts.tsv`
-- `dna_group_stage_counts.tsv`
-- `dna_group_mark_stage_counts.tsv`
-- `dna_sample_stage_counts.tsv`
-- per-sample and per-group PNG plots under `qc/rna/` and `qc/dna/`
-
-=======
->>>>>>> parent of 5648dcb (Add QC reporting)
 ## Troubleshooting
 
 - Missing RNA alignment resources: set `resources.rna_ref_base_dir` and `resources.rna_align_species` in the YAML, or use the matching CLI overrides.
