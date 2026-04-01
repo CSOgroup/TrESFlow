@@ -49,11 +49,6 @@ DNA core:
 8. `SPLIT_DUPLICATES_DNA`
 9. `BAM_COVERAGE_DNA`
 
-QC reporting:
-
-- `RNA_QC` summarizes RNA sample-barcode counts, RNA cell-barcode counts, and `CellReads.stats` from STARsolo.
-- `DNA_QC` summarizes DNA sample-barcode counts, DNA tag records, aligned BAMs, and NoDup BAMs.
-
 Architecture/DAG:
 
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
@@ -194,7 +189,6 @@ RNA publishes:
 - `split/`
 - `usam/`
 - `align/`
-- `qc/`
 - `pipeline_info/`
 
 DNA publishes:
@@ -205,9 +199,9 @@ DNA publishes:
 - `dna_dedup/`
 - `dna_nodup/`
 - `dna_coverage/`
-- `qc/`
 - `pipeline_info/`
 
+<<<<<<< HEAD
 FASTQ retention policy:
 
 - `tagging/` and `dna_tagging/` keep barcode metrics and tag-record TSVs, not intermediate tag or trim FASTQs.
@@ -223,6 +217,8 @@ FASTQ retention policy:
 - `dna_sample_stage_counts.tsv`
 - per-sample and per-group PNG plots under `qc/rna/` and `qc/dna/`
 
+=======
+>>>>>>> parent of 5648dcb (Add QC reporting)
 ## Troubleshooting
 
 - Missing RNA alignment resources: set `resources.rna_ref_base_dir` and `resources.rna_align_species` in the YAML, or use the matching CLI overrides.

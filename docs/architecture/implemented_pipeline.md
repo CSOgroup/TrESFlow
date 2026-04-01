@@ -1,10 +1,9 @@
 # Implemented Pipeline Architecture
 
-Core workflow plus reporting:
+Core workflow only:
 
 - RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through `BAM_COVERAGE_DNA`
-- QC tables and plots derived from the core tagging, STARsolo, aligned BAM, and NoDup artifacts
 
 ```mermaid
 flowchart TD
@@ -56,19 +55,10 @@ flowchart TD
         DNA8[BAM_COVERAGE_DNA]
         DNA0 --> DNA1 --> DNA2 --> DNA3 --> DNA4 --> DNA5 --> DNA6 --> DNA7 --> DNA8
     end
-
-    RNA0 --> RNAQC[RNA_QC]
-    RNA2 --> RNAQC
-    RNA6 --> RNAQC
-    DNA0 --> DNAQC[DNA_QC]
-    DNA2 --> DNAQC
-    DNA5 --> DNAQC
-    DNA7 --> DNAQC
 ```
 
 Notes:
 
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
-- `qc/` is user-facing and contains stage-count tables plus per-sample and per-group plots.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).

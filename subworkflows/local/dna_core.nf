@@ -143,15 +143,6 @@ workflow DNA_CORE {
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
     split_fastqs    = SPLIT_DNA_READS.out.split_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
-    sample_barcode_counts = TAG_DNA_SAMPLE_BARCODE.out.metrics.map { sampleId, counts, stats ->
-        tuple(sampleId, counts)
-    }
-    cell_barcode_tag_records = TAG_DNA_CELL_BARCODE.out.metrics.map { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
-        tuple(sampleId, tagRecords)
-    }
-    cell_barcode_counts = TAG_DNA_CELL_BARCODE.out.metrics.map { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
-        tuple(sampleId, counts)
-    }
     aligned_bams    = ALIGN_DNA.out.bam
     aligned_bais    = ALIGN_DNA.out.bai
     alignment_barcode_counts = ALIGN_DNA.out.barcode_counts
