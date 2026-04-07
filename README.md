@@ -1,5 +1,8 @@
 # TrESFlow
 
+[![Nextflow](https://img.shields.io/badge/version-%E2%89%A524.10.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)
+[![nf-core template version](https://img.shields.io/badge/nf--core_template-3.5.2-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.5.2)
+
 TrESFlow is a Nextflow DSL2 pipeline for the implemented TrES-seq core workflow in this repo.
 
 ## Install
@@ -184,18 +187,18 @@ nextflow run . \
 
 RNA publishes:
 
-- `tagging/`
-- `split/`
-- `usam/`
+- `tagging/` - DELETE
+- `split/` 
+- `usam/` - DELETE
 - `align/`
 - `pipeline_info/`
 
 DNA publishes:
 
-- `dna_tagging/`
+- `dna_tagging/` - DELETE
 - `dna_split/`
 - `dna_align/`
-- `dna_dedup/`
+- `dna_dedup/` - DELETE
 - `dna_nodup/`
 - `dna_coverage/`
 - `pipeline_info/`

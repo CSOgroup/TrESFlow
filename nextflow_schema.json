@@ -1,0 +1,142 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/nf-core/tres/main/nextflow_schema.json",
+    "title": "nf-core/tres pipeline parameters",
+    "description": "Repo-owned Nextflow DSL2 implementation of the TrES core RNA and DNA workflows",
+    "type": "object",
+    "$defs": {
+        "input_output_options": {
+            "title": "Input/output options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Define where the pipeline should find input data and save output data.",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "format": "file-path",
+                    "mimetype": "text/yaml",
+                    "description": "Reserved nf-core schema placeholder. TrESFlow uses --samplesheet as the supported public input contract.",
+                    "hidden": true
+                },
+                "samplesheet": {
+                    "type": "string",
+                    "format": "file-path",
+                    "mimetype": "text/yaml",
+                    "description": "Hierarchical YAML samplesheet describing shared resources, biological groups, and modality-specific FASTQ inputs."
+                },
+                "outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Output directory for published pipeline results and pipeline_info artifacts.",
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "/mnt/pdata/nikita/TrESFlow/results"
+                }
+            }
+        },
+        "runtime_options": {
+            "title": "Runtime options",
+            "type": "object",
+            "description": "Pipeline runtime environment and repo-owned script locations.",
+            "properties": {
+                "runtime_env_prefix": {
+                    "type": "string",
+                    "description": "Environment prefix that provides the required runtime executables and pinned Codon/Seq installation.",
+                    "default": "/home/nikita/miniconda3/envs/tres"
+                },
+                "core_scripts_dir": {
+                    "type": "string",
+                    "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules.",
+                    "default": "/mnt/pdata/nikita/TrESFlow/scripts/core_runtime"
+                },
+                "max_cpus": {
+                    "type": "integer",
+                    "description": "Maximum local CPU budget used to derive per-process scheduler reservations in the bundled local profiles.",
+                    "default": 64
+                },
+                "publish_dir_mode": {
+                    "type": "string",
+                    "description": "PublishDir mode applied by the lightweight modules.config layer.",
+                    "default": "copy"
+                },
+                "config_profile_name": {
+                    "type": "string",
+                    "description": "Optional human-readable active profile name used in reporting."
+                },
+                "config_profile_description": {
+                    "type": "string",
+                    "description": "Optional human-readable active profile description used in reporting."
+                },
+                "custom_config_version": {
+                    "type": "string",
+                    "description": "Version selector for remote nf-core/configs loading.",
+                    "default": "master"
+                },
+                "custom_config_base": {
+                    "type": "string",
+                    "description": "Base URL used to load remote nf-core/configs institutional profiles.",
+                    "default": "https://raw.githubusercontent.com/nf-core/configs/master"
+                }
+            }
+        },
+        "resource_override_options": {
+            "title": "Resource overrides",
+            "type": "object",
+            "description": "Optional CLI overrides for resources otherwise provided through the YAML samplesheet resources block.",
+            "properties": {
+                "ligation_barcode_whitelist": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Ligation barcode whitelist used by RNA and DNA cell-barcode tagging.",
+                    "default": "/mnt/pdata/nikita/TrESFlow/assets/test_realdata/ligation_barcode_whitelist.txt"
+                },
+                "rna_ref_base_dir": {
+                    "type": "string",
+                    "description": "Reference base directory for RNA STARsolo alignment."
+                },
+                "rna_align_species": {
+                    "type": "string",
+                    "enum": ["human", "mouse"],
+                    "description": "RNA STARsolo species selection."
+                },
+                "dna_bwa_reference": {
+                    "type": "string",
+                    "description": "bwa-mem2 index prefix for DNA alignment."
+                },
+                "dna_blacklist_bed": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Blacklist BED file used during DNA alignment filtering."
+                },
+                "dna_effective_genome_size": {
+                    "type": "string",
+                    "description": "Effective genome size used for DNA coverage track generation."
+                }
+            }
+        },
+        "advanced_options": {
+            "title": "Advanced options",
+            "type": "object",
+            "description": "Internal advanced defaults kept out of the main public YAML input contract.",
+            "properties": {
+                "barcode_defaults": {
+                    "type": "string",
+                    "description": "Internal barcode parsing defaults used by the samplesheet parser and local wrapper modules."
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/runtime_options"
+        },
+        {
+            "$ref": "#/$defs/resource_override_options"
+        },
+        {
+            "$ref": "#/$defs/advanced_options"
+        }
+    ]
+}

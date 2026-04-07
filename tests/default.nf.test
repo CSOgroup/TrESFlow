@@ -1,0 +1,38 @@
+nextflow_pipeline {
+
+    name "TrESFlow RNA smoke test"
+    script "../main.nf"
+    tag "pipeline"
+
+    test("-profile test") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "test_rna"
+            // versions.yml snapshot placeholder retained for nf-core lint compatibility.
+
+            def splitDir = new File(outputDir, "split")
+            def usamDir = new File(outputDir, "usam")
+            def alignDir = new File(outputDir, "align")
+            def qcDir = new File(outputDir, "qc")
+            def pipelineInfoDir = new File(outputDir, "pipeline_info")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(splitDir, "${sampleId}_Normal_R1.fq.gz").exists() },
+                { assert new File(splitDir, "${sampleId}_Co2_R2.fq.gz").exists() },
+                { assert new File(usamDir, "${sampleId}_Normal_tagged.usam").exists() },
+                { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
+                { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
+                { assert new File(qcDir, "rna_sample_stage_counts.tsv").exists() },
+                { assert new File(qcDir, "rna_group_stage_counts.tsv").exists() },
+                { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
+            )
+        }
+    }
+}

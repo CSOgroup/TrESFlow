@@ -1,0 +1,60 @@
+name: "rna_core"
+description: "Runs the TrES RNA branch from barcode tagging through split outputs, FqToSAM, STARsolo, filtered BAM generation, and coverage."
+authors:
+  - "Ahrmad Annan"
+  - "Nikita Miroshnichenko"
+keywords:
+  - "rna"
+  - "starsolo"
+  - "tres"
+components:
+  - "tag_rna_sample_barcode"
+  - "tag_rna_umi"
+  - "tag_rna_cell_barcode"
+  - "trim_rna_fastqs"
+  - "split_rna_reads"
+  - "fq_to_sam"
+  - "rna_starsolo_align"
+  - "rna_filtered_bam"
+  - "rna_coverage"
+input:
+  - ch_rna_samples:
+      type: tuple
+      description: "RNA modality rows parsed from the hierarchical YAML samplesheet plus derived helper files."
+output:
+  - tagged_fastqs:
+      type: file
+      description: "Final RNA tagged FASTQs from the cell-barcode stage."
+  - trimmed_fastqs:
+      type: file
+      description: "Trimmed RNA FASTQs."
+  - split_fastqs:
+      type: file
+      description: "Per-group split RNA FASTQs."
+  - rg_headers:
+      type: file
+      description: "SAM RG header TSVs for split RNA outputs."
+  - usam_files:
+      type: file
+      description: "Grouped RNA unmapped SAM files."
+  - sample_barcode_counts:
+      type: file
+      description: "RNA sample-barcode count TSVs."
+  - cell_barcode_counts:
+      type: file
+      description: "RNA cell-barcode count TSVs."
+  - aligned_solo_dirs:
+      type: directory
+      description: "RNA STARsolo output directories."
+  - aligned_filtered_bams:
+      type: file
+      description: "RNA filtered BAM files."
+  - aligned_stranded_bigwigs:
+      type: file
+      description: "RNA stranded bigWig tracks."
+  - aligned_unstranded_bigwigs:
+      type: file
+      description: "RNA unstranded bigWig tracks."
+  - barcode_reports:
+      type: file
+      description: "Collected RNA barcode metric outputs from upstream tagging steps."
