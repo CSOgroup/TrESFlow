@@ -187,20 +187,16 @@ nextflow run . \
 
 RNA publishes:
 
-- `tagging/` - DELETE
-- `split/` 
-- `usam/` - DELETE
+- `split/`
 - `align/`
+- `qc/`
 - `pipeline_info/`
 
 DNA publishes:
 
-- `dna_tagging/` - DELETE
 - `dna_split/`
 - `dna_align/`
-- `dna_dedup/` - DELETE
-- `dna_nodup/`
-- `dna_coverage/`
+- `qc/`
 - `pipeline_info/`
 
 ## Troubleshooting

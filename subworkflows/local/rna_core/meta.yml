@@ -8,15 +8,15 @@ keywords:
   - "starsolo"
   - "tres"
 components:
-  - "tag_rna_sample_barcode"
-  - "tag_rna_umi"
-  - "tag_rna_cell_barcode"
-  - "trim_rna_fastqs"
-  - "split_rna_reads"
-  - "fq_to_sam"
-  - "rna_starsolo_align"
-  - "rna_filtered_bam"
-  - "rna_coverage"
+  - "tag/rna/sample/barcode"
+  - "tag/rna/umi"
+  - "tag/rna/cell/barcode"
+  - "trim/rna/fastqs"
+  - "split/rna/reads"
+  - "fq/to/sam"
+  - "rna/starsolo/align"
+  - "rna/filtered/bam"
+  - "rna/coverage"
 input:
   - ch_rna_samples:
       type: tuple
@@ -58,3 +58,6 @@ output:
   - barcode_reports:
       type: file
       description: "Collected RNA barcode metric outputs from upstream tagging steps."
+  - versions:
+      type: file
+      description: "Aggregated module version manifests emitted by the RNA core."

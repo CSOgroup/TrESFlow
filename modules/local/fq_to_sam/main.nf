@@ -18,13 +18,12 @@ process FQ_TO_SAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/usam", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(splitR1), path(splitR2)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_tagged.usam"), emit: usam
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -36,5 +35,10 @@ process FQ_TO_SAM {
       --r1 "${splitR1}" \\
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

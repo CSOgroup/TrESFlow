@@ -22,6 +22,7 @@ process RNA_FILTERED_BAM {
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.filtered_cells.bam"), emit: filtered_bam
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -29,6 +30,11 @@ process RNA_FILTERED_BAM {
     if( mode == 'mock' ) {
         """
         printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -44,6 +50,11 @@ process RNA_FILTERED_BAM {
           "${alignedBam}" \\
           "." \\
           "${task.cpus}"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }

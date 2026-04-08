@@ -26,6 +26,7 @@ process SPLIT_DNA_READS {
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fq.gz"), path("${sampleId}_*_R2.fq.gz"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -41,5 +42,10 @@ process SPLIT_DNA_READS {
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
       --output-dir "."
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

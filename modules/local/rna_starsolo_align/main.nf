@@ -25,6 +25,7 @@ process RNA_STARSOLO_ALIGN {
     output:
     tuple val(splitName), val(meta), path("${splitName}.Solo.outGeneFull"), emit: solo_dir
     tuple val(splitName), val(meta), path("${splitName}.Aligned.sortedByCoord.out.bam"), emit: aligned_bam
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -48,6 +49,11 @@ EOF
 EOF
 
         printf 'mock aligned bam for %s\n' "${splitName}" > "${splitName}.Aligned.sortedByCoord.out.bam"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -64,6 +70,11 @@ EOF
           "." \\
           "${task.cpus}" \\
           "${species}"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }

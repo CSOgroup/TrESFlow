@@ -26,8 +26,6 @@ process MARK_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_dedup", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(alignedBam)
 
@@ -35,6 +33,7 @@ process MARK_DUPLICATES_DNA {
     tuple val(splitName), val(meta), path("${splitName}_MarkedDup.bam"), emit: bam
     tuple val(splitName), val(meta), path("${splitName}_MarkedDup.bam.bai"), emit: bai
     tuple val(splitName), val(meta), path("${splitName}.DuplicateMetrics.txt"), emit: metrics
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -48,6 +47,11 @@ process MARK_DUPLICATES_DNA {
 LIBRARY\tUNPAIRED_READS_EXAMINED\tREAD_PAIRS_EXAMINED\tSECONDARY_OR_SUPPLEMENTARY_RDS\tUNMAPPED_READS\tUNPAIRED_READ_DUPLICATES\tREAD_PAIR_DUPLICATES\tREAD_PAIR_OPTICAL_DUPLICATES\tPERCENT_DUPLICATION\tESTIMATED_LIBRARY_SIZE
 mock\t0\t0\t0\t0\t0\t0\t0\t0.0\t0
 EOF
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -76,6 +80,11 @@ EOF
           echo "Missing BAM index for ${splitName}_MarkedDup.bam" >&2
           exit 1
         fi
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }

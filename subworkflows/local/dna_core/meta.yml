@@ -8,15 +8,15 @@ keywords:
   - "chromatin"
   - "tres"
 components:
-  - "tag_dna_sample_barcode"
-  - "tag_dna_modality_barcode"
-  - "tag_dna_cell_barcode"
-  - "trim_dna_fastqs"
-  - "split_dna_reads"
-  - "align_dna"
-  - "mark_duplicates_dna"
-  - "split_duplicates_dna"
-  - "bam_coverage_dna"
+  - "tag/dna/sample/barcode"
+  - "tag/dna/modality/barcode"
+  - "tag/dna/cell/barcode"
+  - "trim/dna/fastqs"
+  - "split/dna/reads"
+  - "align/dna"
+  - "mark/duplicates/dna"
+  - "split/duplicates/dna"
+  - "bam/coverage/dna"
 input:
   - ch_dna_samples:
       type: tuple
@@ -73,3 +73,6 @@ output:
   - barcode_reports:
       type: file
       description: "Collected DNA barcode metric outputs from upstream tagging steps."
+  - versions:
+      type: file
+      description: "Aggregated module version manifests emitted by the DNA core."

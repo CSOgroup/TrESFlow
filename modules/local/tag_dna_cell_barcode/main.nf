@@ -18,16 +18,13 @@ process TAG_DNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_tagging", mode: 'copy', overwrite: true, saveAs: { filename ->
-        filename ==~ /.*\.(fastq|fq)(\.gz)?$/ ? null : filename
-    }
-
     input:
     tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1.fastq.gz"), path("${sampleId}.dna_sample_barcode_modality_cell.R2.fastq.gz"), emit: tagged
     tuple val(sampleId), path("${sampleId}.dna_cell.counts.tsv"), path("${sampleId}.dna_tag_records.tsv"), path("${sampleId}.dna_cell.stats_L1.tsv"), path("${sampleId}.dna_cell.stats_L2.tsv"), path("${sampleId}.dna_cell.stats_L3.tsv"), emit: metrics
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -51,5 +48,10 @@ process TAG_DNA_CELL_BARCODE {
       --output-stats "${sampleId}.dna_cell.stats_L1.tsv" \\
       --output-stats "${sampleId}.dna_cell.stats_L2.tsv" \\
       --output-stats "${sampleId}.dna_cell.stats_L3.tsv"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

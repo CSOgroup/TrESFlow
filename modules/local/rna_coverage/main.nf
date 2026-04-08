@@ -24,6 +24,7 @@ process RNA_COVERAGE {
     output:
     tuple val(splitName), val(meta), path("${splitName}.stranded_*.bw"), optional: true, emit: stranded_bw
     tuple val(splitName), val(meta), path("${splitName}.unstranded_*.bw"), optional: true, emit: unstranded_bw
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -32,6 +33,11 @@ process RNA_COVERAGE {
         """
         printf 'mock stranded bigwig\n' > "${splitName}.stranded_Signal.Unique.str1.out.bw"
         printf 'mock unstranded bigwig\n' > "${splitName}.unstranded_Signal.Unique.str1.out.bw"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -50,6 +56,11 @@ process RNA_COVERAGE {
           "." \\
           "${task.cpus}" \\
           "${species}"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }

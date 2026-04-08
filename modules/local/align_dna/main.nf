@@ -32,9 +32,13 @@ process ALIGN_DNA {
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
     tuple val(splitName), val(meta), path("${splitName}.bam.bai"), emit: bai
     tuple val(splitName), val(meta), path("${splitName}_ProperPairedMapped_reads_per_barcode.tsv"), emit: barcode_counts
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def alignThreads = task.cpus as int
+    def viewThreads = Math.min(alignThreads, 4)
+    def sortThreads = Math.min(alignThreads, 8)
 
     if( mode == 'mock' ) {
         """
@@ -43,6 +47,11 @@ process ALIGN_DNA {
         cat > "${splitName}_ProperPairedMapped_reads_per_barcode.tsv" <<'EOF'
 1	mock_barcode
 EOF
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -54,6 +63,11 @@ EOF
           fi
         done
 
+        export ALIGN_DNA_THREADS="${alignThreads}"
+        export ALIGN_DNA_VIEW_THREADS="${viewThreads}"
+        export ALIGN_DNA_SORT_THREADS="${sortThreads}"
+        export ALIGN_DNA_SORT_MEM="1G"
+
         bash "${params.core_scripts_dir}/AlignDNA.sh" \\
           "${modality}" \\
           "${sampleGroup}" \\
@@ -64,6 +78,11 @@ EOF
           "${bwaReference}" \\
           "${effectiveGenomeSize}" \\
           "."
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }
