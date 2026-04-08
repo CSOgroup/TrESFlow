@@ -18,23 +18,28 @@ process FQ_TO_SAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/usam", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(splitR1), path(splitR2)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_tagged.usam"), emit: usam
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/FqToSAM.codon" \\
+      --script "${coreScriptsDir}/FqToSAM.codon" \\
       --r1 "${splitR1}" \\
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

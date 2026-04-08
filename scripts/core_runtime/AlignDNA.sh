@@ -6,10 +6,19 @@
 
 set -e
 
-threads=72
-view_threads=12
-sort_threads=64
-min_good_reads_in_cells=100
+threads="${ALIGN_DNA_THREADS:-8}"
+view_threads="${ALIGN_DNA_VIEW_THREADS:-4}"
+sort_threads="${ALIGN_DNA_SORT_THREADS:-8}"
+sort_mem="${ALIGN_DNA_SORT_MEM:-1G}"
+min_good_reads_in_cells="${ALIGN_DNA_MIN_GOOD_READS:-100}"
+
+if (( view_threads > threads )); then
+  view_threads="${threads}"
+fi
+
+if (( sort_threads > threads )); then
+  sort_threads="${threads}"
+fi
 
 # Input Variables
 modality="${1}"
@@ -44,7 +53,7 @@ head -n "$last_sq_line" "${RGID}_TEMPHEADER.sam" > "${RGID}_TEMPHEADER1.sam"
 tail -n +"$((last_sq_line + 1))" "${RGID}_TEMPHEADER.sam" > "${RGID}_TEMPHEADER2.sam"
 
 # Append the new header to the RG-replaced SAM file and convert to BAM
-{ cat ${RGID}_TEMPHEADER1.sam ${PathSam_header} ${RGID}_TEMPHEADER2.sam; "${SAMTOOLS_BIN}" view --threads ${view_threads} ${RGID}_TEMP.sam; } | "${SAMTOOLS_BIN}" sort --threads ${sort_threads} -m 2G -n -o ${RGID}_TEMP.bam -
+{ cat ${RGID}_TEMPHEADER1.sam ${PathSam_header} ${RGID}_TEMPHEADER2.sam; "${SAMTOOLS_BIN}" view --threads ${view_threads} ${RGID}_TEMP.sam; } | "${SAMTOOLS_BIN}" sort --threads ${sort_threads} -m ${sort_mem} -n -o ${RGID}_TEMP.bam -
 
 echo "Get numbers of properly paired and mapped reads per barcode..."
 # Remove reads overlapping with the blacklist
@@ -60,7 +69,7 @@ awk -v threshold="$min_good_reads_in_cells" -F'\t' '$1 >= threshold {print $2}' 
 "${SAMTOOLS_BIN}" view --threads ${view_threads} --with-header --require-flags 0x2 --read-group-file ${RGID}_GoodBarcodes.txt --output ${RGID}_TEMP_Good.bam ${RGID}_TEMP_outBLRegions.bam
 
 ## Sort and output final bam
-"${SAMTOOLS_BIN}" sort -@ ${threads} -m 2G -o ${PathOutputBam} ${RGID}_TEMP_Good.bam
+"${SAMTOOLS_BIN}" sort -@ ${sort_threads} -m ${sort_mem} -o ${PathOutputBam} ${RGID}_TEMP_Good.bam
 
 # Index the BAM
 "${SAMTOOLS_BIN}" index --threads ${threads} --bai --output ${PathOutputBam}.bai ${PathOutputBam}

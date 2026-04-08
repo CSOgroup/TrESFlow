@@ -1,0 +1,24 @@
+repository_type: pipeline
+
+nf_core_version: 3.5.2
+
+lint:
+  nextflow_config:
+    - params.input
+    - params.max_cpus
+  schema_params: false
+  modules_json: false
+  rocrate_readme_sync: false
+  files_unchanged: false
+
+template:
+  org: nf-core
+  name: tres
+  description: nf-core-style TrES DNA/RNA pipeline with one hierarchical YAML samplesheet contract, map-derived splitting, DNA alignment, and RNA STARsolo quantification.
+  author: Ahrmad Annan, Nikita Miroshnichenko
+  version: 1.0.0dev
+  force: true
+  outdir: /mnt/pdata/nikita/TrESFlow
+  skip_features:
+    - gpu
+  is_nfcore: true

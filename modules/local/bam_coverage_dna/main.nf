@@ -25,13 +25,12 @@ process BAM_COVERAGE_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_coverage", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(noDupBam), path(noDupBai), val(effectiveGenomeSize)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bw"), optional: true, emit: bw
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -39,6 +38,11 @@ process BAM_COVERAGE_DNA {
     if( mode == 'mock' ) {
         """
         printf 'mock bigwig for %s\n' "${splitName}" > "${splitName}_NoDup.bw"
+
+        printf '%s\n' \
+          '"${task.process}":' \
+          '  component: "local"' \
+          > versions.yml
         """
     }
     else {
@@ -56,6 +60,10 @@ process BAM_COVERAGE_DNA {
         mapped_reads="\$("\$SAMTOOLS_BIN" view -c -F 4 "${noDupBam}")"
         if [[ "\${mapped_reads}" -eq 0 ]]; then
           echo "Skipping bamCoverage for ${splitName}: ${noDupBam} has zero mapped reads" >&2
+          printf '%s\n' \\
+            '"${task.process}":' \\
+            '  component: "local"' \\
+            > versions.yml
           exit 0
         fi
 
@@ -71,6 +79,11 @@ process BAM_COVERAGE_DNA {
           -o "${splitName}_NoDup.bw" \\
           -of bigwig \\
           --effectiveGenomeSize "${effectiveGenomeSize}"
+
+        printf '%s\n' \\
+          '"${task.process}":' \\
+          '  component: "local"' \\
+          > versions.yml
         """
     }
 }

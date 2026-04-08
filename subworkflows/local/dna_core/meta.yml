@@ -1,0 +1,78 @@
+name: "dna_core"
+description: "Runs the TrES DNA branch from barcode tagging through split outputs, alignment, duplicate handling, and coverage."
+authors:
+  - "Ahrmad Annan"
+  - "Nikita Miroshnichenko"
+keywords:
+  - "dna"
+  - "chromatin"
+  - "tres"
+components:
+  - "tag/dna/sample/barcode"
+  - "tag/dna/modality/barcode"
+  - "tag/dna/cell/barcode"
+  - "trim/dna/fastqs"
+  - "split/dna/reads"
+  - "align/dna"
+  - "mark/duplicates/dna"
+  - "split/duplicates/dna"
+  - "bam/coverage/dna"
+input:
+  - ch_dna_samples:
+      type: tuple
+      description: "DNA modality rows parsed from the hierarchical YAML samplesheet plus derived helper files."
+output:
+  - tagged_fastqs:
+      type: file
+      description: "Final DNA tagged FASTQs from the cell-barcode stage."
+  - trimmed_fastqs:
+      type: file
+      description: "Trimmed DNA FASTQs."
+  - split_fastqs:
+      type: file
+      description: "Per-group per-mark split DNA FASTQs."
+  - rg_headers:
+      type: file
+      description: "SAM RG header TSVs for split DNA outputs."
+  - sample_barcode_counts:
+      type: file
+      description: "DNA sample-barcode count TSVs."
+  - cell_barcode_tag_records:
+      type: file
+      description: "DNA cell-barcode tag record TSVs."
+  - cell_barcode_counts:
+      type: file
+      description: "DNA cell-barcode count TSVs."
+  - aligned_bams:
+      type: file
+      description: "Aligned DNA BAM files."
+  - aligned_bais:
+      type: file
+      description: "Aligned DNA BAM indexes."
+  - alignment_barcode_counts:
+      type: file
+      description: "Properly paired mapped-read counts per barcode."
+  - markeddup_bams:
+      type: file
+      description: "Duplicate-marked DNA BAM files."
+  - markeddup_bais:
+      type: file
+      description: "Duplicate-marked DNA BAM indexes."
+  - duplicate_metrics:
+      type: file
+      description: "Duplicate metrics files."
+  - nodup_bams:
+      type: file
+      description: "Duplicate-filtered NoDup DNA BAM files."
+  - nodup_bais:
+      type: file
+      description: "Duplicate-filtered NoDup DNA BAM indexes."
+  - coverage_bigwigs:
+      type: file
+      description: "DNA coverage bigWig tracks."
+  - barcode_reports:
+      type: file
+      description: "Collected DNA barcode metric outputs from upstream tagging steps."
+  - versions:
+      type: file
+      description: "Aggregated module version manifests emitted by the DNA core."

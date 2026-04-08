@@ -15,20 +15,27 @@ process RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.filtered_cells.bam"), emit: filtered_bam
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     if( mode == 'mock' ) {
         """
         printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -38,12 +45,17 @@ process RNA_FILTERED_BAM {
           exit 1
         fi
 
-        bash "${params.core_scripts_dir}/RNA_FILTERED_BAM.sh" \\
+        bash "${coreScriptsDir}/RNA_FILTERED_BAM.sh" \\
           "${splitName}" \\
           "${soloDir}" \\
           "${alignedBam}" \\
           "." \\
           "${task.cpus}"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }

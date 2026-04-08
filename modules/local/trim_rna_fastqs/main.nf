@@ -30,6 +30,7 @@ process TRIM_RNA_FASTQS {
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1_val_1.fq.gz"), path("${sampleId}.sample_barcode_umi_cell.R2_val_2.fq.gz"), emit: trimmed
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -45,5 +46,10 @@ process TRIM_RNA_FASTQS {
       --length 20 \\
       --output-r1 "${sampleId}.sample_barcode_umi_cell.R1_val_1.fq.gz" \\
       --output-r2 "${sampleId}.sample_barcode_umi_cell.R2_val_2.fq.gz"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

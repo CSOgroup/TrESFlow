@@ -18,27 +18,30 @@
 
 import WorkflowSupport
 
-include { TAG_RNA_SAMPLE_BARCODE } from '../../modules/local/tag_rna_sb/main'
-include { TAG_RNA_UMI }            from '../../modules/local/tag_rna_umi/main'
-include { TAG_RNA_CELL_BARCODE }   from '../../modules/local/tag_rna_cell_barcode/main'
-include { TRIM_RNA_FASTQS }        from '../../modules/local/trim_rna_fastqs/main'
-include { SPLIT_RNA_READS }        from '../../modules/local/split_rna_reads/main'
-include { FQ_TO_SAM }              from '../../modules/local/fq_to_sam/main'
-include { RNA_STARSOLO_ALIGN }     from '../../modules/local/rna_starsolo_align/main'
-include { RNA_FILTERED_BAM }       from '../../modules/local/rna_filtered_bam/main'
-include { RNA_COVERAGE }           from '../../modules/local/rna_coverage/main'
+include { TAG_RNA_SAMPLE_BARCODE } from '../../../modules/local/tag_rna_sb/main'
+include { TAG_RNA_UMI }            from '../../../modules/local/tag_rna_umi/main'
+include { TAG_RNA_CELL_BARCODE }   from '../../../modules/local/tag_rna_cell_barcode/main'
+include { TRIM_RNA_FASTQS }        from '../../../modules/local/trim_rna_fastqs/main'
+include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
+include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
+include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_align/main'
+include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
+include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
 
 workflow RNA_CORE {
     take:
     ch_rna_samples
 
     main:
+    ch_versions = channel.empty()
+
     // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, r1, r2, sbGroupMap)
     }
 
     TAG_RNA_SAMPLE_BARCODE(ch_sb_input)
+    ch_versions = ch_versions.mix(TAG_RNA_SAMPLE_BARCODE.out.versions)
 
     // Add UMIs after sample-barcode tagging.
     ch_raw_r2 = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -52,6 +55,7 @@ workflow RNA_CORE {
         }
 
     TAG_RNA_UMI(ch_umi_input)
+    ch_versions = ch_versions.mix(TAG_RNA_UMI.out.versions)
 
     // Add ligation-derived cell barcodes from I1.
     ch_cb_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -65,7 +69,9 @@ workflow RNA_CORE {
         }
 
     TAG_RNA_CELL_BARCODE(ch_cb_input)
+    ch_versions = ch_versions.mix(TAG_RNA_CELL_BARCODE.out.versions)
     TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
+    ch_versions = ch_versions.mix(TRIM_RNA_FASTQS.out.versions)
 
     // Split trimmed reads by sample-barcode group before FQ_TO_SAM.
     ch_split_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -79,6 +85,7 @@ workflow RNA_CORE {
         }
 
     SPLIT_RNA_READS(ch_split_input)
+    ch_versions = ch_versions.mix(SPLIT_RNA_READS.out.versions)
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
@@ -88,6 +95,7 @@ workflow RNA_CORE {
         }
 
     FQ_TO_SAM(ch_fq_to_sam_input)
+    ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
 
     // Align each grouped unmapped SAM independently with STARsolo.
     ch_starsolo_input = FQ_TO_SAM.out.usam
@@ -102,6 +110,7 @@ workflow RNA_CORE {
         }
 
     RNA_STARSOLO_ALIGN(ch_starsolo_input)
+    ch_versions = ch_versions.mix(RNA_STARSOLO_ALIGN.out.versions)
 
     ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
         .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
@@ -110,6 +119,7 @@ workflow RNA_CORE {
         }
 
     RNA_FILTERED_BAM(ch_filtered_bam_input)
+    ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
 
     ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
         .map { splitName, meta, filteredBam ->
@@ -123,6 +133,7 @@ workflow RNA_CORE {
         }
 
     RNA_COVERAGE(ch_coverage_input)
+    ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
 
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)
@@ -139,4 +150,5 @@ workflow RNA_CORE {
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports
+    versions         = ch_versions
 }

@@ -22,7 +22,7 @@ process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/split", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/split", mode: 'copy', overwrite: true
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
@@ -30,19 +30,26 @@ process SPLIT_RNA_READS {
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fq.gz"), path("${sampleId}_*_R2.fq.gz"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_rna.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/Split_ReadsV2.codon" \\
+      --script "${coreScriptsDir}/Split_ReadsV2.codon" \\
       --r1 "${trimmedR1}" \\
       --r2 "${trimmedR2}" \\
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
       --output-dir "."
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+      component: "local"
+    END_VERSIONS
     """
 }

@@ -26,14 +26,13 @@ process SPLIT_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_nodup", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(markedDupBam)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bam"), emit: bam
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bam.bai"), emit: bai
+    path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
@@ -42,6 +41,11 @@ process SPLIT_DUPLICATES_DNA {
         """
         printf 'mock nodup bam for %s\n' "${splitName}" > "${splitName}_NoDup.bam"
         printf 'mock nodup bai for %s\n' "${splitName}" > "${splitName}_NoDup.bam.bai"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
     else {
@@ -69,6 +73,11 @@ process SPLIT_DUPLICATES_DNA {
           "${splitName}_NoDup.bam"
 
         rm -f "${splitName}.DUP.bam"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
         """
     }
 }
