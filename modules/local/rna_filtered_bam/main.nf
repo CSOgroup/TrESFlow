@@ -15,7 +15,7 @@ process RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam)
@@ -26,6 +26,7 @@ process RNA_FILTERED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     if( mode == 'mock' ) {
         """
@@ -44,7 +45,7 @@ process RNA_FILTERED_BAM {
           exit 1
         fi
 
-        bash "${params.core_scripts_dir}/RNA_FILTERED_BAM.sh" \\
+        bash "${coreScriptsDir}/RNA_FILTERED_BAM.sh" \\
           "${splitName}" \\
           "${soloDir}" \\
           "${alignedBam}" \\

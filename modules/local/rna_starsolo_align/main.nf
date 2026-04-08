@@ -17,7 +17,7 @@ process RNA_STARSOLO_ALIGN {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/align", mode: 'copy', overwrite: true, pattern: "${splitName}.Solo.outGeneFull"
+    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true, pattern: "${splitName}.Solo.outGeneFull"
 
     input:
     tuple val(splitName), val(meta), path(usam), val(refBaseDir), val(species)
@@ -29,6 +29,7 @@ process RNA_STARSOLO_ALIGN {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     if( mode == 'mock' ) {
         """
@@ -63,14 +64,14 @@ EOF
           exit 1
         fi
 
-        bash "${params.core_scripts_dir}/RNA_STARSOLO_ALIGN.sh" \\
+        bash "${coreScriptsDir}/RNA_STARSOLO_ALIGN.sh" \\
           "${splitName}" \\
           "${usam}" \\
           "${refBaseDir}" \\
           "." \\
           "${task.cpus}" \\
           "${species}"
-
+ 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
           component: "local"

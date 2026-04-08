@@ -22,7 +22,7 @@ process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/split", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/split", mode: 'copy', overwrite: true
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
@@ -34,11 +34,12 @@ process SPLIT_RNA_READS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_rna.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/Split_ReadsV2.codon" \\
+      --script "${coreScriptsDir}/Split_ReadsV2.codon" \\
       --r1 "${trimmedR1}" \\
       --r2 "${trimmedR2}" \\
       --sb-group-map "${sbGroupMap}" \\

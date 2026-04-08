@@ -58,6 +58,21 @@ class RuntimeSupport {
         return runtimeEnvPrefix(params)
     }
 
+    static String resolveProjectPath(final String rawProjectDir, final Object rawPath) {
+        final String projectDir = rawProjectDir?.toString()?.trim()
+        final String path = rawPath?.toString()?.trim()
+        if( !path ) {
+            return path
+        }
+
+        final File candidate = new File(path)
+        if( candidate.isAbsolute() || !projectDir ) {
+            return candidate.path
+        }
+
+        return new File(projectDir, path).canonicalPath
+    }
+
     static List<Map> standardRuntimeTools(final Map params) {
         return STANDARD_RUNTIME_TOOLS.collect { tool ->
             [name: tool.name, path: runtimeToolPath(params, tool.binary), used: 'yes']

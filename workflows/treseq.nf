@@ -50,8 +50,8 @@ def toDnaCoreInput(final Map row) {
 
 def samplesheetParseOptions() {
     return [
-        outdir                    : params.outdir,
-        ligation_barcode_whitelist: params.ligation_barcode_whitelist,
+        outdir                    : params.outdir ?: "${projectDir}/results",
+        ligation_barcode_whitelist: params.ligation_barcode_whitelist ?: "${projectDir}/assets/test_realdata/ligation_barcode_whitelist.txt",
         barcode_defaults          : params.barcode_defaults,
         rna_ref_base_dir          : params.rna_ref_base_dir,
         rna_align_species         : params.rna_align_species,

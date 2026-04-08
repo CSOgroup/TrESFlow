@@ -4,6 +4,17 @@ nextflow.enable.dsl = 2
 
 import RuntimeSupport
 
+final String resolvedOutdir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.outdir ?: 'results')
+final String resolvedCoreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+final String resolvedLigationBarcodeWhitelist = RuntimeSupport.resolveProjectPath(
+    projectDir.toString(),
+    params.ligation_barcode_whitelist ?: 'assets/test_realdata/ligation_barcode_whitelist.txt'
+)
+
+params.put('outdir', resolvedOutdir)
+params.put('core_scripts_dir', resolvedCoreScriptsDir)
+params.put('ligation_barcode_whitelist', resolvedLigationBarcodeWhitelist)
+
 // The runtime contract is enforced once up front so every downstream task sees
 // the same validated toolchain and the same pinned Codon/Seq preflight result.
 def runCodonSeqPreflight() {
@@ -45,9 +56,10 @@ def runCodonSeqPreflight() {
 }
 
 RuntimeSupport.validateRuntimeContract(params)
+RuntimeSupport.validateConfiguredDirectory('core scripts dir', resolvedCoreScriptsDir)
 final String codonPreflightOutput = runCodonSeqPreflight()
 RuntimeSupport.writeRuntimeContract(
-    (params.outdir ?: 'results').toString(),
+    resolvedOutdir,
     RuntimeSupport.configuredRuntimeTools(params),
     codonPreflightOutput,
     RuntimeSupport.runtimeContext(params)

@@ -23,7 +23,7 @@ process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/dna_align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
@@ -39,6 +39,7 @@ process ALIGN_DNA {
     def alignThreads = task.cpus as int
     def viewThreads = Math.min(alignThreads, 4)
     def sortThreads = Math.min(alignThreads, 8)
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     if( mode == 'mock' ) {
         """
@@ -68,7 +69,7 @@ EOF
         export ALIGN_DNA_SORT_THREADS="${sortThreads}"
         export ALIGN_DNA_SORT_MEM="1G"
 
-        bash "${params.core_scripts_dir}/AlignDNA.sh" \\
+        bash "${coreScriptsDir}/AlignDNA.sh" \\
           "${modality}" \\
           "${sampleGroup}" \\
           "${splitR1}" \\

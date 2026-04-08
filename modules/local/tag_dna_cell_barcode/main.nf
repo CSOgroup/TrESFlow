@@ -28,11 +28,12 @@ process TAG_DNA_CELL_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/Tag_Lig3.codon" \\
+      --script "${coreScriptsDir}/Tag_Lig3.codon" \\
       --i1 "${i1}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\

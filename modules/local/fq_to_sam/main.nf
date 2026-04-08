@@ -27,11 +27,12 @@ process FQ_TO_SAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/FqToSAM.codon" \\
+      --script "${coreScriptsDir}/FqToSAM.codon" \\
       --r1 "${splitR1}" \\
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"

@@ -28,8 +28,7 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "Output directory for published pipeline results and pipeline_info artifacts.",
-                    "fa_icon": "fas fa-folder-open",
-                    "default": "/mnt/pdata/nikita/TrESFlow/results"
+                    "fa_icon": "fas fa-folder-open"
                 }
             }
         },
@@ -45,8 +44,7 @@
                 },
                 "core_scripts_dir": {
                     "type": "string",
-                    "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules.",
-                    "default": "/mnt/pdata/nikita/TrESFlow/scripts/core_runtime"
+                    "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules."
                 },
                 "max_cpus": {
                     "type": "integer",
@@ -86,8 +84,7 @@
                 "ligation_barcode_whitelist": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "Ligation barcode whitelist used by RNA and DNA cell-barcode tagging.",
-                    "default": "/mnt/pdata/nikita/TrESFlow/assets/test_realdata/ligation_barcode_whitelist.txt"
+                    "description": "Ligation barcode whitelist used by RNA and DNA cell-barcode tagging."
                 },
                 "rna_ref_base_dir": {
                     "type": "string",

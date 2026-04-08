@@ -16,7 +16,7 @@ process RNA_COVERAGE {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir}/align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(filteredBam), val(refBaseDir), val(species)
@@ -28,6 +28,7 @@ process RNA_COVERAGE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     if( mode == 'mock' ) {
         """
@@ -49,7 +50,7 @@ process RNA_COVERAGE {
           fi
         done
 
-        bash "${params.core_scripts_dir}/RNA_COVERAGE.sh" \\
+        bash "${coreScriptsDir}/RNA_COVERAGE.sh" \\
           "${splitName}" \\
           "${filteredBam}" \\
           "${refBaseDir}" \\

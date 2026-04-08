@@ -27,11 +27,12 @@ process TAG_RNA_UMI {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
 
     """
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_umi.py" \\
       --mode "${mode}" \\
-      --script "${params.core_scripts_dir}/Tag_UMI.codon" \\
+      --script "${coreScriptsDir}/Tag_UMI.codon" \\
       --i2 "${rawR2}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
