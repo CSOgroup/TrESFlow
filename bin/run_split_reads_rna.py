@@ -11,6 +11,13 @@ from collections import OrderedDict
 from pathlib import Path
 
 
+def resolve_temp_root() -> Path:
+    configured = os.environ.get("TMPDIR")
+    root = Path(configured).expanduser() if configured else (Path.cwd() / ".tmp")
+    root.mkdir(parents=True, exist_ok=True)
+    return root.resolve()
+
+
 def open_maybe_gzip(path: Path, mode: str):
     if path.suffix == ".gz":
         return gzip.open(path, mode)
@@ -176,7 +183,7 @@ def mock_split(args):
 def real_split(args):
     codon_bin = resolve_codon_bin()
 
-    with tempfile.TemporaryDirectory(prefix="tresflow_split_reads_rna_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="tresflow_split_reads_rna_", dir=resolve_temp_root()) as tmpdir:
         tmp_path = Path(tmpdir)
         cmd = [
             codon_bin,

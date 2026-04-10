@@ -67,7 +67,9 @@ process BAM_COVERAGE_DNA {
           exit 0
         fi
 
-        export MPLCONFIGDIR="\$(mktemp -d /tmp/mplconfig-${splitName}.XXXXXX)"
+        tmp_root="\${TMPDIR:-\$PWD/.tmp}"
+        mkdir -p "\${tmp_root}"
+        export MPLCONFIGDIR="\$(mktemp -d "\${tmp_root}/mplconfig-${splitName}.XXXXXX")"
         trap 'rm -rf "\${MPLCONFIGDIR}"' EXIT
 
         "\$BAMCOVERAGE_BIN" \\

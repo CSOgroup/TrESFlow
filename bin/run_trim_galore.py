@@ -10,6 +10,13 @@ import tempfile
 from pathlib import Path
 
 
+def resolve_temp_root() -> Path:
+    configured = os.environ.get("TMPDIR")
+    root = Path(configured).expanduser() if configured else (Path.cwd() / ".tmp")
+    root.mkdir(parents=True, exist_ok=True)
+    return root.resolve()
+
+
 def open_maybe_gzip(path: Path, mode: str):
     if path.suffix == ".gz":
         return gzip.open(path, mode)
@@ -57,7 +64,7 @@ def real_trim(args):
     if not trim_galore_bin.exists() or not os.access(trim_galore_bin, os.X_OK):
         raise RuntimeError(f"trim_galore executable not found or not executable: {trim_galore_bin}")
 
-    with tempfile.TemporaryDirectory(prefix="tresflow_trim_galore_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="tresflow_trim_galore_", dir=resolve_temp_root()) as tmpdir:
         tmp_path = Path(tmpdir)
         cmd = [
             str(trim_galore_bin),
