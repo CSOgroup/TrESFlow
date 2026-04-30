@@ -24,8 +24,7 @@ final Map<String, String> deprecatedCliParams = [
 ]
 
 deprecatedCliParams.each { paramName, replacement ->
-    final Object value = params[paramName]
-    if( value != null && value.toString().trim() ) {
+    if( params.containsKey(paramName) && params[paramName]?.toString()?.trim() ) {
         error "Deprecated parameter --${paramName} is no longer supported. Configure ${replacement} in the samplesheet instead."
     }
 }

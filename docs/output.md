@@ -27,8 +27,8 @@ Shared reporting outputs:
 
 Per-group RNA FASTQs and RG headers from the split stage:
 
-- `<sample>_<group>_R1.fq.gz`
-- `<sample>_<group>_R2.fq.gz`
+- `<sample>_<group>_R1.fastq.gz`
+- `<sample>_<group>_R2.fastq.gz`
 - `SAM_RG_Header_<sample>_<group>.tsv`
 
 ### `align/`
@@ -46,8 +46,8 @@ STARsolo and filtered BAM outputs:
 
 Per-group and per-mark DNA split outputs:
 
-- `<sample>_<group>_<mark>_R1.fq.gz`
-- `<sample>_<group>_<mark>_R2.fq.gz`
+- `<sample>_<group>_<mark>_R1.fastq.gz`
+- `<sample>_<group>_<mark>_R2.fastq.gz`
 - `SAM_RG_Header_<sample>_<group>_<mark>.tsv`
 
 ### `dna_align/`

@@ -9,7 +9,7 @@
  *   - trim_galore RNA FASTQs from the CB-tagged reads
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
- *   - per-group RNA FASTQ pairs named as upstream Split_ReadsV2 outputs
+ *   - per-group RNA FASTQ pairs named as final pigz-compressed split outputs
  *   - per-group SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  *
  * Notes:
@@ -30,7 +30,7 @@ process SPLIT_RNA_READS {
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fq.gz"), path("${sampleId}_*_R2.fq.gz"), emit: split_fastqs
+    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq.gz"), path("${sampleId}_*_R2.fastq.gz"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
     path("versions.yml"), emit: versions
 
@@ -50,7 +50,8 @@ process SPLIT_RNA_READS {
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
-      --output-dir "."
+      --output-dir "." \\
+      --pigz-threads "${task.cpus}"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

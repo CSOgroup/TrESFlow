@@ -23,7 +23,7 @@ process TAG_RNA_UMI {
     tuple val(sampleId), val(meta), path(rawR2), path(taggedR1), path(taggedR2)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi.R1.fastq.gz"), path("${sampleId}.sample_barcode_umi.R2.fastq.gz"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi.R1.fastq"), path("${sampleId}.sample_barcode_umi.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.umi.counts.tsv"), emit: metrics
     path("versions.yml"), emit: versions
 
@@ -45,8 +45,8 @@ process TAG_RNA_UMI {
       --tag "${meta.umi_tag}" \\
       --bc-len ${meta.umi_bc_len} \\
       --bc-start ${meta.umi_bc_start} \\
-      --output-r1 "${sampleId}.sample_barcode_umi.R1.fastq.gz" \\
-      --output-r2 "${sampleId}.sample_barcode_umi.R2.fastq.gz" \\
+      --output-r1 "${sampleId}.sample_barcode_umi.R1.fastq" \\
+      --output-r2 "${sampleId}.sample_barcode_umi.R2.fastq" \\
       --output-counts "${sampleId}.umi.counts.tsv" \\
       --rev-comp
 

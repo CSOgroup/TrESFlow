@@ -22,9 +22,11 @@ samples:
   sample_id:
     groups:
       group_a:
-        sb_barcodes: [AAAA, CCCC]
+        rna_sb_barcodes: [AAAA, CCCC]
+        dna_sb_barcodes: [AAA, CCC]
       group_b:
-        sb_barcodes: [GGGG, TTTT]
+        rna_sb_barcodes: [GGGG, TTTT]
+        dna_sb_barcodes: [GGG, TTT]
 
     rna:
       reads:
@@ -33,6 +35,9 @@ samples:
         r2: /path/to/sample_R2.fq.gz
 
     dna:
+      # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
+      # 3 nt DNA sample barcodes that differ from RNA barcodes.
+      tagmentation: dual
       reads:
         i1: /path/to/sample_DNA_I1.fq.gz
         i2: /path/to/sample_DNA_I2.fq.gz

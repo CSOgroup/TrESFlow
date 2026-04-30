@@ -76,7 +76,7 @@ Notes:
 
 - Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
 - `runtime.env_prefix`, `runtime.tmpdir`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. Runtime and reference paths are no longer accepted as normal CLI parameters.
-- `groups.<group>.sb_barcodes` is the source of truth for sample-barcode grouping.
+- `groups.<group>.sb_barcodes` remains supported for single-tagmentation samples. Use `rna_sb_barcodes` and `dna_sb_barcodes` when RNA and DNA sample barcodes differ; `dna.tagmentation: dual` requires explicit 3 nt `dna_sb_barcodes`.
 - `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
 - `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.

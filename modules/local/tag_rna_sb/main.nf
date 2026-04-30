@@ -28,7 +28,7 @@ process TAG_RNA_SAMPLE_BARCODE {
     tuple val(sampleId), val(meta), path(r1), path(r2), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq.gz"), path("${sampleId}.sample_barcode.R2.fastq.gz"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.sample_barcode.counts.tsv"), path("${sampleId}.sample_barcode.stats.tsv"), emit: metrics
     path("versions.yml"), emit: versions
 
@@ -39,6 +39,8 @@ process TAG_RNA_SAMPLE_BARCODE {
 
     """
     ${runtimeExports}
+
+    echo "RNA SB source=${meta.rna_sb_barcode_source}; RNA SB length=${meta.rna_sb_barcode_len}; index_read=r2; BC_LEN=${meta.sample_bc_len}; BC_START=${meta.sample_bc_start}; HD=${meta.sample_hd}; rev_comp_arg=${meta.sample_reverse_complement}" >&2
 
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
@@ -54,8 +56,8 @@ process TAG_RNA_SAMPLE_BARCODE {
       --hd ${meta.sample_hd} \\
       --first-pass-arg "${meta.sample_first_pass}" \\
       --rev-comp-arg "${meta.sample_reverse_complement}" \\
-      --output-r1 "${sampleId}.sample_barcode.R1.fastq.gz" \\
-      --output-r2 "${sampleId}.sample_barcode.R2.fastq.gz" \\
+      --output-r1 "${sampleId}.sample_barcode.R1.fastq" \\
+      --output-r2 "${sampleId}.sample_barcode.R2.fastq" \\
       --output-counts "${sampleId}.sample_barcode.counts.tsv" \\
       --output-stats "${sampleId}.sample_barcode.stats.tsv"
 

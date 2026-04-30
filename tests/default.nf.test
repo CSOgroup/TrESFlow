@@ -22,8 +22,8 @@ nextflow_pipeline {
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fq.gz").exists() },
-                { assert new File(splitDir, "${sampleId}_Co2_R2.fq.gz").exists() },
+                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
@@ -167,6 +167,41 @@ nextflow_pipeline {
                 { assert !workflow.success },
                 { assert workflow.stderr.contains("RNA STAR index file missing for references.rna_ref_dir") },
                 { assert workflow.stderr.contains("SAindex") }
+            )
+        }
+    }
+
+    test("dual tagmentation without dna_sb_barcodes fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_missing_dna_sb.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes") }
+            )
+        }
+    }
+
+    test("dual tagmentation duplicate DNA sample barcode fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_duplicate_dna_sb.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("DNA sample barcode collision") },
+                { assert workflow.stderr.contains("AAA") }
             )
         }
     }

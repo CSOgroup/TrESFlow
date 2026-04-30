@@ -1,8 +1,6 @@
 import sys
 import bio
 from bio import *
-import gzip
-from internal.file import gzFile
 from typing import Dict, Set, List, Tuple
 
 # -----------------------------
@@ -88,6 +86,62 @@ def get_cb_sb(comment: str) -> Tuple[str, str]:
 		i = j + 1
 
 	return cb, sb
+
+
+def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
+	return sample + "_" + group_name + "_" + cell_barcode
+
+
+def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
+	if cb.startswith(sb):
+		cell = cb[len(sb):]
+		if cell:
+			return cell
+
+	if len(sb) > 1:
+		key = normalize_sb_drop_first(sb)
+		if cb.startswith(key):
+			cell = cb[len(key):]
+			if cell:
+				return cell
+
+	sys.stderr.write(
+		"ERROR: Cannot derive canonical cell barcode for sample " + sample +
+		" group " + group_name + ": CB tag '" + cb + "' does not start with SB tag '" + sb + "'\n"
+	)
+	sys.exit(1)
+	return ""
+
+
+def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> str:
+	cb, mo, sb = get_cb_mo_sb(comment)
+	if not cb:
+		cb, sb = get_cb_sb(comment)
+
+	if (not cb) or (not sb):
+		sys.stderr.write(
+			"ERROR: Missing CB or SB tag while canonicalizing cell ID for sample " +
+			sample + " group " + group_name + "\n"
+		)
+		sys.exit(1)
+
+	canonical = canonical_cell_id(sample, group_name, cell_barcode_without_sb(cb, sb, sample, group_name))
+	out: List[str] = []
+	has_rg = False
+
+	for token in comment.split():
+		if token.startswith("CB:"):
+			out.append("CB:Z:" + canonical)
+		elif token.startswith("RG:"):
+			out.append("RG:Z:" + canonical)
+			has_rg = True
+		else:
+			out.append(token)
+
+	if not has_rg:
+		out.append("RG:Z:" + canonical)
+
+	return "\t".join(out)
 
 
 # -----------------------------
@@ -254,7 +308,7 @@ def write_SAM_RG_Header(sample: str, lib: str, out_path: str, passing_BCs: Set[s
 			fh.write("\tPL:ELEMENT\tPM:AVITI_500MIO\n")
 
 
-def write_fastq_record(fh: gzFile, name: str, comment: str, seq_s: str, qual_s: str) -> None:
+def write_fastq_record(fh, name: str, comment: str, seq_s: str, qual_s: str) -> None:
 	fh.write("@")
 	fh.write(name)
 	if comment:
@@ -360,8 +414,8 @@ def MakeRecordNameList_DNA(
 			if gid >= 0 and gid < n_groups:
 				used[gid * n_marks + midx] = 1
 
-	r1_fhs: List[gzFile] = []
-	r2_fhs: List[gzFile] = []
+	r1_fhs = []
+	r2_fhs = []
 	bc_sets: List[Set[str]] = []
 
 	for i in range(total_slots):
@@ -377,14 +431,14 @@ def MakeRecordNameList_DNA(
 			else:
 				prefix = out_folder + "/" + sample + "_" + mark
 
-			r1_fhs.append(gzip.open(prefix + "_R1.fq.gz", "w"))
-			r2_fhs.append(gzip.open(prefix + "_R2.fq.gz", "w"))
+			r1_fhs.append(open(prefix + "_R1.fastq", "w"))
+			r2_fhs.append(open(prefix + "_R2.fastq", "w"))
 		else:
-			r1_fhs.append(gzip.open("/dev/null", "w"))
-			r2_fhs.append(gzip.open("/dev/null", "w"))
+			r1_fhs.append(open("/dev/null", "w"))
+			r2_fhs.append(open("/dev/null", "w"))
 
-	unknown_r1: gzFile = gzip.open("/dev/null", "w")
-	unknown_r2: gzFile = gzip.open("/dev/null", "w")
+	unknown_r1 = open("/dev/null", "w")
+	unknown_r2 = open("/dev/null", "w")
 	unknown_bcs: Set[str] = Set[str]()
 	unknown_count = 0
 	unknown_mo_count = 0
@@ -392,8 +446,8 @@ def MakeRecordNameList_DNA(
 	if unknown_mode == 2:
 		unknown_r1.close()
 		unknown_r2.close()
-		unknown_r1 = gzip.open(out_folder + "/" + sample + "_Unknown_R1.fq.gz", "w")
-		unknown_r2 = gzip.open(out_folder + "/" + sample + "_Unknown_R2.fq.gz", "w")
+		unknown_r1 = open(out_folder + "/" + sample + "_Unknown_R1.fastq", "w")
+		unknown_r2 = open(out_folder + "/" + sample + "_Unknown_R2.fastq", "w")
 
 	sys.stdout.write("Read Splitting\n")
 
@@ -446,11 +500,15 @@ def MakeRecordNameList_DNA(
 			sys.stderr.write("ERROR: internal: slot not marked used but read mapped to it\n")
 			sys.exit(1)
 
+		group_name = idx_to_group[gid] if use_sb else sample
+		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
+		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment)
+		canonical_cb, _, _ = get_cb_mo_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
-		write_fastq_record(r1_fhs[slot], rec1.name, rec1.comment, seq1, qual1)
-		write_fastq_record(r2_fhs[slot], rec2.name, rec2.comment, seq2, qual2)
-		bc_sets[slot].add(cb)
+		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
+		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
+		bc_sets[slot].add(canonical_cb)
 
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))
@@ -530,8 +588,8 @@ def MakeRecordNameList_RNA(
 		sys.stderr.write("ERROR: unknown_policy must be fail|skip|unknown\n")
 		sys.exit(1)
 
-	r1_fhs: List[gzFile] = []
-	r2_fhs: List[gzFile] = []
+	r1_fhs = []
+	r2_fhs = []
 	bc_sets: List[Set[str]] = []
 
 	for g in range(n_groups):
@@ -542,19 +600,19 @@ def MakeRecordNameList_RNA(
 		else:
 			prefix = out_folder + "/" + sample
 
-		r1_fhs.append(gzip.open(prefix + "_R1.fq.gz", "w"))
-		r2_fhs.append(gzip.open(prefix + "_R2.fq.gz", "w"))
+		r1_fhs.append(open(prefix + "_R1.fastq", "w"))
+		r2_fhs.append(open(prefix + "_R2.fastq", "w"))
 
-	unknown_r1: gzFile = gzip.open("/dev/null", "w")
-	unknown_r2: gzFile = gzip.open("/dev/null", "w")
+	unknown_r1 = open("/dev/null", "w")
+	unknown_r2 = open("/dev/null", "w")
 	unknown_bcs: Set[str] = Set[str]()
 	unknown_count = 0
 
 	if unknown_mode == 2:
 		unknown_r1.close()
 		unknown_r2.close()
-		unknown_r1 = gzip.open(out_folder + "/" + sample + "_Unknown_R1.fq.gz", "w")
-		unknown_r2 = gzip.open(out_folder + "/" + sample + "_Unknown_R2.fq.gz", "w")
+		unknown_r1 = open(out_folder + "/" + sample + "_Unknown_R1.fastq", "w")
+		unknown_r2 = open(out_folder + "/" + sample + "_Unknown_R2.fastq", "w")
 
 	sys.stdout.write("Read Splitting\n")
 
@@ -586,12 +644,16 @@ def MakeRecordNameList_RNA(
 			# This is the critical part: no fallback to TP3_A on mismatch.
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
 
+		group_name = idx_to_group[gid] if use_sb else sample
+		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
+		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment)
+		canonical_cb, _ = get_cb_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 
-		write_fastq_record(r1_fhs[gid], rec1.name, rec1.comment, seq1, qual1)
-		write_fastq_record(r2_fhs[gid], rec2.name, rec2.comment, seq2, qual2)
-		bc_sets[gid].add(cb)
+		write_fastq_record(r1_fhs[gid], rec1.name, comment1, seq1, qual1)
+		write_fastq_record(r2_fhs[gid], rec2.name, comment2, seq2, qual2)
+		bc_sets[gid].add(canonical_cb)
 
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))

@@ -24,7 +24,7 @@ process TAG_RNA_CELL_BARCODE {
     tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq.gz"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq.gz"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.cell.counts.tsv"), path("${sampleId}.tag_records.tsv"), path("${sampleId}.cell.stats_L1.tsv"), path("${sampleId}.cell.stats_L2.tsv"), path("${sampleId}.cell.stats_L3.tsv"), emit: metrics
     path("versions.yml"), emit: versions
 
@@ -47,8 +47,8 @@ process TAG_RNA_CELL_BARCODE {
       --tag "${meta.cell_tag}" \\
       --bc-len ${meta.cell_bc_len} \\
       --hd ${meta.cell_hd} \\
-      --output-r1 "${sampleId}.sample_barcode_umi_cell.R1.fastq.gz" \\
-      --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq.gz" \\
+      --output-r1 "${sampleId}.sample_barcode_umi_cell.R1.fastq" \\
+      --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq" \\
       --output-counts "${sampleId}.cell.counts.tsv" \\
       --output-tag-records "${sampleId}.tag_records.tsv" \\
       --output-stats "${sampleId}.cell.stats_L1.tsv" \\

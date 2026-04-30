@@ -3,7 +3,7 @@
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
  *   - raw DNA I1 / I2 / R1 / R2 FASTQs
- *   - internally derived sample-barcode group map TSV used to derive the effective DNA SB whitelist
+ *   - internally derived DNA sample-barcode group map TSV used to derive the effective DNA SB whitelist
  *   - internally derived DNA modality-barcode whitelist plus the configured ligation whitelist
  *   - internally derived DNA modality map TSV and shared sample-barcode group map TSV for Split_ReadsV2 dna mode
  *   - DNA alignment resources carried through sample metadata
@@ -30,6 +30,10 @@ include { MARK_DUPLICATES_DNA }      from '../../../modules/local/mark_duplicate
 include { SPLIT_DUPLICATES_DNA }     from '../../../modules/local/split_duplicates_dna/main'
 include { BAM_COVERAGE_DNA }         from '../../../modules/local/bam_coverage_dna/main'
 
+def selectDnaIndexRead(final Map meta, final Object i1, final Object i2, final String fieldName) {
+    return meta[fieldName] == 'i1' ? i1 : i2
+}
+
 workflow DNA_CORE {
     take:
     ch_dna_samples
@@ -37,23 +41,25 @@ workflow DNA_CORE {
     main:
     ch_versions = channel.empty()
 
-    // Tag sample barcodes from the DNA I2 stream.
+    // Tag sample barcodes from the tagmentation-specific DNA index stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
-        tuple(sampleId, meta, i2, r1, r2, sbGroupMap)
+        def sbIndexRead = selectDnaIndexRead(meta, i1, i2, 'dna_sample_index_read')
+        tuple(sampleId, meta, sbIndexRead, r1, r2, sbGroupMap)
     }
 
     TAG_DNA_SAMPLE_BARCODE(ch_sb_input)
     ch_versions = ch_versions.mix(TAG_DNA_SAMPLE_BARCODE.out.versions)
 
-    // Add modality barcodes from the same I2 read set.
+    // Add modality barcodes from the tagmentation-specific DNA index stream.
     ch_mo_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
-        tuple(sampleId, meta, i2, modalityWhitelist)
+        def moIndexRead = selectDnaIndexRead(meta, i1, i2, 'dna_modality_index_read')
+        tuple(sampleId, meta, moIndexRead, modalityWhitelist)
     }
 
     ch_mo_input = ch_mo_meta
         .join(TAG_DNA_SAMPLE_BARCODE.out.tagged)
-        .map { sampleId, metaFromInput, i2, modalityWhitelist, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, i2, taggedR1, taggedR2, modalityWhitelist)
+        .map { sampleId, metaFromInput, indexRead, modalityWhitelist, metaFromTag, taggedR1, taggedR2 ->
+            tuple(sampleId, metaFromInput, indexRead, taggedR1, taggedR2, modalityWhitelist)
         }
 
     TAG_DNA_MODALITY_BARCODE(ch_mo_input)

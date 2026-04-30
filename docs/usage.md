@@ -55,9 +55,11 @@ samples:
   day15:
     groups:
       Normal:
-        sb_barcodes: [CAGT, ACGT]
+        rna_sb_barcodes: [CAGT, ACGT]
+        dna_sb_barcodes: [CAG, ACG]
       Co2:
-        sb_barcodes: [GTCA, TGCA]
+        rna_sb_barcodes: [GTCA, TGCA]
+        dna_sb_barcodes: [GTC, TGC]
 
     rna:
       reads:
@@ -66,6 +68,7 @@ samples:
         r2: /path/to/day15_RNA_R2.fastq.gz
 
     dna:
+      tagmentation: dual
       reads:
         i1: /path/to/day15_DNA_I1.fastq.gz
         i2: /path/to/day15_DNA_I2.fastq.gz
@@ -101,7 +104,8 @@ samples:
 `groups` is the source of truth for biological sample-barcode grouping.
 
 - each group key is the biological label that will appear in split outputs
-- `sb_barcodes` is the list of sample barcodes assigned to that group
+- `rna_sb_barcodes` and `dna_sb_barcodes` are modality-specific sample barcodes assigned to that logical group.
+- Legacy `sb_barcodes` remains supported for single-tagmentation samples. In `dna.tagmentation: dual`, DNA requires explicit 3 nt `dna_sb_barcodes`; they are not derived from RNA barcodes.
 - sample barcodes must be unique within a sample block
 
 ### `samples.<sample_id>.rna`

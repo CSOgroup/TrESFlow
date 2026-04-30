@@ -6,7 +6,7 @@
  *
  * Inputs:
  *   - sample metadata
- *   - raw DNA I2 FASTQ as the modality-barcode source
+ *   - tagmentation-specific DNA index FASTQ as the modality-barcode source
  *   - DNA sample-barcode-tagged R1 / R2 FASTQs
  *   - per-sample DNA modality-barcode whitelist derived from the samplesheet mark mapping
  * Outputs:
@@ -21,10 +21,10 @@ process TAG_DNA_MODALITY_BARCODE {
     label 'codon_wrapper'
 
     input:
-    tuple val(sampleId), val(meta), path(i2), path(taggedR1), path(taggedR2), path(modalityWhitelist)
+    tuple val(sampleId), val(meta), path(indexRead), path(taggedR1), path(taggedR2), path(modalityWhitelist)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality.R1.fastq.gz"), path("${sampleId}.dna_sample_barcode_modality.R2.fastq.gz"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality.R1.fastq"), path("${sampleId}.dna_sample_barcode_modality.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.dna_modality.counts.tsv"), path("${sampleId}.dna_modality.stats.tsv"), emit: metrics
     path("versions.yml"), emit: versions
 
@@ -36,10 +36,12 @@ process TAG_DNA_MODALITY_BARCODE {
     """
     ${runtimeExports}
 
+    echo "DNA tagmentation=${meta.dna_tagmentation}; DNA MO index_read=${meta.dna_modality_index_read}; BC_LEN=${meta.modality_bc_len}; BC_START=${meta.modality_bc_start}; HD=${meta.modality_hd}; rev_comp_arg=${meta.modality_reverse_complement}" >&2
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag.codon" \\
-      --i2 "${i2}" \\
+      --i2 "${indexRead}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
       --whitelist "${modalityWhitelist}" \\
@@ -50,8 +52,8 @@ process TAG_DNA_MODALITY_BARCODE {
       --hd ${meta.modality_hd} \\
       --first-pass-arg "${meta.modality_first_pass}" \\
       --rev-comp-arg "${meta.modality_reverse_complement}" \\
-      --output-r1 "${sampleId}.dna_sample_barcode_modality.R1.fastq.gz" \\
-      --output-r2 "${sampleId}.dna_sample_barcode_modality.R2.fastq.gz" \\
+      --output-r1 "${sampleId}.dna_sample_barcode_modality.R1.fastq" \\
+      --output-r2 "${sampleId}.dna_sample_barcode_modality.R2.fastq" \\
       --output-counts "${sampleId}.dna_modality.counts.tsv" \\
       --output-stats "${sampleId}.dna_modality.stats.tsv"
 

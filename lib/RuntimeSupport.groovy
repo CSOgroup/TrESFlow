@@ -10,6 +10,7 @@ class RuntimeSupport {
         [name: 'bamCoverage', binary: 'bamCoverage'],
         [name: 'gatk', binary: 'gatk'],
         [name: 'codon', binary: 'codon'],
+        [name: 'pigz', binary: 'pigz'],
     ]
 
     static void validateConfiguredExecutable(final String label, final String rawPath) {
@@ -155,6 +156,7 @@ class RuntimeSupport {
             BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
             GATK_BIN               : "${binDir}/gatk",
             CODON_BIN              : "${binDir}/codon",
+            PIGZ_BIN               : "${binDir}/pigz",
             CODON_HOME             : envPrefix,
         ]
 

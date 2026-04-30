@@ -31,14 +31,14 @@ class WorkflowSupport {
             final String name = path.getName()
             final String group = name
                 .replaceFirst("^${sampleId}_", '')
-                .replaceFirst('_R1\\.fq\\.gz$', '')
+                .replaceFirst('_R1\\.(?:fastq|fq)\\.gz$', '')
             [(group): path]
         }
         final Map<String, Object> r2ByGroup = asPathList(splitR2s).collectEntries { path ->
             final String name = path.getName()
             final String group = name
                 .replaceFirst("^${sampleId}_", '')
-                .replaceFirst('_R2\\.fq\\.gz$', '')
+                .replaceFirst('_R2\\.(?:fastq|fq)\\.gz$', '')
             [(group): path]
         }
 
@@ -60,10 +60,10 @@ class WorkflowSupport {
 
     static List<Map> pairDnaSplitFastqs(final Object splitR1s, final Object splitR2s) {
         final Map<String, Object> r1BySplit = asPathList(splitR1s).collectEntries { path ->
-            [(path.getName().replaceFirst('_R1\\.fq\\.gz$', '')): path]
+            [(path.getName().replaceFirst('_R1\\.(?:fastq|fq)\\.gz$', '')): path]
         }
         final Map<String, Object> r2BySplit = asPathList(splitR2s).collectEntries { path ->
-            [(path.getName().replaceFirst('_R2\\.fq\\.gz$', '')): path]
+            [(path.getName().replaceFirst('_R2\\.(?:fastq|fq)\\.gz$', '')): path]
         }
 
         final List<String> splitNames = (r1BySplit.keySet() + r2BySplit.keySet()).unique().sort()
@@ -113,30 +113,17 @@ class WorkflowSupport {
         final Map modalities,
         final List<Map> sampleRows = []
     ) {
-        final String root = references.root?.toString()?.trim()
-        if( !root ) {
-            throw new IllegalArgumentException("Missing required samplesheet field: references.root")
-        }
-
-        final File rootDir = new File(root)
-        if( !rootDir.exists() || !rootDir.isDirectory() ) {
-            throw new IllegalArgumentException(
-                "Reference root not found or not a directory: ${rootDir}. Controlled by samplesheet field references.root"
-            )
-        }
-
-        final String species = references.species?.toString()?.trim()
-        if( !species ) {
-            throw new IllegalArgumentException("Missing required samplesheet field: references.species")
-        }
-
-        final File ligationWhitelist = new File(references.ligation_barcode_whitelist as String)
-        if( !ligationWhitelist.exists() || !ligationWhitelist.isFile() ) {
-            throw new IllegalArgumentException(
-                "Required ligation barcode whitelist not found: ${ligationWhitelist}. " +
-                "Controlled by samplesheet field references.ligation_barcode_whitelist"
-            )
-        }
+        requireDirectory(
+            references.root,
+            'references.root',
+            "Reference root not found or not a directory"
+        )
+        requireValue(references.species, 'references.species')
+        requireFile(
+            references.ligation_barcode_whitelist,
+            'references.ligation_barcode_whitelist',
+            "Required ligation barcode whitelist not found"
+        )
 
         if( (modalities.rna as boolean) ) {
             validateRnaReferences(
@@ -160,20 +147,11 @@ class WorkflowSupport {
     }
 
     static String inferBwaMem2Prefix(final String rawDnaRefDir) {
-        final String dnaRefDir = rawDnaRefDir?.toString()?.trim()
-        if( !dnaRefDir ) {
-            throw new IllegalArgumentException(
-                "Missing required DNA bwa-mem2 index directory: references.dna_ref_dir"
-            )
-        }
-
-        final File dir = new File(dnaRefDir)
-        if( !dir.exists() || !dir.isDirectory() ) {
-            throw new IllegalArgumentException(
-                "DNA bwa-mem2 index directory not found or not a directory: ${dir}. " +
-                "Controlled by samplesheet field references.dna_ref_dir"
-            )
-        }
+        final File dir = requireDirectory(
+            rawDnaRefDir,
+            'references.dna_ref_dir',
+            "DNA bwa-mem2 index directory not found or not a directory"
+        )
 
         final Map<String, Set<String>> suffixesByPrefix = [:].withDefault { new LinkedHashSet<String>() }
         dir.listFiles()?.findAll { file -> file.isFile() }?.each { file ->
@@ -241,48 +219,24 @@ class WorkflowSupport {
         final String rawStarIndexDir,
         final String rawChromSizes
     ) {
-        final String starIndexDir = rawStarIndexDir?.toString()?.trim()
-        final String chromSizes = rawChromSizes?.toString()?.trim()
-
-        if( !starIndexDir ) {
-            throw new IllegalArgumentException(
-                "Missing required RNA STAR index directory: references.rna_ref_dir"
-            )
-        }
-
-        final File starDir = new File(starIndexDir)
-        if( !starDir.exists() || !starDir.isDirectory() ) {
-            throw new IllegalArgumentException(
-                "RNA STAR index directory not found for references.rna_ref_dir: ${starDir}"
-            )
-        }
+        final File starDir = requireDirectory(
+            rawStarIndexDir,
+            'references.rna_ref_dir',
+            "RNA STAR index directory not found"
+        )
 
         REQUIRED_STAR_INDEX_FILES.each { fileName ->
-            final File requiredFile = new File(starDir, fileName)
-            if( !requiredFile.exists() || !requiredFile.isFile() ) {
-                throw new IllegalArgumentException(
-                    "RNA STAR index file missing for references.rna_ref_dir: ${requiredFile}"
-                )
-            }
-        }
-
-        if( !chromSizes ) {
-            throw new IllegalArgumentException(
-                "Missing RNA chromosome sizes file derived from references.rna_ref_dir"
+            requireFile(
+                new File(starDir, fileName).path,
+                'references.rna_ref_dir',
+                "RNA STAR index file missing for references.rna_ref_dir"
             )
         }
-        final File chromSizesFile = new File(chromSizes)
-        if( !chromSizesFile.exists() || !chromSizesFile.isFile() ) {
-            throw new IllegalArgumentException(
-                "RNA chromosome sizes file for coverage not found for references.rna_ref_dir: ${chromSizesFile}. " +
-                "Expected chrNameLength.txt inside the STAR index directory"
-            )
-        }
-    }
 
-    static void validateRnaAlignment(final String rawRefBaseDir, final String rawSpecies) {
-        throw new IllegalArgumentException(
-            "Legacy RNA reference parameters are no longer supported. Use samplesheet field references.rna_ref_dir"
+        requireFile(
+            rawChromSizes,
+            'references.rna_ref_dir',
+            "RNA chromosome sizes file for coverage not found. Expected chrNameLength.txt inside the STAR index directory"
         )
     }
 
@@ -295,30 +249,13 @@ class WorkflowSupport {
         final String bwaPrefix = inferBwaMem2Prefix(rawDnaRefDir)
         requireBwaMem2Prefix(bwaPrefix)
 
-        final String blacklistBed = rawBlacklistBed?.toString()?.trim()
         final String effSizeRaw = rawEffectiveGenomeSize?.toString()?.trim()
         final String dnaChromSizes = rawDnaChromSizes?.toString()?.trim()
 
-        if( !blacklistBed ) {
-            throw new IllegalArgumentException(
-                "Missing required DNA blacklist BED: references.dna_blacklist_bed"
-            )
-        }
-
-        final File blacklistFile = new File(blacklistBed)
-        if( !blacklistFile.exists() ) {
-            throw new IllegalArgumentException(
-                "DNA blacklist BED not found for references.dna_blacklist_bed: ${blacklistFile}"
-            )
-        }
+        requireFile(rawBlacklistBed, 'references.dna_blacklist_bed', "DNA blacklist BED not found")
 
         if( dnaChromSizes ) {
-            final File chromSizesFile = new File(dnaChromSizes)
-            if( !chromSizesFile.exists() || !chromSizesFile.isFile() ) {
-                throw new IllegalArgumentException(
-                    "DNA chromosome sizes file not found for references.dna_chrom_sizes: ${chromSizesFile}"
-                )
-            }
+            requireFile(dnaChromSizes, 'references.dna_chrom_sizes', "DNA chromosome sizes file not found")
         }
 
         if( !effSizeRaw ) {
@@ -347,13 +284,31 @@ class WorkflowSupport {
         return bwaPrefix
     }
 
-    static void validateDnaAlignment(
-        final String rawBwaReference,
-        final String rawBlacklistBed,
-        final String rawEffectiveGenomeSize
-    ) {
-        throw new IllegalArgumentException(
-            "Legacy DNA reference parameters are no longer supported. Use samplesheet fields references.dna_ref_dir, references.dna_blacklist_bed, and references.dna_effective_genome_size"
-        )
+    private static String requireValue(final Object rawValue, final String fieldName) {
+        final String value = rawValue?.toString()?.trim()
+        if( !value ) {
+            throw new IllegalArgumentException("Missing required samplesheet field: ${fieldName}")
+        }
+        return value
+    }
+
+    private static File requireDirectory(final Object rawPath, final String fieldName, final String message) {
+        final File directory = new File(requireValue(rawPath, fieldName))
+        if( !directory.exists() || !directory.isDirectory() ) {
+            throw new IllegalArgumentException(
+                "${message}: ${directory}. Controlled by samplesheet field ${fieldName}"
+            )
+        }
+        return directory
+    }
+
+    private static File requireFile(final Object rawPath, final String fieldName, final String message) {
+        final File file = new File(requireValue(rawPath, fieldName))
+        if( !file.exists() || !file.isFile() ) {
+            throw new IllegalArgumentException(
+                "${message}: ${file}. Controlled by samplesheet field ${fieldName}"
+            )
+        }
+        return file
     }
 }
