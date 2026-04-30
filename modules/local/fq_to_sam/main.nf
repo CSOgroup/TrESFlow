@@ -14,6 +14,8 @@
  *     The checked-in FqToSAM.codon does accept `.gz` inputs directly, and this wrapper preserves that contract.
  */
 
+import RuntimeSupport
+
 process FQ_TO_SAM {
     tag "${splitName}"
     label 'codon_wrapper'
@@ -27,9 +29,12 @@ process FQ_TO_SAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/FqToSAM.codon" \\

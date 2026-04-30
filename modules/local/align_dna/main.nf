@@ -19,6 +19,8 @@
  *   - AlignDNA.sh internally hardcodes threads and the good-barcode threshold.
  */
 
+import RuntimeSupport
+
 process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
@@ -39,10 +41,13 @@ process ALIGN_DNA {
     def alignThreads = task.cpus as int
     def viewThreads = Math.min(alignThreads, 4)
     def sortThreads = Math.min(alignThreads, 8)
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
         cat > "${splitName}_ProperPairedMapped_reads_per_barcode.tsv" <<'EOF'
@@ -57,6 +62,8 @@ EOF
     }
     else {
         """
+        ${runtimeExports}
+
         for required_bin in "\$BWA_MEM2_BIN" "\$SAMTOOLS_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured DNA runtime executable: \${required_bin}" >&2

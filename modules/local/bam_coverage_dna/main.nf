@@ -21,22 +21,35 @@
  *     stderr and does not finish cleanly on an empty mapped-read set.
  */
 
+import RuntimeSupport
+
 process BAM_COVERAGE_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
+
+    publishDir "${params.outdir ?: "${projectDir}/results"}/pipeline_info/warnings", mode: 'copy', overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
 
     input:
     tuple val(splitName), val(meta), path(noDupBam), path(noDupBai), val(effectiveGenomeSize)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bw"), optional: true, emit: bw
+    tuple val(splitName), val(meta), path("${splitName}.zero_mapped_nodup_bam.tsv"), optional: true, emit: warnings
     path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def sampleId = meta.id as String
+    def suffix = splitName.replaceFirst("^${sampleId}_", '')
+    def tokens = suffix.tokenize('_')
+    def groupName = tokens ? tokens[0] : ''
+    def markName = tokens.size() > 1 ? tokens[1..-1].join('_') : ''
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock bigwig for %s\n' "${splitName}" > "${splitName}_NoDup.bw"
 
         printf '%s\n' \
@@ -47,6 +60,8 @@ process BAM_COVERAGE_DNA {
     }
     else {
         """
+        ${runtimeExports}
+
         for required_bin in "\$SAMTOOLS_BIN" "\$BAMCOVERAGE_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured DNA runtime executable: \${required_bin}" >&2
@@ -59,7 +74,28 @@ process BAM_COVERAGE_DNA {
 
         mapped_reads="\$("\$SAMTOOLS_BIN" view -c -F 4 "${noDupBam}")"
         if [[ "\${mapped_reads}" -eq 0 ]]; then
-          echo "Skipping bamCoverage for ${splitName}: ${noDupBam} has zero mapped reads" >&2
+          bam_path="\$(readlink -f "${noDupBam}")"
+          cat >&2 <<'EOF'
+================================================================================
+WARNING: ZERO MAPPED READS IN DNA NoDup BAM
+================================================================================
+EOF
+          echo "Sample: ${sampleId}" >&2
+          echo "Group: ${groupName}" >&2
+          echo "Mark: ${markName}" >&2
+          echo "BAM: \${bam_path}" >&2
+          echo "Mapped reads: \${mapped_reads}" >&2
+          echo "Skipped output: ${splitName}_NoDup.bw" >&2
+          echo "A warning artifact will be published to pipeline_info/warnings/." >&2
+          printf 'sample\tgroup\tmark\tbam\tmapped_reads\tskipped_output\n' > "${splitName}.zero_mapped_nodup_bam.tsv"
+          printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "${sampleId}" \
+            "${groupName}" \
+            "${markName}" \
+            "\${bam_path}" \
+            "\${mapped_reads}" \
+            "${splitName}_NoDup.bw" \
+            >> "${splitName}.zero_mapped_nodup_bam.tsv"
           printf '%s\n' \\
             '"${task.process}":' \\
             '  component: "local"' \\
@@ -67,7 +103,7 @@ process BAM_COVERAGE_DNA {
           exit 0
         fi
 
-        tmp_root="\${TMPDIR:-\$PWD/.tmp}"
+        tmp_root="\${TMPDIR:?TMPDIR must be set from samplesheet runtime.tmpdir}"
         mkdir -p "\${tmp_root}"
         export MPLCONFIGDIR="\$(mktemp -d "\${tmp_root}/mplconfig-${splitName}.XXXXXX")"
         trap 'rm -rf "\${MPLCONFIGDIR}"' EXIT

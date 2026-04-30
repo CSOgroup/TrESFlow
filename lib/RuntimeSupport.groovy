@@ -44,6 +44,10 @@ class RuntimeSupport {
         return (params.runtime_env_prefix ?: '').toString().trim()
     }
 
+    static String runtimeTmpdir(final Map params) {
+        return (params.runtime_tmpdir ?: '').toString().trim()
+    }
+
     static String runtimeBinDir(final Map params) {
         final String envPrefix = runtimeEnvPrefix(params)
         return envPrefix ? "${envPrefix}/bin" : ''
@@ -88,17 +92,80 @@ class RuntimeSupport {
             runtime_env_prefix: runtimeEnvPrefix(params),
             runtime_bin_dir   : runtimeBinDir(params),
             codon_home        : runtimeCodonHome(params),
+            runtime_tmpdir    : runtimeTmpdir(params),
         ]
     }
 
     static void validateRuntimeContract(final Map params) {
-        runtimeContext(params).each { label, path ->
-            validateConfiguredDirectory(label.replace('_', ' '), path as String)
-        }
+        validateConfiguredDirectory('runtime env prefix', runtimeEnvPrefix(params))
+        validateConfiguredDirectory('runtime bin dir', runtimeBinDir(params))
+        validateConfiguredDirectory('codon home', runtimeCodonHome(params))
+        validateConfiguredWritableDirectory('runtime tmpdir', runtimeTmpdir(params), true)
 
         standardRuntimeTools(params).each { tool ->
             validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
         }
+    }
+
+    static void validateConfiguredWritableDirectory(
+        final String label,
+        final String rawPath,
+        final boolean createIfMissing = false
+    ) {
+        final String path = rawPath?.toString()?.trim()
+        if( !path ) {
+            throw new IllegalStateException("Missing configured writable directory path for ${label}")
+        }
+
+        final File directory = new File(path)
+        if( !directory.exists() && createIfMissing ) {
+            if( !directory.mkdirs() && !directory.exists() ) {
+                throw new IllegalStateException(
+                    "Configured writable directory for ${label} does not exist and could not be created: ${directory}"
+                )
+            }
+        }
+
+        if( !directory.exists() || !directory.isDirectory() ) {
+            throw new IllegalStateException(
+                "Configured writable directory for ${label} is missing or not a directory: ${directory}"
+            )
+        }
+        if( !directory.canWrite() ) {
+            throw new IllegalStateException(
+                "Configured writable directory for ${label} is not writable: ${directory}"
+            )
+        }
+    }
+
+    static String shellExports(final Map params) {
+        final String envPrefix = runtimeEnvPrefix(params)
+        final String binDir = runtimeBinDir(params)
+        final String tmpdir = runtimeTmpdir(params)
+        final Map<String, String> exports = [
+            RUNTIME_ENV_PREFIX     : envPrefix,
+            RUNTIME_BIN_DIR        : binDir,
+            TMPDIR                 : tmpdir,
+            PYTHON3_BIN            : "${binDir}/python3",
+            TRIM_GALORE_BIN        : "${binDir}/trim_galore",
+            STAR_BIN               : "${binDir}/STAR",
+            SAMTOOLS_BIN           : "${binDir}/samtools",
+            BEDGRAPH_TO_BIGWIG_BIN : "${binDir}/bedGraphToBigWig",
+            BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
+            BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
+            GATK_BIN               : "${binDir}/gatk",
+            CODON_BIN              : "${binDir}/codon",
+            CODON_HOME             : envPrefix,
+        ]
+
+        return exports.collect { key, value ->
+            "export ${key}=${shellQuote(value)}"
+        }.join('\n') + '\nmkdir -p "$TMPDIR"'
+    }
+
+    private static String shellQuote(final Object value) {
+        final String text = (value ?: '').toString()
+        return "'" + text.replace("'", "'\"'\"'") + "'"
     }
 
     static void writeRuntimeContract(

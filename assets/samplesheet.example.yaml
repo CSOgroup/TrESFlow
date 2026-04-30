@@ -1,9 +1,11 @@
 library_name: TESTLIB
 
-resources:
-  ligation_barcode_whitelist: testdata/cell_whitelist.txt
-  rna_ref_base_dir: testdata/mock_align_ref_base
-  rna_align_species: human
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_test_tmp
+
+references:
+  root: testdata/TrESFlow_References
 
 samples:
   test_rna:

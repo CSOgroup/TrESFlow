@@ -1,0 +1,23 @@
+library_name: TESTLIB
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_missing_bwa_sidecar
+
+references:
+  root: ../../assets/testdata/TrESFlow_References_missing_bwa_sidecar
+
+samples:
+  day15:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT]
+
+    dna:
+      reads:
+        i1: ../../assets/test_realdata/day15_DNA_I1.fq.gz
+        i2: ../../assets/test_realdata/day15_DNA_I2.fq.gz
+        r1: ../../assets/test_realdata/day15_DNA_R1.fq.gz
+        r2: ../../assets/test_realdata/day15_DNA_R2.fq.gz
+      mark_barcodes:
+        H3K27me3: AGGCTATA

@@ -12,7 +12,9 @@ from pathlib import Path
 
 def resolve_temp_root() -> Path:
     configured = os.environ.get("TMPDIR")
-    root = Path(configured).expanduser() if configured else (Path.cwd() / ".tmp")
+    if not configured:
+        raise RuntimeError("TMPDIR is not set. Configure runtime.tmpdir in the samplesheet.")
+    root = Path(configured).expanduser()
     root.mkdir(parents=True, exist_ok=True)
     return root.resolve()
 

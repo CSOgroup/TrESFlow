@@ -2,10 +2,12 @@
 
 library_name: REALDATATESTLIB
 
-resources:
-  ligation_barcode_whitelist: ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /mnt/dataFast/ahrmad
-  rna_align_species: human
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_test_real_rna_tmp
+
+references:
+  root: ../testdata/TrESFlow_References
 
 samples:
   day15:

@@ -18,6 +18,8 @@
  *   - barcode counts and summary stats
  */
 
+import RuntimeSupport
+
 process TAG_RNA_SAMPLE_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -32,9 +34,12 @@ process TAG_RNA_SAMPLE_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag.codon" \\

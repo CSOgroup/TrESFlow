@@ -14,6 +14,8 @@
  *   - per-barcode counts, tag records, and ligation stats
  */
 
+import RuntimeSupport
+
 process TAG_DNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -28,9 +30,12 @@ process TAG_DNA_CELL_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag_Lig3.codon" \\

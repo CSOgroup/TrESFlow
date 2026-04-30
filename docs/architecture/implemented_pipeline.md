@@ -8,22 +8,24 @@ Core workflow only:
 ```mermaid
 flowchart TD
     SS[Hierarchical YAML samplesheet]
-    RES[resources block]
+    RUN[runtime block]
+    REF[references root]
     GROUPS[groups with sb_barcodes]
     DNAMARKS[DNA mark_barcodes]
     DERIVE[Derive internal files\nsb_group_map.tsv\ndna_mo_map.tsv\nDNA modality whitelists]
 
-    SS --> RES
+    SS --> RUN
+    SS --> REF
     SS --> GROUPS
     SS --> DNAMARKS
     GROUPS --> DERIVE
     DNAMARKS --> DERIVE
 
-    RES --> RNA2
-    RES --> RNA6
-    RES --> DNA2
-    RES --> DNA5
-    RES --> DNA8
+    REF --> RNA2
+    REF --> RNA6
+    REF --> DNA2
+    REF --> DNA5
+    REF --> DNA8
     DERIVE --> RNA0
     DERIVE --> RNA4
     DERIVE --> DNA0

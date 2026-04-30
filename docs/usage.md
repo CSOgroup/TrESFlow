@@ -15,34 +15,34 @@ The pipeline runs two independent modality branches from that YAML:
 Smoke test with the bundled example YAML:
 
 ```bash
-cd /mnt/pdata/nikita/TrESFlow
-nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
+cd /mnt/dataFast/ahrmad/tresflowdir/TrESFlow
+NXF_OFFLINE=true nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
 Canonical real-data style run:
 
 ```bash
-nextflow run . \
-  --samplesheet assets/samplesheet.real.example.yaml \
-  --outdir results/test_real
+NXF_OFFLINE=true nextflow run . \
+  --samplesheet /mnt/dataFast/ahrmad/TEST_NF/isa_multiome.yaml \
+  --outdir /mnt/dataFast/ahrmad/TEST_NF/TrESFlow_Isa \
+  --max_cpus 32
 ```
 
-The pipeline expects the runtime toolchain under `--runtime_env_prefix` and validates it before starting the workflow.
+The pipeline reads runtime and reference locations from the samplesheet. Runtime and reference CLI overrides are rejected.
 
 ## Samplesheet Contract
 
 The supported YAML structure is:
 
 ```yaml
-library_name: MY_LIBRARY
+library_name: Isa
 
-resources:
-  ligation_barcode_whitelist: /path/to/ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /path/to/reference_base_dir
-  rna_align_species: human
-  dna_bwa_reference: /path/to/bwa_index_prefix
-  dna_blacklist_bed: /path/to/blacklist.bed
-  dna_effective_genome_size: 2913022398
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
+
+references:
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
 
 samples:
   day15:
@@ -72,19 +72,29 @@ samples:
 ### Top-level fields
 
 - `library_name`: run-level library label propagated into RG headers and derived contract files
-- `resources`: shared runtime resources for the whole run
+- `runtime`: required runtime environment and explicit task temporary directory
+- `references`: required root for all shared reference files
 - `samples`: biological sample blocks keyed by user-defined sample ID
 
-### `resources`
+### `runtime`
 
-These values can be defined in the YAML and, when needed, overridden by CLI params.
+- `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, and `gatk`
+- `tmpdir`: explicit task temporary directory. The pipeline creates it if missing and fails if it is not writable.
 
-- `ligation_barcode_whitelist`: ligation barcode whitelist used by RNA and DNA cell-barcode tagging
-- `rna_ref_base_dir`: STARsolo reference base directory
-- `rna_align_species`: `human` or `mouse`
-- `dna_bwa_reference`: bwa-mem2 index prefix
-- `dna_blacklist_bed`: BED file for blacklist filtering
-- `dna_effective_genome_size`: effective genome size used for DNA coverage
+### `references`
+
+`references.root` points to a `TrESFlow_References` folder with this contract:
+
+```text
+TrESFlow_References/
+  ligation_barcode_whitelist.txt
+  rna/human/star/
+  rna/human/chrom.sizes
+  dna/human/bwa/hg38.fa
+  dna/human/bwa/hg38.fa.{0123,amb,ann,bwt.2bit.64,pac}
+  dna/human/blacklist.bed
+  dna/human/effective_genome_size.txt
+```
 
 ### `samples.<sample_id>.groups`
 
@@ -136,17 +146,9 @@ The main public parameters are:
 
 - `--samplesheet`
 - `--outdir`
-- `--runtime_env_prefix`
 - `--max_cpus`
 
-Optional resource override parameters remain available:
-
-- `--ligation_barcode_whitelist`
-- `--rna_ref_base_dir`
-- `--rna_align_species`
-- `--dna_bwa_reference`
-- `--dna_blacklist_bed`
-- `--dna_effective_genome_size`
+Deprecated runtime/reference CLI parameters such as `--runtime_env_prefix`, `--rna_ref_base_dir`, and `--dna_bwa_reference` now fail with a hard error.
 
 ## Bundled Examples
 

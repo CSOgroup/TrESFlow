@@ -17,6 +17,8 @@
  *   - trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  */
 
+import RuntimeSupport
+
 process TRIM_DNA_FASTQS {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -30,8 +32,11 @@ process TRIM_DNA_FASTQS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_trim_galore.py" \\
       --mode "${mode}" \\
       --r1 "${taggedR1}" \\

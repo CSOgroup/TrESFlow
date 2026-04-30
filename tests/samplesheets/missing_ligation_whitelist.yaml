@@ -1,0 +1,20 @@
+library_name: TESTLIB
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_missing_ligation_whitelist
+
+references:
+  root: ../../assets/testdata
+
+samples:
+  test_rna:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT]
+
+    rna:
+      reads:
+        i1: ../../assets/testdata/test_rna_I1.fastq
+        r1: ../../assets/testdata/test_rna_R1.fastq
+        r2: ../../assets/testdata/test_rna_R2.fastq

@@ -22,7 +22,7 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing shared resources, biological groups, and modality-specific FASTQ inputs."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs."
                 },
                 "outdir": {
                     "type": "string",
@@ -32,16 +32,11 @@
                 }
             }
         },
-        "runtime_options": {
-            "title": "Runtime options",
+        "execution_options": {
+            "title": "Execution options",
             "type": "object",
-            "description": "Pipeline runtime environment and repo-owned script locations.",
+            "description": "Pipeline execution options. Runtime environment and references are configured in the YAML samplesheet.",
             "properties": {
-                "runtime_env_prefix": {
-                    "type": "string",
-                    "description": "Environment prefix that provides the required runtime executables and pinned Codon/Seq installation.",
-                    "default": "/home/nikita/miniconda3/envs/tres"
-                },
                 "core_scripts_dir": {
                     "type": "string",
                     "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules."
@@ -76,40 +71,6 @@
                 }
             }
         },
-        "resource_override_options": {
-            "title": "Resource overrides",
-            "type": "object",
-            "description": "Optional CLI overrides for resources otherwise provided through the YAML samplesheet resources block.",
-            "properties": {
-                "ligation_barcode_whitelist": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Ligation barcode whitelist used by RNA and DNA cell-barcode tagging."
-                },
-                "rna_ref_base_dir": {
-                    "type": "string",
-                    "description": "Reference base directory for RNA STARsolo alignment."
-                },
-                "rna_align_species": {
-                    "type": "string",
-                    "enum": ["human", "mouse"],
-                    "description": "RNA STARsolo species selection."
-                },
-                "dna_bwa_reference": {
-                    "type": "string",
-                    "description": "bwa-mem2 index prefix for DNA alignment."
-                },
-                "dna_blacklist_bed": {
-                    "type": "string",
-                    "format": "file-path",
-                    "description": "Blacklist BED file used during DNA alignment filtering."
-                },
-                "dna_effective_genome_size": {
-                    "type": "string",
-                    "description": "Effective genome size used for DNA coverage track generation."
-                }
-            }
-        },
         "advanced_options": {
             "title": "Advanced options",
             "type": "object",
@@ -127,10 +88,7 @@
             "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/$defs/runtime_options"
-        },
-        {
-            "$ref": "#/$defs/resource_override_options"
+            "$ref": "#/$defs/execution_options"
         },
         {
             "$ref": "#/$defs/advanced_options"

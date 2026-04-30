@@ -18,6 +18,8 @@
  *     raw SB match first, then drop-first fallback.
  */
 
+import RuntimeSupport
+
 process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -34,9 +36,12 @@ process SPLIT_RNA_READS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_rna.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Split_ReadsV2.codon" \\

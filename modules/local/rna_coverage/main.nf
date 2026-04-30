@@ -2,15 +2,16 @@
  * Module: RNA_COVERAGE
  * Runtime command:
  *   bash scripts/core_runtime/RNA_COVERAGE.sh \
- *     <split_name> <filtered_cells.bam> <ref_base_dir> <outdir> <threads> <species>
+ *     <split_name> <filtered_cells.bam> <star_index_dir> <chrom.sizes> <outdir> <threads>
  *
  * Inputs:
  *   - filtered-cells RNA BAM from RNA_FILTERED_BAM
- *   - shared RNA reference base dir
- *   - species selector: human | mouse
+ *   - exact RNA STAR index directory and chromosome sizes file resolved from references.root
  * Outputs:
  *   - stranded and unstranded RNA bigWig tracks
  */
+
+import RuntimeSupport
 
 process RNA_COVERAGE {
     tag "${splitName}"
@@ -19,7 +20,7 @@ process RNA_COVERAGE {
     publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
 
     input:
-    tuple val(splitName), val(meta), path(filteredBam), val(refBaseDir), val(species)
+    tuple val(splitName), val(meta), path(filteredBam), val(starIndexDir), val(chromSizes)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.stranded_*.bw"), optional: true, emit: stranded_bw
@@ -28,10 +29,13 @@ process RNA_COVERAGE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock stranded bigwig\n' > "${splitName}.stranded_Signal.Unique.str1.out.bw"
         printf 'mock unstranded bigwig\n' > "${splitName}.unstranded_Signal.Unique.str1.out.bw"
 
@@ -43,6 +47,8 @@ process RNA_COVERAGE {
     }
     else {
         """
+        ${runtimeExports}
+
         for required_bin in "\$STAR_BIN" "\$BEDGRAPH_TO_BIGWIG_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured RNA runtime executable: \${required_bin}" >&2
@@ -53,10 +59,10 @@ process RNA_COVERAGE {
         bash "${coreScriptsDir}/RNA_COVERAGE.sh" \\
           "${splitName}" \\
           "${filteredBam}" \\
-          "${refBaseDir}" \\
+          "${starIndexDir}" \\
+          "${chromSizes}" \\
           "." \\
-          "${task.cpus}" \\
-          "${species}"
+          "${task.cpus}"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

@@ -19,7 +19,6 @@ DNA-related outputs:
 
 Shared reporting outputs:
 
-- `qc/`
 - `pipeline_info/`
 
 ## RNA outputs
@@ -37,7 +36,6 @@ Per-group RNA FASTQs and RG headers from the split stage:
 STARsolo and filtered BAM outputs:
 
 - `<sample>_<group>.Solo.outGeneFull/`
-- `<sample>_<group>.Aligned.sortedByCoord.out.bam`
 - `<sample>_<group>.filtered_cells.bam`
 - `<sample>_<group>.stranded_*.bw`
 - `<sample>_<group>.unstranded_*.bw`
@@ -60,18 +58,6 @@ Filtered aligned BAMs and per-barcode read counts:
 - `<sample>_<group>_<mark>.bam.bai`
 - `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv`
 
-## QC outputs
-
-The `qc/` directory contains run-level summary tables and plot folders:
-
-- `rna_sample_stage_counts.tsv`
-- `rna_group_stage_counts.tsv`
-- `dna_sample_stage_counts.tsv`
-- `dna_group_stage_counts.tsv`
-- `dna_group_mark_stage_counts.tsv`
-- `qc/rna/` plots
-- `qc/dna/` plots
-
 ## Pipeline information
 
 `pipeline_info/` contains execution metadata and the derived helper contract written from the YAML samplesheet.
@@ -83,6 +69,7 @@ Expected files include:
 - `execution_trace.tsv`
 - `flowchart.html`
 - `runtime_contract.tsv`
+- `warnings/*.zero_mapped_nodup_bam.tsv` when DNA NoDup BAMs have zero mapped reads and bamCoverage is skipped
 
 When the YAML contains group and DNA mark definitions, the parser also writes:
 
@@ -102,4 +89,4 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-marking, duplic
 
 - published RNA FASTQs are the grouped split FASTQs under `split/`
 - published DNA FASTQs are the grouped and marked split FASTQs under `dna_split/`
-- earlier tag, trim, uSAM, deduplication, and coverage files remain transient in `work/` unless captured manually
+- earlier tag, trim, RNA uSAM, STAR aligned BAM, duplicate-marking, NoDup BAM, and non-published coverage files remain transient in `work/` unless captured manually

@@ -3,6 +3,10 @@ import groovy.yaml.YamlSlurper
 class SamplesheetParser {
 
     static List<Map> parse(final String samplesheetPath, final Map options = [:]) {
+        return parseContract(samplesheetPath, options).samples as List<Map>
+    }
+
+    static Map parseContract(final String samplesheetPath, final Map options = [:]) {
         if( !samplesheetPath ) {
             throw new IllegalArgumentException("Missing required parameter: --samplesheet")
         }
@@ -16,11 +20,6 @@ class SamplesheetParser {
         if( !(parsed instanceof Map) ) {
             throw new IllegalArgumentException("Samplesheet must be a top-level YAML mapping: ${samplesheetPath}")
         }
-        if( !(parsed.resources instanceof Map) || ((Map) parsed.resources).isEmpty() ) {
-            throw new IllegalArgumentException(
-                "Samplesheet must contain a non-empty top-level 'resources:' mapping: ${samplesheetPath}"
-            )
-        }
         if( !(parsed.samples instanceof Map) || ((Map) parsed.samples).isEmpty() ) {
             throw new IllegalArgumentException(
                 "Samplesheet must contain a non-empty top-level 'samples:' mapping: ${samplesheetPath}"
@@ -29,9 +28,24 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
-        final Map sharedResources = resolveSharedResources(parsed, baseDir, options)
+        final Map runtime = resolveRuntime(parsed, baseDir)
+        final Map references = resolveReferences(parsed, baseDir)
+        final List<Map> samples = parseUnified(parsed, baseDir, libraryName, options, references)
+        samples.each { row ->
+            row.runtime_env_prefix = runtime['env_prefix']
+            row.runtime_tmpdir = runtime['tmpdir']
+        }
 
-        return parseUnified(parsed, baseDir, libraryName, options, sharedResources)
+        return [
+            library_name: libraryName,
+            runtime     : runtime,
+            references  : references,
+            modalities  : [
+                rna: samples.any { row -> row.modality == 'rna' },
+                dna: samples.any { row -> row.modality == 'dna' },
+            ],
+            samples     : samples,
+        ]
     }
 
     private static List<Map> parseUnified(
@@ -39,13 +53,13 @@ class SamplesheetParser {
         final File baseDir,
         final String libraryName,
         final Map options,
-        final Map sharedResources
+        final Map references
     ) {
         // Internally the workflow still runs one modality row at a time. The
         // public contract stays hierarchical; the parser is where that view is
         // flattened into RNA and DNA work rows plus derived helper files.
         final Map defaults = normalizedDefaults(options)
-        final String ligationWhitelist = sharedResources.ligation_barcode_whitelist
+        final String ligationWhitelist = references.ligation_barcode_whitelist
         final File derivedDir = prepareDerivedDir(options)
 
         final List<Map> samples = []
@@ -77,7 +91,7 @@ class SamplesheetParser {
                     rnaConfig,
                     defaults,
                     ligationWhitelist,
-                    sharedResources
+                    references
                 )
             }
 
@@ -90,7 +104,7 @@ class SamplesheetParser {
                     dnaConfig,
                     defaults,
                     ligationWhitelist,
-                    sharedResources
+                    references
                 )
             }
         }
@@ -106,7 +120,7 @@ class SamplesheetParser {
         final Map rnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map sharedResources
+        final Map references
     ) {
         final Map reads = asMap(rnaConfig.reads, "samples.${sampleId}.rna.reads")
         return [
@@ -128,8 +142,8 @@ class SamplesheetParser {
             cell_bc_len               : defaults.rna.cell.bc_len as int,
             cell_hd                   : defaults.rna.cell.hd as int,
             cell_tag                  : defaults.rna.cell.tag.toString(),
-            rna_ref_base_dir          : sharedResources.rna_ref_base_dir,
-            rna_align_species         : sharedResources.rna_align_species,
+            rna_star_index_dir        : references.rna_star_index_dir,
+            rna_chrom_sizes           : references.rna_chrom_sizes,
             library_name              : libraryName,
             group_definitions         : normalizedGroups,
         ]
@@ -143,7 +157,7 @@ class SamplesheetParser {
         final Map dnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map sharedResources
+        final Map references
     ) {
         final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
         final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
@@ -174,9 +188,9 @@ class SamplesheetParser {
             cell_bc_len                 : defaults.dna.cell.bc_len as int,
             cell_hd                     : defaults.dna.cell.hd as int,
             cell_tag                    : defaults.dna.cell.tag.toString(),
-            dna_bwa_reference           : sharedResources.dna_bwa_reference,
-            dna_blacklist_bed           : sharedResources.dna_blacklist_bed,
-            dna_effective_genome_size   : sharedResources.dna_effective_genome_size,
+            dna_bwa_reference           : references.dna_bwa_reference,
+            dna_blacklist_bed           : references.dna_blacklist_bed,
+            dna_effective_genome_size   : references.dna_effective_genome_size,
             library_name                : libraryName,
             group_definitions           : normalizedGroups,
             mark_barcodes               : markBarcodes,
@@ -351,51 +365,39 @@ class SamplesheetParser {
         ]
     }
 
-    private static Map resolveSharedResources(final Map parsed, final File baseDir, final Map options) {
-        final Map resources = asMap(parsed.resources, 'resources')
-
+    private static Map resolveRuntime(final Map parsed, final File baseDir) {
+        final Map runtime = asMap(parsed.runtime, 'runtime')
         return [
-            ligation_barcode_whitelist: resolveExistingPath(
+            env_prefix: resolvePath(
                 baseDir,
-                requireString(
-                    firstDefined(resources.ligation_barcode_whitelist, options.ligation_barcode_whitelist),
-                    'resources.ligation_barcode_whitelist or --ligation_barcode_whitelist'
-                )
+                requireString(runtime.env_prefix, 'runtime.env_prefix')
             ),
-            rna_ref_base_dir: resolveOptionalPath(
+            tmpdir: resolvePath(
                 baseDir,
-                firstDefined(resources.rna_ref_base_dir, options.rna_ref_base_dir)
+                requireString(runtime.tmpdir, 'runtime.tmpdir')
             ),
-            rna_align_species: firstDefined(
-                resources.rna_align_species,
-                options.rna_align_species
-            )?.toString()?.trim()?.toLowerCase(),
-            dna_bwa_reference: resolveOptionalPath(
-                baseDir,
-                firstDefined(resources.dna_bwa_reference, options.dna_bwa_reference)
-            ),
-            dna_blacklist_bed: resolveOptionalPath(
-                baseDir,
-                firstDefined(resources.dna_blacklist_bed, options.dna_blacklist_bed)
-            ),
-            dna_effective_genome_size: firstDefined(
-                resources.dna_effective_genome_size,
-                options.dna_effective_genome_size
-            )?.toString()?.trim()
         ]
     }
 
-    private static Object firstDefined(final Object... values) {
-        for( final Object value : values ) {
-            if( value == null ) {
-                continue
-            }
-            if( value instanceof CharSequence && !value.toString().trim() ) {
-                continue
-            }
-            return value
-        }
-        return null
+    private static Map resolveReferences(final Map parsed, final File baseDir) {
+        final Map references = asMap(parsed.references, 'references')
+        final String root = resolvePath(
+            baseDir,
+            requireString(references.root, 'references.root')
+        )
+        final File rootDir = new File(root)
+        final File effectiveGenomeSizeFile = new File(rootDir, 'dna/human/effective_genome_size.txt')
+
+        return [
+            root                          : rootDir.canonicalPath,
+            ligation_barcode_whitelist    : new File(rootDir, 'ligation_barcode_whitelist.txt').canonicalPath,
+            rna_star_index_dir            : new File(rootDir, 'rna/human/star').canonicalPath,
+            rna_chrom_sizes               : new File(rootDir, 'rna/human/chrom.sizes').canonicalPath,
+            dna_bwa_reference             : new File(rootDir, 'dna/human/bwa/hg38.fa').canonicalPath,
+            dna_blacklist_bed             : new File(rootDir, 'dna/human/blacklist.bed').canonicalPath,
+            dna_effective_genome_size_file: effectiveGenomeSizeFile.canonicalPath,
+            dna_effective_genome_size     : effectiveGenomeSizeFile.exists() ? effectiveGenomeSizeFile.text.trim() : null,
+        ]
     }
 
     private static Map asMap(final Object value, final String fieldName) {
@@ -436,6 +438,11 @@ class SamplesheetParser {
         if( !resolved.exists() ) {
             throw new IllegalArgumentException("Referenced file not found: ${resolved}")
         }
+        return resolved.canonicalPath
+    }
+
+    private static String resolvePath(final File baseDir, final String rawPath) {
+        final File resolved = new File(rawPath).isAbsolute() ? new File(rawPath) : new File(baseDir, rawPath)
         return resolved.canonicalPath
     }
 

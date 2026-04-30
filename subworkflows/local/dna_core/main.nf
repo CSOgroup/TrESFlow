@@ -163,6 +163,7 @@ workflow DNA_CORE {
     nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
     nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
     coverage_bigwigs = BAM_COVERAGE_DNA.out.bw
+    coverage_warnings = BAM_COVERAGE_DNA.out.warnings
     barcode_reports = ch_barcode_reports
     versions = ch_versions
 }

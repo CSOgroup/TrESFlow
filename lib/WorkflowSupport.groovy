@@ -89,11 +89,58 @@ class WorkflowSupport {
         ]
     }
 
+    static void validateReferenceContract(final Map references, final Map modalities) {
+        final String root = references.root?.toString()?.trim()
+        if( !root ) {
+            throw new IllegalArgumentException("Missing required samplesheet field: references.root")
+        }
+
+        final File rootDir = new File(root)
+        if( !rootDir.exists() || !rootDir.isDirectory() ) {
+            throw new IllegalArgumentException(
+                "Reference root not found or not a directory: ${rootDir}. Controlled by samplesheet field references.root"
+            )
+        }
+
+        final File ligationWhitelist = new File(references.ligation_barcode_whitelist as String)
+        if( !ligationWhitelist.exists() || !ligationWhitelist.isFile() ) {
+            throw new IllegalArgumentException(
+                "Required ligation barcode whitelist not found: ${ligationWhitelist}. " +
+                "Expected <references.root>/ligation_barcode_whitelist.txt"
+            )
+        }
+
+        if( (modalities.rna as boolean) ) {
+            validateRnaReferences(
+                references.rna_star_index_dir as String,
+                references.rna_chrom_sizes as String,
+                root
+            )
+        }
+
+        if( (modalities.dna as boolean) ) {
+            validateDnaReferences(
+                references.dna_bwa_reference as String,
+                references.dna_blacklist_bed as String,
+                references.dna_effective_genome_size_file as String,
+                root
+            )
+        }
+    }
+
     static String requireBwaMem2Prefix(final String rawPrefix) {
         final String prefix = rawPrefix?.toString()?.trim()
         if( !prefix ) {
             throw new IllegalArgumentException(
-                "Missing required DNA alignment resource: resources.dna_bwa_reference or --dna_bwa_reference"
+                "Missing required DNA bwa-mem2 prefix resolved from samplesheet field references.root"
+            )
+        }
+
+        final File prefixFile = new File(prefix)
+        if( !prefixFile.exists() ) {
+            throw new IllegalArgumentException(
+                "DNA bwa-mem2 prefix FASTA not found: ${prefixFile}. " +
+                "Expected <references.root>/dna/human/bwa/hg38.fa"
             )
         }
 
@@ -102,7 +149,8 @@ class WorkflowSupport {
             final File sidecar = new File("${prefix}${suffix}")
             if( !sidecar.exists() ) {
                 throw new IllegalArgumentException(
-                    "DNA bwa-mem2 index sidecar not found for prefix '${prefix}': ${sidecar}"
+                    "DNA bwa-mem2 index sidecar not found for prefix '${prefix}': ${sidecar}. " +
+                    "Controlled by samplesheet field references.root"
                 )
             }
         }
@@ -110,38 +158,105 @@ class WorkflowSupport {
         return prefix
     }
 
+    static void validateRnaReferences(
+        final String rawStarIndexDir,
+        final String rawChromSizes,
+        final String rawReferenceRoot = ''
+    ) {
+        final String starIndexDir = rawStarIndexDir?.toString()?.trim()
+        final String chromSizes = rawChromSizes?.toString()?.trim()
+
+        if( !starIndexDir ) {
+            throw new IllegalArgumentException(
+                "Missing required RNA STAR index directory resolved from samplesheet field references.root"
+            )
+        }
+
+        final File starDir = new File(starIndexDir)
+        if( !starDir.exists() || !starDir.isDirectory() ) {
+            throw new IllegalArgumentException(
+                "RNA STAR index directory not found: ${starDir}. " +
+                "Expected <references.root>/rna/human/star"
+            )
+        }
+
+        if( !chromSizes ) {
+            throw new IllegalArgumentException(
+                "Missing required RNA chromosome sizes file resolved from samplesheet field references.root"
+            )
+        }
+
+        final File chromSizesFile = new File(chromSizes)
+        if( !chromSizesFile.exists() || !chromSizesFile.isFile() ) {
+            throw new IllegalArgumentException(
+                "RNA chromosome sizes file not found: ${chromSizesFile}. " +
+                "Expected <references.root>/rna/human/chrom.sizes"
+            )
+        }
+    }
+
     static void validateRnaAlignment(final String rawRefBaseDir, final String rawSpecies) {
-        final String species = rawSpecies?.toString()?.trim()?.toLowerCase()
-        final String refBaseDir = rawRefBaseDir?.toString()?.trim()
+        throw new IllegalArgumentException(
+            "Legacy RNA reference parameters are no longer supported. Use samplesheet field references.root"
+        )
+    }
 
-        if( !species ) {
+    static long validateDnaReferences(
+        final String rawBwaReference,
+        final String rawBlacklistBed,
+        final String rawEffectiveGenomeSizeFile,
+        final String rawReferenceRoot = ''
+    ) {
+        requireBwaMem2Prefix(rawBwaReference)
+
+        final String blacklistBed = rawBlacklistBed?.toString()?.trim()
+        final String effectiveGenomeSizeFile = rawEffectiveGenomeSizeFile?.toString()?.trim()
+
+        if( !blacklistBed ) {
             throw new IllegalArgumentException(
-                "Missing required RNA alignment resource: resources.rna_align_species or --rna_align_species (human|mouse)"
+                "Missing required DNA blacklist BED resolved from samplesheet field references.root"
             )
         }
-        if( !(species in ['human', 'mouse']) ) {
+
+        final File blacklistFile = new File(blacklistBed)
+        if( !blacklistFile.exists() ) {
             throw new IllegalArgumentException(
-                "Invalid RNA align species '${species}'. Supported values: human, mouse"
-            )
-        }
-        if( !refBaseDir ) {
-            throw new IllegalArgumentException(
-                "Missing required RNA alignment resource: resources.rna_ref_base_dir or --rna_ref_base_dir"
+                "DNA blacklist BED not found: ${blacklistFile}. Expected <references.root>/dna/human/blacklist.bed"
             )
         }
 
-        final List<String> requiredRefPaths = species == 'human'
-            ? ['GRCh38_TrES/star', 'hg38.chrom.sizes']
-            : ['GRCm39_TrES/star', 'mm39.chrom.sizes']
-
-        requiredRefPaths.each { relPath ->
-            final File resolved = new File(refBaseDir, relPath)
-            if( !resolved.exists() ) {
-                throw new IllegalArgumentException(
-                    "RNA alignment reference path not found for species '${species}': ${resolved}"
-                )
-            }
+        if( !effectiveGenomeSizeFile ) {
+            throw new IllegalArgumentException(
+                "Missing required DNA effective genome size file resolved from samplesheet field references.root"
+            )
         }
+
+        final File effSizeFile = new File(effectiveGenomeSizeFile)
+        if( !effSizeFile.exists() || !effSizeFile.isFile() ) {
+            throw new IllegalArgumentException(
+                "DNA effective genome size file not found: ${effSizeFile}. " +
+                "Expected <references.root>/dna/human/effective_genome_size.txt"
+            )
+        }
+
+        final String effSizeRaw = effSizeFile.text.trim()
+        long effSize = 0L
+        try {
+            effSize = effSizeRaw as long
+        }
+        catch( Exception ignored ) {
+            throw new IllegalArgumentException(
+                "Invalid DNA effective genome size in ${effSizeFile}: '${effSizeRaw}'. Value must be an integer > 0"
+            )
+        }
+
+        if( effSize < 1 ) {
+            throw new IllegalArgumentException(
+                "Invalid DNA effective genome size in ${effSizeFile}: '${effSizeRaw}'. Value must be an integer > 0"
+            )
+        }
+
+        return effSize
     }
 
     static void validateDnaAlignment(
@@ -149,42 +264,8 @@ class WorkflowSupport {
         final String rawBlacklistBed,
         final String rawEffectiveGenomeSize
     ) {
-        requireBwaMem2Prefix(rawBwaReference)
-
-        final String blacklistBed = rawBlacklistBed?.toString()?.trim()
-        final String effSizeRaw = rawEffectiveGenomeSize?.toString()?.trim()
-
-        if( !blacklistBed ) {
-            throw new IllegalArgumentException(
-                "Missing required DNA alignment resource: resources.dna_blacklist_bed or --dna_blacklist_bed"
-            )
-        }
-
-        final File blacklistFile = new File(blacklistBed)
-        if( !blacklistFile.exists() ) {
-            throw new IllegalArgumentException("DNA blacklist BED not found: ${blacklistFile}")
-        }
-
-        if( !effSizeRaw ) {
-            throw new IllegalArgumentException(
-                "Missing required DNA alignment resource: resources.dna_effective_genome_size or --dna_effective_genome_size"
-            )
-        }
-
-        long effSize = 0L
-        try {
-            effSize = effSizeRaw as long
-        }
-        catch( Exception ignored ) {
-            throw new IllegalArgumentException(
-                "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
-            )
-        }
-
-        if( effSize < 1 ) {
-            throw new IllegalArgumentException(
-                "Invalid --dna_effective_genome_size '${effSizeRaw}'. Value must be an integer > 0"
-            )
-        }
+        throw new IllegalArgumentException(
+            "Legacy DNA reference parameters are no longer supported. Use samplesheet field references.root"
+        )
     }
 }

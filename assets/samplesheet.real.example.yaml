@@ -1,12 +1,11 @@
 library_name: TRESEQ_202601_CAM
 
-resources:
-  ligation_barcode_whitelist: /mnt/pdata/nikita/TrESFlow/assets/test_realdata/ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /mnt/pdata/nikita/ref/RNA_REF_BASE
-  rna_align_species: human
-  dna_bwa_reference: /mnt/pdata/nikita/ref/DNA_REF/hg38.fa
-  dna_blacklist_bed: /mnt/pdata/nikita/ref/DNA_REF/hg38-blacklist.v2.bed
-  dna_effective_genome_size: 2913022398
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_real_example
+
+references:
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
 
 samples:
   day15:

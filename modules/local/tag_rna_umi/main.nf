@@ -13,6 +13,8 @@
  *   - UMI counts table
  */
 
+import RuntimeSupport
+
 process TAG_RNA_UMI {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -27,9 +29,12 @@ process TAG_RNA_UMI {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_umi.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag_UMI.codon" \\

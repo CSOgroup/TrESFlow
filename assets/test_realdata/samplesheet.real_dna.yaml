@@ -2,11 +2,12 @@
 
 library_name: REALDATATESTLIB
 
-resources:
-  ligation_barcode_whitelist: ligation_barcode_whitelist.txt
-  dna_bwa_reference: /mnt/dataFast/ahrmad/hg38_bwamem2_index/hg38.fa
-  dna_blacklist_bed: /mnt/dataFast/ahrmad/hg38-blacklist.v2.bed
-  dna_effective_genome_size: 2913022398
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_test_real_dna_tmp
+
+references:
+  root: ../testdata/TrESFlow_References
 
 samples:
   day15:

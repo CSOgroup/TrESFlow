@@ -31,15 +31,14 @@ Install codon in your env:
 The only supported public input contract is one hierarchical YAML samplesheet.
 
 ```yaml
-library_name: REALDATATESTLIB
+library_name: Isa
 
-resources:
-  ligation_barcode_whitelist: test_realdata/ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /path/to/reference_base_dir
-  rna_align_species: human
-  dna_bwa_reference: /path/to/bwa_index_prefix
-  dna_blacklist_bed: /path/to/blacklist.bed
-  dna_effective_genome_size: 2913022398
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
+
+references:
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
 
 samples:
   day15:
@@ -69,8 +68,10 @@ samples:
 Notes:
 
 - Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
+- `runtime.env_prefix`, `runtime.tmpdir`, and `references.root` are required. Runtime and reference paths are no longer accepted as normal CLI parameters.
 - `groups.<group>.sb_barcodes` is the source of truth for sample-barcode grouping.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
+- `references.root` must contain `ligation_barcode_whitelist.txt`, RNA references under `rna/human/`, and DNA references under `dna/human/`.
 
 Committed examples:
 
@@ -114,35 +115,34 @@ RNA publishes:
 
 - `split/`
 - `align/`
-- `qc/`
 - `pipeline_info/`
 
 DNA publishes:
 
 - `dna_split/`
 - `dna_align/`
-- `qc/`
 - `pipeline_info/`
 
 ## Runtime Contract
 
-The primary runtime contract is one environment root:
+The runtime contract comes from the samplesheet `runtime:` block. `runtime.tmpdir`
+is exported as `TMPDIR` for pipeline tasks and can become very large on real runs.
+The pipeline creates the directory if it is missing and fails if it is not writable.
 
-- `--runtime_env_prefix`
+References come from one `references.root` folder:
 
-On this server it defaults to:
+```text
+TrESFlow_References/
+  ligation_barcode_whitelist.txt
+  rna/human/star/
+  rna/human/chrom.sizes
+  dna/human/bwa/hg38.fa
+  dna/human/bwa/hg38.fa.{0123,amb,ann,bwt.2bit.64,pac}
+  dna/human/blacklist.bed
+  dna/human/effective_genome_size.txt
+```
 
-- `/home/annan/micromamba/envs/tres`
-
-Shared run resources come from the samplesheet `resources:` block. CLI params remain available only as explicit overrides:
-
-- `--ligation_barcode_whitelist`
-- `--rna_ref_base_dir`
-- `--rna_align_species`
-- `--dna_bwa_reference`
-- `--dna_blacklist_bed`
-- `--dna_effective_genome_size`
-- `--max_cpus`
+The main remaining runtime CLI parameter is `--max_cpus`.
 
 Default local CPU budget:
 
@@ -150,7 +150,8 @@ Default local CPU budget:
 - `RNA_STARSOLO_ALIGN` and `RNA_COVERAGE` reserve up to `24` cores each.
 - `RNA_FILTERED_BAM`, trim, split, duplicate-filter, and DNA coverage helper steps reserve up to `8` cores each.
 - `ALIGN_DNA` reserves up to `32` cores.
-- tagging, `FQ_TO_SAM`, and `MARK_DUPLICATES_DNA` stay at `1` core.
+- tagging processes default to `6` cores and `64 GB` memory.
+- `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
 - These are scheduler reservations. `ALIGN_DNA` still wraps an upstream script with its own internal thread behavior, so its Nextflow CPU value primarily controls local concurrency.
 
 Every run writes:
@@ -166,7 +167,8 @@ The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_run
 ## Quick Start
 
 ```bash
-nextflow run . \
-  --samplesheet assets/samplesheet.real.example.yaml \
-  --outdir results/test_real
+NXF_OFFLINE=true nextflow run . \
+  --samplesheet /mnt/dataFast/ahrmad/TEST_NF/isa_multiome.yaml \
+  --outdir /mnt/dataFast/ahrmad/TEST_NF/TrESFlow_Isa \
+  --max_cpus 32
 ```
