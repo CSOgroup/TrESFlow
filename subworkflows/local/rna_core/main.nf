@@ -6,7 +6,7 @@
  *   - RNA cell-barcode whitelist
  *   - internally derived sample-barcode group map TSV, used both to derive the
  *     effective RNA sample-barcode whitelist and to split grouped RNA reads
- *   - exact RNA STAR index directory and chromosome sizes carried through sample metadata
+ *   - exact RNA STAR index directory from references.rna_ref_dir and derived chromosome sizes carried through sample metadata
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged reads

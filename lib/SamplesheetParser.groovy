@@ -142,8 +142,9 @@ class SamplesheetParser {
             cell_bc_len               : defaults.rna.cell.bc_len as int,
             cell_hd                   : defaults.rna.cell.hd as int,
             cell_tag                  : defaults.rna.cell.tag.toString(),
-            rna_star_index_dir        : references.rna_star_index_dir,
-            rna_chrom_sizes           : references.rna_chrom_sizes,
+            reference_species         : references.species,
+            rna_star_index_dir        : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
+            rna_chrom_sizes           : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
             library_name              : libraryName,
             group_definitions         : normalizedGroups,
         ]
@@ -188,8 +189,11 @@ class SamplesheetParser {
             cell_bc_len                 : defaults.dna.cell.bc_len as int,
             cell_hd                     : defaults.dna.cell.hd as int,
             cell_tag                    : defaults.dna.cell.tag.toString(),
-            dna_bwa_reference           : references.dna_bwa_reference,
+            reference_species           : references.species,
+            dna_ref_dir                 : references.dna_ref_dir,
+            dna_bwa_reference           : references.dna_bwa_reference ?: '',
             dna_blacklist_bed           : references.dna_blacklist_bed,
+            dna_chrom_sizes             : references.dna_chrom_sizes,
             dna_effective_genome_size   : references.dna_effective_genome_size,
             library_name                : libraryName,
             group_definitions           : normalizedGroups,
@@ -386,17 +390,22 @@ class SamplesheetParser {
             requireString(references.root, 'references.root')
         )
         final File rootDir = new File(root)
-        final File effectiveGenomeSizeFile = new File(rootDir, 'dna/human/effective_genome_size.txt')
+        final String rnaRefDir = resolveOptionalPath(baseDir, references.rna_ref_dir)
 
         return [
-            root                          : rootDir.canonicalPath,
-            ligation_barcode_whitelist    : new File(rootDir, 'ligation_barcode_whitelist.txt').canonicalPath,
-            rna_star_index_dir            : new File(rootDir, 'rna/human/star').canonicalPath,
-            rna_chrom_sizes               : new File(rootDir, 'rna/human/chrom.sizes').canonicalPath,
-            dna_bwa_reference             : new File(rootDir, 'dna/human/bwa/hg38.fa').canonicalPath,
-            dna_blacklist_bed             : new File(rootDir, 'dna/human/blacklist.bed').canonicalPath,
-            dna_effective_genome_size_file: effectiveGenomeSizeFile.canonicalPath,
-            dna_effective_genome_size     : effectiveGenomeSizeFile.exists() ? effectiveGenomeSizeFile.text.trim() : null,
+            species                    : requireString(references.species, 'references.species').toLowerCase(),
+            root                       : rootDir.canonicalPath,
+            ligation_barcode_whitelist : resolvePath(
+                baseDir,
+                requireString(references.ligation_barcode_whitelist, 'references.ligation_barcode_whitelist')
+            ),
+            rna_ref_dir                : rnaRefDir,
+            rna_chrom_sizes            : rnaRefDir ? new File(rnaRefDir, 'chrNameLength.txt').canonicalPath : null,
+            dna_ref_dir                : resolveOptionalPath(baseDir, references.dna_ref_dir),
+            dna_bwa_reference          : null,
+            dna_blacklist_bed          : resolveOptionalPath(baseDir, references.dna_blacklist_bed),
+            dna_chrom_sizes            : resolveOptionalPath(baseDir, references.dna_chrom_sizes),
+            dna_effective_genome_size  : references.dna_effective_genome_size?.toString()?.trim(),
         ]
     }
 

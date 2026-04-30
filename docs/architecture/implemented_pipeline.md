@@ -9,7 +9,7 @@ Core workflow only:
 flowchart TD
     SS[Hierarchical YAML samplesheet]
     RUN[runtime block]
-    REF[references root]
+    REF[references block\nspecies and direct paths]
     GROUPS[groups with sb_barcodes]
     DNAMARKS[DNA mark_barcodes]
     DERIVE[Derive internal files\nsb_group_map.tsv\ndna_mo_map.tsv\nDNA modality whitelists]

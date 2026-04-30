@@ -7,7 +7,13 @@ runtime:
   tmpdir: /tmp/TrESFlow_test_real_dna_tmp
 
 references:
+  species: human
   root: ../testdata/TrESFlow_References
+  ligation_barcode_whitelist: ../testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+  dna_ref_dir: ../testdata/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: ../testdata/TrESFlow_References/dna/human/blacklist.bed
+  dna_chrom_sizes: ../testdata/TrESFlow_References/dna/human/chrom.sizes
+  dna_effective_genome_size: 12
 
 samples:
   day15:

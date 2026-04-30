@@ -6,7 +6,7 @@
  *
  * Inputs:
  *   - grouped RNA unmapped SAM from FQ_TO_SAM
- *   - exact RNA STAR index directory resolved from references.root
+ *   - exact RNA STAR index directory resolved from references.rna_ref_dir
  * Outputs:
  *   - STARsolo GeneFull directory
  *   - STAR coordinate-sorted aligned BAM used only by the next RNA stage

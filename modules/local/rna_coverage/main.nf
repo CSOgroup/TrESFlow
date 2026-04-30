@@ -6,7 +6,7 @@
  *
  * Inputs:
  *   - filtered-cells RNA BAM from RNA_FILTERED_BAM
- *   - exact RNA STAR index directory and chromosome sizes file resolved from references.root
+ *   - exact RNA STAR index directory from references.rna_ref_dir and derived STAR chrNameLength.txt chromosome sizes file
  * Outputs:
  *   - stranded and unstranded RNA bigWig tracks
  */

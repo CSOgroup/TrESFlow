@@ -38,7 +38,14 @@ runtime:
   tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
 
 references:
+  species: human
   root: /mnt/dataFast/ahrmad/TrESFlow_References
+  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  dna_effective_genome_size: 2913022398
 
 samples:
   day15:
@@ -68,10 +75,11 @@ samples:
 Notes:
 
 - Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
-- `runtime.env_prefix`, `runtime.tmpdir`, and `references.root` are required. Runtime and reference paths are no longer accepted as normal CLI parameters.
+- `runtime.env_prefix`, `runtime.tmpdir`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. Runtime and reference paths are no longer accepted as normal CLI parameters.
 - `groups.<group>.sb_barcodes` is the source of truth for sample-barcode grouping.
+- `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
+- `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
-- `references.root` must contain `ligation_barcode_whitelist.txt`, RNA references under `rna/human/`, and DNA references under `dna/human/`.
 
 Committed examples:
 
@@ -129,18 +137,23 @@ The runtime contract comes from the samplesheet `runtime:` block. `runtime.tmpdi
 is exported as `TMPDIR` for pipeline tasks and can become very large on real runs.
 The pipeline creates the directory if it is missing and fails if it is not writable.
 
-References come from one `references.root` folder:
+Reference paths are explicit in the samplesheet:
 
-```text
-TrESFlow_References/
-  ligation_barcode_whitelist.txt
-  rna/human/star/
-  rna/human/chrom.sizes
-  dna/human/bwa/hg38.fa
-  dna/human/bwa/hg38.fa.{0123,amb,ann,bwt.2bit.64,pac}
-  dna/human/blacklist.bed
-  dna/human/effective_genome_size.txt
+```yaml
+references:
+  species: human
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
+  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  dna_effective_genome_size: 2913022398
 ```
+
+`references.rna_ref_dir` is passed directly to STAR as `--genomeDir`. The directory must contain `Genome`, `SA`, `SAindex`, `chrName.txt`, `chrLength.txt`, `chrStart.txt`, `chrNameLength.txt`, and `genomeParameters.txt`.
+
+`references.dna_ref_dir` must contain exactly one complete bwa-mem2 sidecar set. The pipeline infers the prefix from files such as `hg38.fa.0123`, `hg38.fa.amb`, `hg38.fa.ann`, `hg38.fa.bwt.2bit.64`, and `hg38.fa.pac`.
 
 The main remaining runtime CLI parameter is `--max_cpus`.
 

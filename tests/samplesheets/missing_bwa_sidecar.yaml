@@ -5,7 +5,12 @@ runtime:
   tmpdir: /tmp/TrESFlow_missing_bwa_sidecar
 
 references:
+  species: human
   root: ../../assets/testdata/TrESFlow_References_missing_bwa_sidecar
+  ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References_missing_bwa_sidecar/ligation_barcode_whitelist.txt
+  dna_ref_dir: ../../assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa
+  dna_blacklist_bed: ../../assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/blacklist.bed
+  dna_effective_genome_size: 12
 
 samples:
   day15:

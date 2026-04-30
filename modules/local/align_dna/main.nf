@@ -6,7 +6,7 @@
  * Inputs:
  *   - one split DNA FASTQ pair from Split_ReadsV2 dna mode
  *   - matching SAM RG header TSV from Split_ReadsV2 dna mode
- *   - explicit bwa-mem2 index prefix
+ *   - bwa-mem2 index prefix inferred from references.dna_ref_dir
  *   - explicit blacklist BED path
  *   - explicit effective genome size
  * Outputs:

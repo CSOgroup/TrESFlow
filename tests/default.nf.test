@@ -113,7 +113,7 @@ nextflow_pipeline {
             assertAll(
                 { assert !workflow.success },
                 { assert workflow.stderr.contains("Required ligation barcode whitelist not found") },
-                { assert workflow.stderr.contains("Expected <references.root>/ligation_barcode_whitelist.txt") }
+                { assert workflow.stderr.contains("references.ligation_barcode_whitelist") }
             )
         }
     }
@@ -130,8 +130,43 @@ nextflow_pipeline {
         then {
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("DNA bwa-mem2 index sidecar not found") },
-                { assert workflow.stderr.contains("Controlled by samplesheet field references.root") }
+                { assert workflow.stderr.contains("No complete bwa-mem2 sidecar set found in references.dna_ref_dir") },
+                { assert workflow.stderr.contains("hg38.fa.bwt.2bit.64") }
+            )
+        }
+    }
+
+    test("missing rna_ref_dir fails when RNA is present") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_rna_ref_dir.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Missing required field: references.rna_ref_dir") }
+            )
+        }
+    }
+
+    test("missing STAR index file fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_star_index_file.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("RNA STAR index file missing for references.rna_ref_dir") },
+                { assert workflow.stderr.contains("SAindex") }
             )
         }
     }

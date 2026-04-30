@@ -5,7 +5,10 @@ runtime:
   tmpdir: /tmp/TrESFlow_test_tmp
 
 references:
+  species: human
   root: testdata/TrESFlow_References
+  ligation_barcode_whitelist: testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: testdata/TrESFlow_References/rna/human/star
 
 samples:
   test_rna:

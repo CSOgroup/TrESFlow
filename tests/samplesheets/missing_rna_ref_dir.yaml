@@ -2,18 +2,19 @@ library_name: TESTLIB
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_missing_rna_ref_dir
 
 references:
   species: human
   root: ../../assets/testdata/TrESFlow_References
   ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References/ligation_barcode_whitelist.txt
-  rna_ref_dir: ../../assets/testdata/TrESFlow_References/rna/human/star
 
 samples:
   test_rna:
     groups:
       Normal:
         sb_barcodes: [CAGT]
+
     rna:
       reads:
         i1: ../../assets/testdata/test_rna_I1.fastq

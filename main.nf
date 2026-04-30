@@ -12,12 +12,15 @@ final String resolvedCoreScriptsDir = RuntimeSupport.resolveProjectPath(projectD
 final Map<String, String> deprecatedCliParams = [
     runtime_env_prefix          : 'runtime.env_prefix',
     runtime_tmpdir              : 'runtime.tmpdir',
-    ligation_barcode_whitelist : '<references.root>/ligation_barcode_whitelist.txt',
-    rna_ref_base_dir           : '<references.root>/rna/human/star',
-    rna_align_species          : 'the fixed TrESFlow_References folder contract',
-    dna_bwa_reference          : '<references.root>/dna/human/bwa/hg38.fa',
-    dna_blacklist_bed          : '<references.root>/dna/human/blacklist.bed',
-    dna_effective_genome_size  : '<references.root>/dna/human/effective_genome_size.txt',
+    ligation_barcode_whitelist : 'references.ligation_barcode_whitelist',
+    rna_ref_base_dir           : 'references.rna_ref_dir',
+    rna_align_species          : 'references.species',
+    rna_ref_dir                : 'references.rna_ref_dir',
+    dna_ref_dir                : 'references.dna_ref_dir',
+    dna_bwa_reference          : 'the inferred prefix from references.dna_ref_dir',
+    dna_blacklist_bed          : 'references.dna_blacklist_bed',
+    dna_chrom_sizes            : 'references.dna_chrom_sizes',
+    dna_effective_genome_size  : 'references.dna_effective_genome_size',
 ]
 
 deprecatedCliParams.each { paramName, replacement ->
@@ -109,7 +112,8 @@ RuntimeSupport.validateConfiguredDirectory('core scripts dir', resolvedCoreScrip
 final String codonPreflightOutput = runCodonSeqPreflight(runtimeParams)
 WorkflowSupport.validateReferenceContract(
     referenceConfig,
-    modalityConfig
+    modalityConfig,
+    sampleRows
 )
 RuntimeSupport.writeRuntimeContract(
     resolvedOutdir,

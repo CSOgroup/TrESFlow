@@ -42,7 +42,14 @@ runtime:
   tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
 
 references:
+  species: human
   root: /mnt/dataFast/ahrmad/TrESFlow_References
+  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  dna_effective_genome_size: 2913022398
 
 samples:
   day15:
@@ -73,7 +80,7 @@ samples:
 
 - `library_name`: run-level library label propagated into RG headers and derived contract files
 - `runtime`: required runtime environment and explicit task temporary directory
-- `references`: required root for all shared reference files
+- `references`: required species label, shared files, and direct RNA/DNA reference paths
 - `samples`: biological sample blocks keyed by user-defined sample ID
 
 ### `runtime`
@@ -83,18 +90,11 @@ samples:
 
 ### `references`
 
-`references.root` points to a `TrESFlow_References` folder with this contract:
+`references.rna_ref_dir` points directly to the STAR index directory. The pipeline passes this exact path to STAR and does not append species, `rna`, or `star`.
 
-```text
-TrESFlow_References/
-  ligation_barcode_whitelist.txt
-  rna/human/star/
-  rna/human/chrom.sizes
-  dna/human/bwa/hg38.fa
-  dna/human/bwa/hg38.fa.{0123,amb,ann,bwt.2bit.64,pac}
-  dna/human/blacklist.bed
-  dna/human/effective_genome_size.txt
-```
+`references.dna_ref_dir` points to the directory containing exactly one complete bwa-mem2 sidecar set. The inferred prefix is used for `bwa-mem2 mem`.
+
+`references.dna_effective_genome_size` is required for DNA runs because `BAM_COVERAGE_DNA` passes it to `bamCoverage --effectiveGenomeSize`.
 
 ### `samples.<sample_id>.groups`
 
@@ -148,7 +148,7 @@ The main public parameters are:
 - `--outdir`
 - `--max_cpus`
 
-Deprecated runtime/reference CLI parameters such as `--runtime_env_prefix`, `--rna_ref_base_dir`, and `--dna_bwa_reference` now fail with a hard error.
+Deprecated runtime/reference CLI parameters now fail with a hard error.
 
 ## Bundled Examples
 
