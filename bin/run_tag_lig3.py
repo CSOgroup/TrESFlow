@@ -1,93 +1,28 @@
 #!/usr/bin/env python3
 
 import argparse
-import gzip
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections import Counter
 from pathlib import Path
 
-
-def resolve_temp_root() -> Path:
-    configured = os.environ.get("TMPDIR")
-    root = Path(configured).expanduser() if configured else (Path.cwd() / ".tmp")
-    root.mkdir(parents=True, exist_ok=True)
-    return root.resolve()
-
-
-def open_maybe_gzip(path: Path, mode: str):
-    if path.suffix == ".gz":
-        return gzip.open(path, mode)
-    return open(path, mode, encoding="utf-8")
-
-
-def open_maybe_gzip_binary(path: Path, mode: str):
-    if path.suffix == ".gz":
-        return gzip.open(path, mode)
-    return open(path, mode)
-
-
-def move_or_compress_fastq(source: Path, destination: Path):
-    if source.suffix == destination.suffix:
-        shutil.move(source, destination)
-        return
-
-    with open_maybe_gzip_binary(source, "rb") as src, open_maybe_gzip_binary(destination, "wb") as dst:
-        shutil.copyfileobj(src, dst)
-    source.unlink()
-
-
-def fastq_iter(path: Path):
-    with open_maybe_gzip(path, "rt") as handle:
-        while True:
-            header = handle.readline()
-            if not header:
-                break
-            seq = handle.readline()
-            plus = handle.readline()
-            qual = handle.readline()
-            if not qual:
-                raise ValueError(f"Malformed FASTQ record in {path}")
-            yield header.rstrip("\n"), seq.rstrip("\n"), plus.rstrip("\n"), qual.rstrip("\n")
-
-
-def parse_header(header: str):
-    if not header.startswith("@"):
-        raise ValueError(f"FASTQ header does not start with '@': {header}")
-    body = header[1:]
-    parts = body.split(" ", 1)
-    if len(parts) == 1:
-        return parts[0], ""
-    return parts[0], parts[1]
-
-
-def load_whitelist(path: Path):
-    with open(path, "rt", encoding="utf-8") as handle:
-        return {line.strip() for line in handle if line.strip()}
-
-
-def resolve_codon_bin() -> str:
-    configured = os.environ.get("CODON_BIN")
-    if configured:
-        codon_bin = Path(configured)
-        if not codon_bin.exists() or not os.access(codon_bin, os.X_OK):
-            raise RuntimeError(f"Configured CODON_BIN is missing or not executable: {codon_bin}")
-        return str(codon_bin)
-
-    resolved = shutil.which("codon")
-    if resolved is None:
-        raise RuntimeError("codon executable not found in PATH")
-    return resolved
-
-
-def find_tag_value(comment: str, tag_name: str):
-    for token in comment.replace("\t", " ").split():
-        if token.startswith(f"{tag_name}:"):
-            return token.rsplit(":", 1)[-1]
-    return ""
+from tresflow_fastq_utils import (
+    fastq_iter,
+    find_existing_output,
+    find_tag_value,
+    load_whitelist,
+    log_event,
+    open_maybe_gzip,
+    parse_header,
+    percent,
+    resolve_codon_bin,
+    resolve_temp_root,
+    strict_move_fastq,
+    tagged_fastq_candidates,
+)
 
 
 def write_stats(output_stats: Path, n_reads: int, bc_reads: int, mismatch_stats, hd: int):
@@ -111,12 +46,6 @@ def write_stats(output_stats: Path, n_reads: int, bc_reads: int, mismatch_stats,
         ]
     )
     output_stats.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def percent(count: int, total: int) -> str:
-    if total == 0:
-        return "0.0%"
-    return f"{(count / total) * 100.0}%"
 
 
 def mock_tag(args):
@@ -203,26 +132,19 @@ def real_tag(args):
             args.tag,
             str(tmp_path),
         ]
+        codon_start = time.monotonic()
+        log_event("Starting Codon Tag_Lig3.codon", args.i1, args.r1, args.r2)
         subprocess.run(cmd, check=True)
+        log_event("Finished Codon Tag_Lig3.codon", args.i1, args.r1, args.r2, elapsed=time.monotonic() - codon_start)
 
         expected_r1 = find_existing_output(
             tmp_path,
-            [
-                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq.gz",
-                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fq.gz",
-                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fastq",
-                f"{stem_without_fastq_suffix(args.r1.name)}_{args.tag}.fq",
-            ],
+            tagged_fastq_candidates(args.r1.name, args.tag),
             "tagged R1 FASTQ",
         )
         expected_r2 = find_existing_output(
             tmp_path,
-            [
-                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq.gz",
-                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fq.gz",
-                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fastq",
-                f"{stem_without_fastq_suffix(args.r2.name)}_{args.tag}.fq",
-            ],
+            tagged_fastq_candidates(args.r2.name, args.tag),
             "tagged R2 FASTQ",
         )
         expected_counts = tmp_path / f"Reads_Per_Barcode_{args.sample}_{args.tag}.tsv"
@@ -233,34 +155,12 @@ def real_tag(args):
             tmp_path / f"Barcode_Statistics_{args.sample}_{args.tag}_L3.tsv",
         ]
 
-        move_or_compress_fastq(expected_r1, args.output_r1)
-        move_or_compress_fastq(expected_r2, args.output_r2)
+        strict_move_fastq(expected_r1, args.output_r1)
+        strict_move_fastq(expected_r2, args.output_r2)
         shutil.move(expected_counts, args.output_counts)
         shutil.move(expected_tag_records, args.output_tag_records)
         for expected, output in zip(expected_stats, args.output_stats):
             shutil.move(expected, output)
-
-
-def find_existing_output(base_dir: Path, candidate_names, label: str) -> Path:
-    for candidate_name in candidate_names:
-        candidate = base_dir / candidate_name
-        if candidate.exists():
-            return candidate
-    joined = ", ".join(str(base_dir / name) for name in candidate_names)
-    raise FileNotFoundError(f"Expected {label} in one of: {joined}")
-
-
-def stem_without_fastq_suffix(name: str) -> str:
-    if name.endswith(".fastq.gz"):
-        return name[: -len(".fastq.gz")]
-    if name.endswith(".fq.gz"):
-        return name[: -len(".fq.gz")]
-    if name.endswith(".fastq"):
-        return name[: -len(".fastq")]
-    if name.endswith(".fq"):
-        return name[: -len(".fq")]
-    return Path(name).stem
-
 
 def parse_args():
     parser = argparse.ArgumentParser()

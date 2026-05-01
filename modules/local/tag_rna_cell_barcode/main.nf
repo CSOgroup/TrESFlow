@@ -14,23 +14,33 @@
  *   - per-barcode counts, tag records, and ligation stats
  */
 
+import RuntimeSupport
+
 process TAG_RNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
+
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_cell.*.tsv"
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_tag_records.tsv.gz"
 
     input:
     tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq.gz"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq.gz"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.cell.counts.tsv"), path("${sampleId}.tag_records.tsv"), path("${sampleId}.cell.stats_L1.tsv"), path("${sampleId}.cell.stats_L2.tsv"), path("${sampleId}.cell.stats_L3.tsv"), emit: metrics
+    path("${sampleId}.rna_cell.*.tsv"), emit: tres_cell_stats
+    path("${sampleId}.rna_tag_records.tsv.gz"), emit: tres_tag_records
     path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag_Lig3.codon" \\
@@ -42,13 +52,25 @@ process TAG_RNA_CELL_BARCODE {
       --tag "${meta.cell_tag}" \\
       --bc-len ${meta.cell_bc_len} \\
       --hd ${meta.cell_hd} \\
-      --output-r1 "${sampleId}.sample_barcode_umi_cell.R1.fastq.gz" \\
-      --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq.gz" \\
+      --output-r1 "${sampleId}.sample_barcode_umi_cell.R1.fastq" \\
+      --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq" \\
       --output-counts "${sampleId}.cell.counts.tsv" \\
       --output-tag-records "${sampleId}.tag_records.tsv" \\
       --output-stats "${sampleId}.cell.stats_L1.tsv" \\
       --output-stats "${sampleId}.cell.stats_L2.tsv" \\
       --output-stats "${sampleId}.cell.stats_L3.tsv"
+
+    cp "${sampleId}.cell.counts.tsv" "${sampleId}.rna_cell.counts.tsv"
+    cp "${sampleId}.cell.stats_L1.tsv" "${sampleId}.rna_cell.stats_L1.tsv"
+    cp "${sampleId}.cell.stats_L2.tsv" "${sampleId}.rna_cell.stats_L2.tsv"
+    cp "${sampleId}.cell.stats_L3.tsv" "${sampleId}.rna_cell.stats_L3.tsv"
+
+    if [[ ! -x "\$PIGZ_BIN" ]]; then
+      echo "Missing configured pigz executable for TrES_Stats tag record compression: \$PIGZ_BIN" >&2
+      exit 1
+    fi
+    cp "${sampleId}.tag_records.tsv" "${sampleId}.rna_tag_records.tsv"
+    "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

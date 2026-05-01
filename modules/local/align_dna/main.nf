@@ -6,7 +6,7 @@
  * Inputs:
  *   - one split DNA FASTQ pair from Split_ReadsV2 dna mode
  *   - matching SAM RG header TSV from Split_ReadsV2 dna mode
- *   - explicit bwa-mem2 index prefix
+ *   - bwa-mem2 index prefix inferred from references.dna_ref_dir
  *   - explicit blacklist BED path
  *   - explicit effective genome size
  * Outputs:
@@ -16,14 +16,16 @@
  *
  * Notes:
  *   - Real execution uses the repo-owned core runtime copy under scripts/core_runtime/.
- *   - AlignDNA.sh internally hardcodes threads and the good-barcode threshold.
+ *   - AlignDNA.sh reads exported thread settings and keeps the upstream good-barcode threshold.
  */
+
+import RuntimeSupport
 
 process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "*_ProperPairedMapped_reads_per_barcode.tsv"
 
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
@@ -37,12 +39,15 @@ process ALIGN_DNA {
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
     def alignThreads = task.cpus as int
-    def viewThreads = Math.min(alignThreads, 4)
-    def sortThreads = Math.min(alignThreads, 8)
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def viewThreads = alignThreads
+    def sortThreads = alignThreads
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
         cat > "${splitName}_ProperPairedMapped_reads_per_barcode.tsv" <<'EOF'
@@ -57,6 +62,8 @@ EOF
     }
     else {
         """
+        ${runtimeExports}
+
         for required_bin in "\$BWA_MEM2_BIN" "\$SAMTOOLS_BIN"; do
           if [[ ! -x "\${required_bin}" ]]; then
             echo "Missing configured DNA runtime executable: \${required_bin}" >&2

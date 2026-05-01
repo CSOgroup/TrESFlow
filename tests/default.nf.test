@@ -16,22 +16,203 @@ nextflow_pipeline {
             def sampleId = "test_rna"
             // versions.yml snapshot placeholder retained for nf-core lint compatibility.
 
-            def splitDir = new File(outputDir, "split")
-            def usamDir = new File(outputDir, "usam")
-            def alignDir = new File(outputDir, "align")
-            def qcDir = new File(outputDir, "qc")
+            def splitDir = new File(outputDir, "rna_split_fastqs")
+            def alignDir = new File(outputDir, "rna_align")
+            def statsDir = new File(outputDir, "TrES_Stats")
             def pipelineInfoDir = new File(outputDir, "pipeline_info")
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fq.gz").exists() },
-                { assert new File(splitDir, "${sampleId}_Co2_R2.fq.gz").exists() },
-                { assert new File(usamDir, "${sampleId}_Normal_tagged.usam").exists() },
+                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
-                { assert new File(qcDir, "rna_sample_stage_counts.tsv").exists() },
-                { assert new File(qcDir, "rna_group_stage_counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sample_barcode.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sample_barcode.stats.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_umi.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L1.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L2.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L3.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
+            )
+        }
+    }
+
+    test("missing runtime.env_prefix fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_env_prefix.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Missing required field: runtime.env_prefix") }
+            )
+        }
+    }
+
+    test("missing runtime.tmpdir fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_tmpdir.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Missing required field: runtime.tmpdir") }
+            )
+        }
+    }
+
+    test("missing references.root fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_references_root.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Missing required field: references.root") }
+            )
+        }
+    }
+
+    test("deprecated runtime_env_prefix param fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/assets/samplesheet.example.yaml"
+                outdir = "$outputDir"
+                runtime_env_prefix = "/tmp/legacy-env"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Deprecated parameter --runtime_env_prefix is no longer supported") }
+            )
+        }
+    }
+
+    test("missing ligation whitelist does not fall back to test assets") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_ligation_whitelist.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Required ligation barcode whitelist not found") },
+                { assert workflow.stderr.contains("references.ligation_barcode_whitelist") }
+            )
+        }
+    }
+
+    test("missing bwa-mem2 sidecar fails before DNA execution") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_bwa_sidecar.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("No complete bwa-mem2 sidecar set found in references.dna_ref_dir") },
+                { assert workflow.stderr.contains("hg38.fa.bwt.2bit.64") }
+            )
+        }
+    }
+
+    test("missing rna_ref_dir fails when RNA is present") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_rna_ref_dir.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("Missing required field: references.rna_ref_dir") }
+            )
+        }
+    }
+
+    test("missing STAR index file fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/missing_star_index_file.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("RNA STAR index file missing for references.rna_ref_dir") },
+                { assert workflow.stderr.contains("SAindex") }
+            )
+        }
+    }
+
+    test("dual tagmentation without dna_sb_barcodes fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_missing_dna_sb.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes") }
+            )
+        }
+    }
+
+    test("dual tagmentation duplicate DNA sample barcode fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_duplicate_dna_sb.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stderr.contains("DNA sample barcode collision") },
+                { assert workflow.stderr.contains("AAA") }
             )
         }
     }

@@ -22,9 +22,13 @@
  *   - The launcher's temporary DUP.bam sideproduct is created inside the task work dir and removed before publish.
  */
 
+import RuntimeSupport
+
 process SPLIT_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
+
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "${splitName}_NoDup.bam*"
 
     input:
     tuple val(splitName), val(meta), path(markedDupBam)
@@ -36,9 +40,12 @@ process SPLIT_DUPLICATES_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock nodup bam for %s\n' "${splitName}" > "${splitName}_NoDup.bam"
         printf 'mock nodup bai for %s\n' "${splitName}" > "${splitName}_NoDup.bam.bai"
 
@@ -50,6 +57,8 @@ process SPLIT_DUPLICATES_DNA {
     }
     else {
         """
+        ${runtimeExports}
+
         if [[ ! -x "\$SAMTOOLS_BIN" ]]; then
           echo "Missing configured DNA runtime executable: \$SAMTOOLS_BIN" >&2
           exit 1

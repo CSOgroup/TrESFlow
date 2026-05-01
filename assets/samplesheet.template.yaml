@@ -2,23 +2,31 @@
 # Keep one biological sample entry per sample under `samples:`.
 # Omit the `rna:` or `dna:` block if that modality is not present.
 
-library_name: YOUR_LIBRARY_NAME
+library_name: Isa
 
-resources:
-  ligation_barcode_whitelist: /path/to/ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /path/to/reference_base_dir
-  rna_align_species: human
-  dna_bwa_reference: /path/to/bwa_index_prefix
-  dna_blacklist_bed: /path/to/blacklist.bed
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
+
+references:
+  species: human
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
+  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
   dna_effective_genome_size: 2913022398
 
 samples:
   sample_id:
     groups:
       group_a:
-        sb_barcodes: [AAAA, CCCC]
+        rna_sb_barcodes: [AAAA, CCCC]
+        dna_sb_barcodes: [AAA, CCC]
       group_b:
-        sb_barcodes: [GGGG, TTTT]
+        rna_sb_barcodes: [GGGG, TTTT]
+        dna_sb_barcodes: [GGG, TTT]
 
     rna:
       reads:
@@ -27,6 +35,9 @@ samples:
         r2: /path/to/sample_R2.fq.gz
 
     dna:
+      # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
+      # 3 nt DNA sample barcodes that differ from RNA barcodes.
+      tagmentation: dual
       reads:
         i1: /path/to/sample_DNA_I1.fq.gz
         i2: /path/to/sample_DNA_I2.fq.gz

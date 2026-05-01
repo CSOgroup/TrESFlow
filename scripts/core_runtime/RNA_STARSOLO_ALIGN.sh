@@ -1,29 +1,23 @@
 #!/bin/bash
 # Usage:
-#   ./RNA_STARSOLO_ALIGN.sh SAMPLE_NAME TAGGED.usam REF_BASE_DIR OUTDIR THREADS SPECIES
-# SPECIES: human | mouse
+#   ./RNA_STARSOLO_ALIGN.sh SAMPLE_NAME TAGGED.usam STAR_INDEX_DIR OUTDIR THREADS
 
 set -euo pipefail
 
-if [[ $# -lt 6 ]]; then
-    echo "Usage: $0 SAMPLE_NAME TAGGED.usam REF_BASE_DIR OUTDIR THREADS SPECIES(human|mouse)" >&2
+if [[ $# -lt 5 ]]; then
+    echo "Usage: $0 SAMPLE_NAME TAGGED.usam STAR_INDEX_DIR OUTDIR THREADS" >&2
     exit 1
 fi
 
 sample_name="${1}"
 USAM_IN="${2}"
-path_ref="${3}"
+path_refDB="${3}"
 outdir="${4}"
 threads="${5}"
-species="${6}"
 STAR_BIN="${STAR_BIN:-STAR}"
 
-path_refDB="${path_ref}/GRCh38_TrES/star"
-
-if [[ "${species}" == "mouse" ]]; then
-    path_refDB="${path_ref}/GRCm39_TrES/star"
-elif [[ "${species}" != "human" ]]; then
-    echo "ERROR: SPECIES must be 'human' or 'mouse' (got: ${species})" >&2
+if [[ ! -d "${path_refDB}" ]]; then
+    echo "ERROR: STAR index directory missing: ${path_refDB}" >&2
     exit 1
 fi
 
@@ -60,7 +54,7 @@ fi
 
 UMIstart=$(( CBlen + 1 ))
 
-echo "Using species=${species}"
+echo "Using STAR index directory=${path_refDB}"
 echo "Detected CBlen=${CBlen} => UMIstart=${UMIstart} UMIlen=${UMIlen}"
 echo "Using STAR_BIN=${STAR_BIN}"
 

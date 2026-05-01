@@ -21,6 +21,8 @@
  *     as transient inputs to the split stage.
  */
 
+import RuntimeSupport
+
 process TRIM_RNA_FASTQS {
     tag "${sampleId}"
     label 'codon_wrapper'
@@ -34,8 +36,11 @@ process TRIM_RNA_FASTQS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_trim_galore.py" \\
       --mode "${mode}" \\
       --r1 "${taggedR1}" \\

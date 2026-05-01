@@ -2,7 +2,20 @@ import groovy.yaml.YamlSlurper
 
 class SamplesheetParser {
 
+    private static final String MODALITY_RNA = 'rna'
+    private static final String MODALITY_DNA = 'dna'
+    private static final String TAGMENTATION_SINGLE = 'single'
+    private static final String TAGMENTATION_DUAL = 'dual'
+    private static final List<String> DNA_TAGMENTATION_MODES = [TAGMENTATION_SINGLE, TAGMENTATION_DUAL]
+    private static final int RNA_SB_BARCODE_LENGTH = 4
+    private static final int DNA_SINGLE_SB_BARCODE_LENGTH = 4
+    private static final int DNA_DUAL_SB_BARCODE_LENGTH = 3
+
     static List<Map> parse(final String samplesheetPath, final Map options = [:]) {
+        return parseContract(samplesheetPath, options).samples as List<Map>
+    }
+
+    static Map parseContract(final String samplesheetPath, final Map options = [:]) {
         if( !samplesheetPath ) {
             throw new IllegalArgumentException("Missing required parameter: --samplesheet")
         }
@@ -16,11 +29,6 @@ class SamplesheetParser {
         if( !(parsed instanceof Map) ) {
             throw new IllegalArgumentException("Samplesheet must be a top-level YAML mapping: ${samplesheetPath}")
         }
-        if( !(parsed.resources instanceof Map) || ((Map) parsed.resources).isEmpty() ) {
-            throw new IllegalArgumentException(
-                "Samplesheet must contain a non-empty top-level 'resources:' mapping: ${samplesheetPath}"
-            )
-        }
         if( !(parsed.samples instanceof Map) || ((Map) parsed.samples).isEmpty() ) {
             throw new IllegalArgumentException(
                 "Samplesheet must contain a non-empty top-level 'samples:' mapping: ${samplesheetPath}"
@@ -29,9 +37,24 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
-        final Map sharedResources = resolveSharedResources(parsed, baseDir, options)
+        final Map runtime = resolveRuntime(parsed, baseDir)
+        final Map references = resolveReferences(parsed, baseDir)
+        final List<Map> samples = parseUnified(parsed, baseDir, libraryName, options, references)
+        samples.each { row ->
+            row.runtime_env_prefix = runtime['env_prefix']
+            row.runtime_tmpdir = runtime['tmpdir']
+        }
 
-        return parseUnified(parsed, baseDir, libraryName, options, sharedResources)
+        return [
+            library_name: libraryName,
+            runtime     : runtime,
+            references  : references,
+            modalities  : [
+                rna: samples.any { row -> row.modality == MODALITY_RNA },
+                dna: samples.any { row -> row.modality == MODALITY_DNA },
+            ],
+            samples     : samples,
+        ]
     }
 
     private static List<Map> parseUnified(
@@ -39,13 +62,13 @@ class SamplesheetParser {
         final File baseDir,
         final String libraryName,
         final Map options,
-        final Map sharedResources
+        final Map references
     ) {
         // Internally the workflow still runs one modality row at a time. The
         // public contract stays hierarchical; the parser is where that view is
         // flattened into RNA and DNA work rows plus derived helper files.
         final Map defaults = normalizedDefaults(options)
-        final String ligationWhitelist = sharedResources.ligation_barcode_whitelist
+        final String ligationWhitelist = references.ligation_barcode_whitelist
         final File derivedDir = prepareDerivedDir(options)
 
         final List<Map> samples = []
@@ -58,39 +81,51 @@ class SamplesheetParser {
                 throw new IllegalArgumentException("samples.${sampleId}.groups must not be empty")
             }
 
-            final LinkedHashMap<String, List<String>> normalizedGroups = parseGroups(groupsConfig, sampleId)
-
             final Map rnaConfig = sampleConfig.rna ? asMap(sampleConfig.rna, "samples.${sampleId}.rna") : null
             final Map dnaConfig = sampleConfig.dna ? asMap(sampleConfig.dna, "samples.${sampleId}.dna") : null
-            if( !rnaConfig && !dnaConfig ) {
+            final boolean hasRna = rnaConfig != null
+            final boolean hasDna = dnaConfig != null
+
+            if( !hasRna && !hasDna ) {
                 throw new IllegalArgumentException(
                     "samples.${sampleId} must define at least one modality block: rna or dna"
                 )
             }
+            final String dnaTagmentation = hasDna ? parseDnaTagmentation(dnaConfig, sampleId) : null
+            final Map normalizedGroups = parseGroups(
+                groupsConfig,
+                sampleId,
+                hasRna,
+                hasDna,
+                dnaTagmentation
+            )
 
-            if( rnaConfig ) {
+            if( hasRna ) {
                 samples << buildRnaRow(
                     sampleId,
                     libraryName,
                     baseDir,
-                    normalizedGroups,
+                    normalizedGroups.rna as LinkedHashMap<String, List<String>>,
+                    normalizedGroups.rna_source_summary as String,
                     rnaConfig,
                     defaults,
                     ligationWhitelist,
-                    sharedResources
+                    references
                 )
             }
 
-            if( dnaConfig ) {
+            if( hasDna ) {
                 samples << buildDnaRow(
                     sampleId,
                     libraryName,
                     baseDir,
-                    normalizedGroups,
+                    normalizedGroups.dna as LinkedHashMap<String, List<String>>,
+                    normalizedGroups.dna_source_summary as String,
+                    dnaTagmentation,
                     dnaConfig,
                     defaults,
                     ligationWhitelist,
-                    sharedResources
+                    references
                 )
             }
         }
@@ -103,18 +138,19 @@ class SamplesheetParser {
         final String libraryName,
         final File baseDir,
         final LinkedHashMap<String, List<String>> normalizedGroups,
+        final String sbSourceSummary,
         final Map rnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map sharedResources
+        final Map references
     ) {
-        final Map reads = asMap(rnaConfig.reads, "samples.${sampleId}.rna.reads")
+        final Map reads = resolveReads(baseDir, rnaConfig, sampleId, MODALITY_RNA, ['i1', 'r1', 'r2'])
         return [
             id                        : sampleId,
-            modality                  : 'rna',
-            i1                        : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.rna.reads.i1")),
-            r1                        : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.rna.reads.r1")),
-            r2                        : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.rna.reads.r2")),
+            modality                  : MODALITY_RNA,
+            i1                        : reads.i1,
+            r1                        : reads.r1,
+            r2                        : reads.r2,
             sample_bc_len             : defaults.rna.sample.bc_len as int,
             sample_bc_start           : defaults.rna.sample.bc_start as int,
             sample_hd                 : defaults.rna.sample.hd as int,
@@ -128,10 +164,13 @@ class SamplesheetParser {
             cell_bc_len               : defaults.rna.cell.bc_len as int,
             cell_hd                   : defaults.rna.cell.hd as int,
             cell_tag                  : defaults.rna.cell.tag.toString(),
-            rna_ref_base_dir          : sharedResources.rna_ref_base_dir,
-            rna_align_species         : sharedResources.rna_align_species,
+            reference_species         : references.species,
+            rna_star_index_dir        : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
+            rna_chrom_sizes           : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
             library_name              : libraryName,
             group_definitions         : normalizedGroups,
+            rna_sb_barcode_source     : sbSourceSummary,
+            rna_sb_barcode_len        : RNA_SB_BARCODE_LENGTH,
         ]
     }
 
@@ -140,59 +179,74 @@ class SamplesheetParser {
         final String libraryName,
         final File baseDir,
         final LinkedHashMap<String, List<String>> normalizedGroups,
+        final String sbSourceSummary,
+        final String tagmentation,
         final Map dnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map sharedResources
+        final Map references
     ) {
-        final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
+        final Map reads = resolveReads(baseDir, dnaConfig, sampleId, MODALITY_DNA, ['i1', 'i2', 'r1', 'r2'])
         final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
             dnaConfig.mark_barcodes,
             sampleId
         )
+        final Map dnaTagDefaults = dnaTagDefaultsForTagmentation(defaults, tagmentation)
 
         return [
             id                          : sampleId,
-            modality                    : 'dna',
-            i1                          : resolveExistingPath(baseDir, requireString(reads.i1, "samples.${sampleId}.dna.reads.i1")),
-            i2                          : resolveExistingPath(baseDir, requireString(reads.i2, "samples.${sampleId}.dna.reads.i2")),
-            r1                          : resolveExistingPath(baseDir, requireString(reads.r1, "samples.${sampleId}.dna.reads.r1")),
-            r2                          : resolveExistingPath(baseDir, requireString(reads.r2, "samples.${sampleId}.dna.reads.r2")),
-            sample_bc_len               : defaults.dna.sample.bc_len as int,
-            sample_bc_start             : defaults.dna.sample.bc_start as int,
-            sample_hd                   : defaults.dna.sample.hd as int,
+            modality                    : MODALITY_DNA,
+            dna_tagmentation            : tagmentation,
+            i1                          : reads.i1,
+            i2                          : reads.i2,
+            r1                          : reads.r1,
+            r2                          : reads.r2,
+            sample_bc_len               : dnaTagDefaults.sample.bc_len as int,
+            sample_bc_start             : dnaTagDefaults.sample.bc_start as int,
+            sample_hd                   : dnaTagDefaults.sample.hd as int,
             sample_tag                  : defaults.dna.sample.tag.toString(),
             sample_first_pass           : defaults.dna.sample.first_pass.toString(),
-            sample_reverse_complement   : toDirection(defaults.dna.sample.reverse_complement, 'barcode_defaults.dna.sample.reverse_complement'),
-            modality_bc_len             : defaults.dna.modality.bc_len as int,
-            modality_bc_start           : defaults.dna.modality.bc_start as int,
-            modality_hd                 : defaults.dna.modality.hd as int,
+            sample_reverse_complement   : dnaTagDefaults.sample.reverse_complement.toString(),
+            modality_bc_len             : dnaTagDefaults.modality.bc_len as int,
+            modality_bc_start           : dnaTagDefaults.modality.bc_start as int,
+            modality_hd                 : dnaTagDefaults.modality.hd as int,
             modality_tag                : defaults.dna.modality.tag.toString(),
             modality_first_pass         : defaults.dna.modality.first_pass.toString(),
-            modality_reverse_complement : toDirection(defaults.dna.modality.reverse_complement, 'barcode_defaults.dna.modality.reverse_complement'),
+            modality_reverse_complement : dnaTagDefaults.modality.reverse_complement.toString(),
+            dna_sample_index_read       : dnaTagDefaults.sample.index_read.toString(),
+            dna_modality_index_read     : dnaTagDefaults.modality.index_read.toString(),
             cell_whitelist              : ligationWhitelist,
             cell_bc_len                 : defaults.dna.cell.bc_len as int,
             cell_hd                     : defaults.dna.cell.hd as int,
             cell_tag                    : defaults.dna.cell.tag.toString(),
-            dna_bwa_reference           : sharedResources.dna_bwa_reference,
-            dna_blacklist_bed           : sharedResources.dna_blacklist_bed,
-            dna_effective_genome_size   : sharedResources.dna_effective_genome_size,
+            reference_species           : references.species,
+            dna_ref_dir                 : references.dna_ref_dir,
+            dna_bwa_reference           : references.dna_bwa_reference ?: '',
+            dna_blacklist_bed           : references.dna_blacklist_bed,
+            dna_chrom_sizes             : references.dna_chrom_sizes,
+            dna_effective_genome_size   : references.dna_effective_genome_size,
             library_name                : libraryName,
             group_definitions           : normalizedGroups,
+            dna_sb_barcode_source       : sbSourceSummary,
+            dna_sb_barcode_len          : dnaSbBarcodeLength(tagmentation),
             mark_barcodes               : markBarcodes,
         ]
     }
 
     private static List<Map> attachDerivedArtifacts(final File derivedDir, final List<Map> samples) {
-        final File sbGroupMapFile = writeSbGroupMap(derivedDir, samples)
-        final List<Map> dnaRows = samples.findAll { it.modality == 'dna' }
+        final List<Map> rnaRows = samples.findAll { it.modality == MODALITY_RNA }
+        final List<Map> dnaRows = samples.findAll { it.modality == MODALITY_DNA }
+        final File rnaSbGroupMapFile = rnaRows ? writeSbGroupMap(derivedDir, rnaRows, MODALITY_RNA) : null
+        final File dnaSbGroupMapFile = dnaRows ? writeSbGroupMap(derivedDir, dnaRows, MODALITY_DNA) : null
         final File dnaMoMapFile = dnaRows ? writeDnaMoMap(derivedDir, dnaRows) : null
         final Map<String, String> dnaWhitelistPaths = dnaRows ? writeDnaModalityWhitelists(derivedDir, dnaRows) : [:]
 
         samples.each { row ->
-            row.sb_group_map = sbGroupMapFile.canonicalPath
+            row.sb_group_map = row.modality == MODALITY_RNA
+                ? rnaSbGroupMapFile.canonicalPath
+                : dnaSbGroupMapFile.canonicalPath
             row.remove('group_definitions')
-            if( row.modality == 'dna' ) {
+            if( row.modality == MODALITY_DNA ) {
                 row.mo_map = dnaMoMapFile.canonicalPath
                 row.modality_whitelist = dnaWhitelistPaths[row.id]
                 row.remove('mark_barcodes')
@@ -202,30 +256,58 @@ class SamplesheetParser {
         return samples
     }
 
-    private static LinkedHashMap<String, List<String>> parseGroups(final Map groupsConfig, final String sampleId) {
-        final LinkedHashMap<String, List<String>> normalized = new LinkedHashMap<>()
-        final Set<String> seenBarcodes = new LinkedHashSet<>()
+    private static Map parseGroups(
+        final Map groupsConfig,
+        final String sampleId,
+        final boolean hasRna,
+        final boolean hasDna,
+        final String dnaTagmentation
+    ) {
+        final LinkedHashMap<String, List<String>> rnaGroups = new LinkedHashMap<>()
+        final LinkedHashMap<String, List<String>> dnaGroups = new LinkedHashMap<>()
+        final LinkedHashMap<String, String> rnaSources = new LinkedHashMap<>()
+        final LinkedHashMap<String, String> dnaSources = new LinkedHashMap<>()
 
         groupsConfig.each { rawGroupName, rawGroupConfig ->
             final String groupName = requireString(rawGroupName, "samples.${sampleId}.groups.<group>")
             final Map groupConfig = asMap(rawGroupConfig, "samples.${sampleId}.groups.${groupName}")
-            final List<String> barcodes = requireBarcodeList(
-                groupConfig.sb_barcodes,
-                "samples.${sampleId}.groups.${groupName}.sb_barcodes"
-            )
 
-            barcodes.each { barcode ->
-                if( !seenBarcodes.add(barcode) ) {
-                    throw new IllegalArgumentException(
-                        "Duplicate sample barcode '${barcode}' across groups for sample '${sampleId}'"
-                    )
-                }
+            if( hasRna ) {
+                final Map rnaSelection = selectRnaSbBarcodes(groupConfig, sampleId, groupName)
+                addGroupBarcodes(rnaGroups, rnaSources, groupName, rnaSelection, RNA_SB_BARCODE_LENGTH)
             }
 
-            normalized[groupName] = barcodes
+            if( hasDna ) {
+                final Map dnaSelection = selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+                addGroupBarcodes(dnaGroups, dnaSources, groupName, dnaSelection, dnaSbBarcodeLength(dnaTagmentation))
+            }
         }
 
-        return normalized
+        if( hasRna ) {
+            validateNoGroupBarcodeCollisions(sampleId, 'RNA', rnaGroups)
+        }
+        if( hasDna ) {
+            validateNoGroupBarcodeCollisions(sampleId, 'DNA', dnaGroups)
+        }
+
+        return [
+            rna               : rnaGroups,
+            dna               : dnaGroups,
+            rna_source_summary: summarizeSources(rnaSources.values()),
+            dna_source_summary: summarizeSources(dnaSources.values()),
+        ]
+    }
+
+    private static void addGroupBarcodes(
+        final LinkedHashMap<String, List<String>> groups,
+        final LinkedHashMap<String, String> sources,
+        final String groupName,
+        final Map selection,
+        final int expectedLength
+    ) {
+        final String fieldName = selection.fieldName as String
+        groups[groupName] = requireBarcodeList(selection.value, fieldName, expectedLength)
+        sources[groupName] = fieldName
     }
 
     private static LinkedHashMap<String, String> parseMarkBarcodes(final Object value, final String sampleId) {
@@ -253,7 +335,68 @@ class SamplesheetParser {
         return normalized
     }
 
-    private static List<String> requireBarcodeList(final Object value, final String fieldName) {
+    private static Map selectRnaSbBarcodes(final Map groupConfig, final String sampleId, final String groupName) {
+        final String explicitField = "samples.${sampleId}.groups.${groupName}.rna_sb_barcodes"
+        if( groupConfig.containsKey('rna_sb_barcodes') ) {
+            return [value: groupConfig.rna_sb_barcodes, fieldName: explicitField]
+        }
+
+        return [
+            value    : groupConfig.sb_barcodes,
+            fieldName: "samples.${sampleId}.groups.${groupName}.sb_barcodes",
+        ]
+    }
+
+    private static Map selectDnaSbBarcodes(
+        final Map groupConfig,
+        final String sampleId,
+        final String groupName,
+        final String dnaTagmentation
+    ) {
+        final String explicitField = "samples.${sampleId}.groups.${groupName}.dna_sb_barcodes"
+        if( groupConfig.containsKey('dna_sb_barcodes') ) {
+            return [value: groupConfig.dna_sb_barcodes, fieldName: explicitField]
+        }
+
+        if( dnaTagmentation == TAGMENTATION_DUAL ) {
+            throw new IllegalArgumentException(
+                "Missing required field: ${explicitField}. DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes; " +
+                "the pipeline will not derive them from RNA/sample sb_barcodes."
+            )
+        }
+
+        return [
+            value    : groupConfig.sb_barcodes,
+            fieldName: "samples.${sampleId}.groups.${groupName}.sb_barcodes",
+        ]
+    }
+
+    private static void validateNoGroupBarcodeCollisions(
+        final String sampleId,
+        final String modality,
+        final LinkedHashMap<String, List<String>> groups
+    ) {
+        final Map<String, String> barcodeToGroup = [:]
+        groups.each { groupName, barcodes ->
+            barcodes.each { barcode ->
+                if( barcodeToGroup.containsKey(barcode) && barcodeToGroup[barcode] != groupName ) {
+                    throw new IllegalArgumentException(
+                        "${modality} sample barcode collision for sample '${sampleId}': barcode '${barcode}' " +
+                        "maps to both group '${barcodeToGroup[barcode]}' and group '${groupName}'"
+                    )
+                }
+                barcodeToGroup[barcode] = groupName
+            }
+        }
+    }
+
+    private static String summarizeSources(final Collection<String> sources) {
+        return sources.findAll { it }.collect { source ->
+            source.tokenize('.').last()
+        }.unique().sort().join(',')
+    }
+
+    private static List<String> requireBarcodeList(final Object value, final String fieldName, final int expectedLength) {
         if( !(value instanceof List) || value.isEmpty() ) {
             throw new IllegalArgumentException("${fieldName} must be a non-empty list")
         }
@@ -264,6 +407,14 @@ class SamplesheetParser {
 
         if( normalized.toSet().size() != normalized.size() ) {
             throw new IllegalArgumentException("${fieldName} contains duplicate barcodes")
+        }
+
+        normalized.each { barcode ->
+            if( barcode.size() != expectedLength ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} contains barcode '${barcode}' with length ${barcode.size()}; expected ${expectedLength} nt"
+                )
+            }
         }
 
         return normalized
@@ -289,8 +440,8 @@ class SamplesheetParser {
         file.delete()
     }
 
-    private static File writeSbGroupMap(final File derivedDir, final List<Map> samples) {
-        final File file = new File(derivedDir, 'sb_group_map.tsv')
+    private static File writeSbGroupMap(final File derivedDir, final List<Map> samples, final String modality) {
+        final File file = new File(derivedDir, "${modality}_sb_group_map.tsv")
         final List<String> lines = ['sample\tsb_group\tsb_bc']
 
         samples.collect { it.id }.unique().each { sampleId ->
@@ -304,6 +455,58 @@ class SamplesheetParser {
 
         file.text = lines.join('\n') + '\n'
         return file
+    }
+
+    private static String parseDnaTagmentation(final Map dnaConfig, final String sampleId) {
+        final String mode = (dnaConfig.tagmentation ?: TAGMENTATION_SINGLE).toString().trim().toLowerCase()
+        if( !(mode in DNA_TAGMENTATION_MODES) ) {
+            throw new IllegalArgumentException(
+                "samples.${sampleId}.dna.tagmentation must be one of: single, dual"
+            )
+        }
+        return mode
+    }
+
+    private static int dnaSbBarcodeLength(final String tagmentation) {
+        return tagmentation == TAGMENTATION_DUAL ? DNA_DUAL_SB_BARCODE_LENGTH : DNA_SINGLE_SB_BARCODE_LENGTH
+    }
+
+    private static Map dnaTagDefaultsForTagmentation(final Map defaults, final String tagmentation) {
+        if( tagmentation == TAGMENTATION_SINGLE ) {
+            return [
+                sample  : [
+                    bc_len            : defaults.dna.sample.bc_len as int,
+                    bc_start          : defaults.dna.sample.bc_start as int,
+                    hd                : defaults.dna.sample.hd as int,
+                    reverse_complement: toDirection(defaults.dna.sample.reverse_complement, 'barcode_defaults.dna.sample.reverse_complement'),
+                    index_read        : 'i2',
+                ],
+                modality: [
+                    bc_len            : defaults.dna.modality.bc_len as int,
+                    bc_start          : defaults.dna.modality.bc_start as int,
+                    hd                : defaults.dna.modality.hd as int,
+                    reverse_complement: toDirection(defaults.dna.modality.reverse_complement, 'barcode_defaults.dna.modality.reverse_complement'),
+                    index_read        : 'i2',
+                ],
+            ]
+        }
+
+        return [
+            sample  : [
+                bc_len            : 3,
+                bc_start          : 0,
+                hd                : 0,
+                reverse_complement: 'fw',
+                index_read        : 'i1',
+            ],
+            modality: [
+                bc_len            : 8,
+                bc_start          : 3,
+                hd                : 1,
+                reverse_complement: 'fw',
+                index_read        : 'i1',
+            ],
+        ]
     }
 
     private static File writeDnaMoMap(final File derivedDir, final List<Map> dnaRows) {
@@ -351,51 +554,58 @@ class SamplesheetParser {
         ]
     }
 
-    private static Map resolveSharedResources(final Map parsed, final File baseDir, final Map options) {
-        final Map resources = asMap(parsed.resources, 'resources')
+    private static Map resolveReads(
+        final File baseDir,
+        final Map modalityConfig,
+        final String sampleId,
+        final String modality,
+        final List<String> readNames
+    ) {
+        final Map reads = asMap(modalityConfig.reads, "samples.${sampleId}.${modality}.reads")
+        return readNames.collectEntries { readName ->
+            final String fieldName = "samples.${sampleId}.${modality}.reads.${readName}"
+            [(readName): resolveExistingPath(baseDir, requireString(reads[readName], fieldName))]
+        }
+    }
 
+    private static Map resolveRuntime(final Map parsed, final File baseDir) {
+        final Map runtime = asMap(parsed.runtime, 'runtime')
         return [
-            ligation_barcode_whitelist: resolveExistingPath(
+            env_prefix: resolvePath(
                 baseDir,
-                requireString(
-                    firstDefined(resources.ligation_barcode_whitelist, options.ligation_barcode_whitelist),
-                    'resources.ligation_barcode_whitelist or --ligation_barcode_whitelist'
-                )
+                requireString(runtime.env_prefix, 'runtime.env_prefix')
             ),
-            rna_ref_base_dir: resolveOptionalPath(
+            tmpdir: resolvePath(
                 baseDir,
-                firstDefined(resources.rna_ref_base_dir, options.rna_ref_base_dir)
+                requireString(runtime.tmpdir, 'runtime.tmpdir')
             ),
-            rna_align_species: firstDefined(
-                resources.rna_align_species,
-                options.rna_align_species
-            )?.toString()?.trim()?.toLowerCase(),
-            dna_bwa_reference: resolveOptionalPath(
-                baseDir,
-                firstDefined(resources.dna_bwa_reference, options.dna_bwa_reference)
-            ),
-            dna_blacklist_bed: resolveOptionalPath(
-                baseDir,
-                firstDefined(resources.dna_blacklist_bed, options.dna_blacklist_bed)
-            ),
-            dna_effective_genome_size: firstDefined(
-                resources.dna_effective_genome_size,
-                options.dna_effective_genome_size
-            )?.toString()?.trim()
         ]
     }
 
-    private static Object firstDefined(final Object... values) {
-        for( final Object value : values ) {
-            if( value == null ) {
-                continue
-            }
-            if( value instanceof CharSequence && !value.toString().trim() ) {
-                continue
-            }
-            return value
-        }
-        return null
+    private static Map resolveReferences(final Map parsed, final File baseDir) {
+        final Map references = asMap(parsed.references, 'references')
+        final String root = resolvePath(
+            baseDir,
+            requireString(references.root, 'references.root')
+        )
+        final File rootDir = new File(root)
+        final String rnaRefDir = resolveOptionalPath(baseDir, references.rna_ref_dir)
+
+        return [
+            species                    : requireString(references.species, 'references.species').toLowerCase(),
+            root                       : rootDir.canonicalPath,
+            ligation_barcode_whitelist : resolvePath(
+                baseDir,
+                requireString(references.ligation_barcode_whitelist, 'references.ligation_barcode_whitelist')
+            ),
+            rna_ref_dir                : rnaRefDir,
+            rna_chrom_sizes            : rnaRefDir ? new File(rnaRefDir, 'chrNameLength.txt').canonicalPath : null,
+            dna_ref_dir                : resolveOptionalPath(baseDir, references.dna_ref_dir),
+            dna_bwa_reference          : null,
+            dna_blacklist_bed          : resolveOptionalPath(baseDir, references.dna_blacklist_bed),
+            dna_chrom_sizes            : resolveOptionalPath(baseDir, references.dna_chrom_sizes),
+            dna_effective_genome_size  : references.dna_effective_genome_size?.toString()?.trim(),
+        ]
     }
 
     private static Map asMap(final Object value, final String fieldName) {
@@ -436,6 +646,11 @@ class SamplesheetParser {
         if( !resolved.exists() ) {
             throw new IllegalArgumentException("Referenced file not found: ${resolved}")
         }
+        return resolved.canonicalPath
+    }
+
+    private static String resolvePath(final File baseDir, final String rawPath) {
+        final File resolved = new File(rawPath).isAbsolute() ? new File(rawPath) : new File(baseDir, rawPath)
         return resolved.canonicalPath
     }
 

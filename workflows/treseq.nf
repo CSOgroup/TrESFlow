@@ -51,13 +51,7 @@ def toDnaCoreInput(final Map row) {
 def samplesheetParseOptions() {
     return [
         outdir                    : params.outdir ?: "${projectDir}/results",
-        ligation_barcode_whitelist: params.ligation_barcode_whitelist ?: "${projectDir}/assets/test_realdata/ligation_barcode_whitelist.txt",
         barcode_defaults          : params.barcode_defaults,
-        rna_ref_base_dir          : params.rna_ref_base_dir,
-        rna_align_species         : params.rna_align_species,
-        dna_bwa_reference         : params.dna_bwa_reference,
-        dna_blacklist_bed         : params.dna_blacklist_bed,
-        dna_effective_genome_size : params.dna_effective_genome_size,
     ]
 }
 
@@ -65,36 +59,14 @@ def validateCoreResourceContract(final List<Map> rnaRows, final List<Map> dnaRow
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
     }
-
-    if( rnaRows ) {
-        WorkflowSupport.validateRnaAlignment(
-            rnaRows[0].rna_ref_base_dir as String,
-            rnaRows[0].rna_align_species as String
-        )
-    }
-
-    if( dnaRows ) {
-        try {
-            WorkflowSupport.validateDnaAlignment(
-                dnaRows[0].dna_bwa_reference as String,
-                dnaRows[0].dna_blacklist_bed as String,
-                dnaRows[0].dna_effective_genome_size as String
-            )
-        }
-        catch( IllegalArgumentException e ) {
-            error e.message
-        }
-    }
 }
 
 workflow TRESEQ {
-    main:
-    if( !params.samplesheet ) {
-        error "Missing required parameter: --samplesheet"
-    }
+    take:
+    sampleRows
 
+    main:
     // Parse the single supported YAML contract into modality-specific work rows.
-    final List<Map> sampleRows = SamplesheetParser.parse(params.samplesheet as String, samplesheetParseOptions())
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     final int maxCpus = params.max_cpus as int
@@ -139,5 +111,6 @@ workflow TRESEQ {
     dna_nodup_bams              = DNA_CORE.out.nodup_bams
     dna_nodup_bais              = DNA_CORE.out.nodup_bais
     dna_coverage_bigwigs        = DNA_CORE.out.coverage_bigwigs
+    dna_coverage_warnings       = DNA_CORE.out.coverage_warnings
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
 }

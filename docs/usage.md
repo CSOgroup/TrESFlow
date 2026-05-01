@@ -15,42 +15,51 @@ The pipeline runs two independent modality branches from that YAML:
 Smoke test with the bundled example YAML:
 
 ```bash
-cd /mnt/pdata/nikita/TrESFlow
-nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
+cd /mnt/dataFast/ahrmad/tresflowdir/TrESFlow
+NXF_OFFLINE=true nextflow run . -profile test --samplesheet assets/samplesheet.example.yaml --outdir results/test
 ```
 
 Canonical real-data style run:
 
 ```bash
-nextflow run . \
-  --samplesheet assets/samplesheet.real.example.yaml \
-  --outdir results/test_real
+NXF_OFFLINE=true nextflow run . \
+  --samplesheet /mnt/dataFast/ahrmad/TEST_NF/isa_multiome.yaml \
+  --outdir /mnt/dataFast/ahrmad/TEST_NF/TrESFlow_Isa \
+  --max_cpus 32
 ```
 
-The pipeline expects the runtime toolchain under `--runtime_env_prefix` and validates it before starting the workflow.
+The pipeline reads runtime and reference locations from the samplesheet. Runtime and reference CLI overrides are rejected.
 
 ## Samplesheet Contract
 
 The supported YAML structure is:
 
 ```yaml
-library_name: MY_LIBRARY
+library_name: Isa
 
-resources:
-  ligation_barcode_whitelist: /path/to/ligation_barcode_whitelist.txt
-  rna_ref_base_dir: /path/to/reference_base_dir
-  rna_align_species: human
-  dna_bwa_reference: /path/to/bwa_index_prefix
-  dna_blacklist_bed: /path/to/blacklist.bed
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
+
+references:
+  species: human
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
+  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
   dna_effective_genome_size: 2913022398
 
 samples:
   day15:
     groups:
       Normal:
-        sb_barcodes: [CAGT, ACGT]
+        rna_sb_barcodes: [CAGT, ACGT]
+        dna_sb_barcodes: [CAG, ACG]
       Co2:
-        sb_barcodes: [GTCA, TGCA]
+        rna_sb_barcodes: [GTCA, TGCA]
+        dna_sb_barcodes: [GTC, TGC]
 
     rna:
       reads:
@@ -59,6 +68,7 @@ samples:
         r2: /path/to/day15_RNA_R2.fastq.gz
 
     dna:
+      tagmentation: dual
       reads:
         i1: /path/to/day15_DNA_I1.fastq.gz
         i2: /path/to/day15_DNA_I2.fastq.gz
@@ -72,26 +82,30 @@ samples:
 ### Top-level fields
 
 - `library_name`: run-level library label propagated into RG headers and derived contract files
-- `resources`: shared runtime resources for the whole run
+- `runtime`: required runtime environment and explicit task temporary directory
+- `references`: required species label, shared files, and direct RNA/DNA reference paths
 - `samples`: biological sample blocks keyed by user-defined sample ID
 
-### `resources`
+### `runtime`
 
-These values can be defined in the YAML and, when needed, overridden by CLI params.
+- `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, and `gatk`
+- `tmpdir`: explicit task temporary directory. The pipeline creates it if missing and fails if it is not writable.
 
-- `ligation_barcode_whitelist`: ligation barcode whitelist used by RNA and DNA cell-barcode tagging
-- `rna_ref_base_dir`: STARsolo reference base directory
-- `rna_align_species`: `human` or `mouse`
-- `dna_bwa_reference`: bwa-mem2 index prefix
-- `dna_blacklist_bed`: BED file for blacklist filtering
-- `dna_effective_genome_size`: effective genome size used for DNA coverage
+### `references`
+
+`references.rna_ref_dir` points directly to the STAR index directory. The pipeline passes this exact path to STAR and does not append species, `rna`, or `star`.
+
+`references.dna_ref_dir` points to the directory containing exactly one complete bwa-mem2 sidecar set. The inferred prefix is used for `bwa-mem2 mem`.
+
+`references.dna_effective_genome_size` is required for DNA runs because `BAM_COVERAGE_DNA` passes it to `bamCoverage --effectiveGenomeSize`.
 
 ### `samples.<sample_id>.groups`
 
 `groups` is the source of truth for biological sample-barcode grouping.
 
 - each group key is the biological label that will appear in split outputs
-- `sb_barcodes` is the list of sample barcodes assigned to that group
+- `rna_sb_barcodes` and `dna_sb_barcodes` are modality-specific sample barcodes assigned to that logical group.
+- Legacy `sb_barcodes` remains supported for single-tagmentation samples. In `dna.tagmentation: dual`, DNA requires explicit 3 nt `dna_sb_barcodes`; they are not derived from RNA barcodes.
 - sample barcodes must be unique within a sample block
 
 ### `samples.<sample_id>.rna`
@@ -136,17 +150,9 @@ The main public parameters are:
 
 - `--samplesheet`
 - `--outdir`
-- `--runtime_env_prefix`
 - `--max_cpus`
 
-Optional resource override parameters remain available:
-
-- `--ligation_barcode_whitelist`
-- `--rna_ref_base_dir`
-- `--rna_align_species`
-- `--dna_bwa_reference`
-- `--dna_blacklist_bed`
-- `--dna_effective_genome_size`
+Deprecated runtime/reference CLI parameters now fail with a hard error.
 
 ## Bundled Examples
 

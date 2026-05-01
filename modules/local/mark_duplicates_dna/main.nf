@@ -22,6 +22,8 @@
  *   - It normalizes the created BAM index to <sample>_MarkedDup.bam.bai for a stable Nextflow output contract.
  */
 
+import RuntimeSupport
+
 process MARK_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
@@ -37,9 +39,12 @@ process MARK_DUPLICATES_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock marked-dup bam for %s\n' "${splitName}" > "${splitName}_MarkedDup.bam"
         printf 'mock marked-dup bai for %s\n' "${splitName}" > "${splitName}_MarkedDup.bam.bai"
         cat > "${splitName}.DuplicateMetrics.txt" <<'EOF'
@@ -56,6 +61,8 @@ EOF
     }
     else {
         """
+        ${runtimeExports}
+
         if [[ ! -x "\$GATK_BIN" ]]; then
           echo "Missing configured GATK executable at \$GATK_BIN" >&2
           exit 1

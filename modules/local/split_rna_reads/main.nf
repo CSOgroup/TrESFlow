@@ -9,7 +9,7 @@
  *   - trim_galore RNA FASTQs from the CB-tagged reads
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
- *   - per-group RNA FASTQ pairs named as upstream Split_ReadsV2 outputs
+ *   - per-group RNA FASTQ pairs named as final pigz-compressed split outputs
  *   - per-group SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  *
  * Notes:
@@ -18,25 +18,30 @@
  *     raw SB match first, then drop-first fallback.
  */
 
+import RuntimeSupport
+
 process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/split", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_split_fastqs", mode: 'copy', overwrite: true, pattern: "${sampleId}_*_R[12].fastq.gz"
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fq.gz"), path("${sampleId}_*_R2.fq.gz"), emit: split_fastqs
+    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq.gz"), path("${sampleId}_*_R2.fastq.gz"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
     path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     """
+    ${runtimeExports}
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_rna.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Split_ReadsV2.codon" \\
@@ -45,7 +50,8 @@ process SPLIT_RNA_READS {
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
-      --output-dir "."
+      --output-dir "." \\
+      --pigz-threads "${task.cpus}"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

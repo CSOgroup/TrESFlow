@@ -1,0 +1,38 @@
+library_name: TESTLIB
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_test_single_explicit_tmp
+
+references:
+  species: human
+  root: ../../assets/testdata/TrESFlow_References
+  ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: ../../assets/testdata/TrESFlow_References/rna/human/star
+  dna_ref_dir: ../../assets/testdata/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: ../../assets/testdata/TrESFlow_References/dna/human/blacklist.bed
+  dna_chrom_sizes: ../../assets/testdata/TrESFlow_References/dna/human/chrom.sizes
+  dna_effective_genome_size: 12
+
+samples:
+  single_explicit:
+    groups:
+      Normal:
+        rna_sb_barcodes: [CAGT]
+        dna_sb_barcodes: [CAGT]
+
+    rna:
+      reads:
+        i1: ../../assets/testdata/test_rna_I1.fastq
+        r1: ../../assets/testdata/test_rna_R1.fastq
+        r2: ../../assets/testdata/test_rna_R2.fastq
+
+    dna:
+      tagmentation: single
+      reads:
+        i1: ../../assets/testdata/test_dna_I1.fastq
+        i2: ../../assets/testdata/test_dna_I2_single.fastq
+        r1: ../../assets/testdata/test_dna_R1.fastq
+        r2: ../../assets/testdata/test_dna_R2.fastq
+      mark_barcodes:
+        H3K27ac: AGGCTATA

@@ -11,11 +11,13 @@
  *   - filtered-cells RNA BAM
  */
 
+import RuntimeSupport
+
 process RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam)
@@ -26,10 +28,13 @@ process RNA_FILTERED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = params.core_scripts_dir ?: "${projectDir}/scripts/core_runtime"
+    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
+    def runtimeExports = RuntimeSupport.shellExports(meta)
 
     if( mode == 'mock' ) {
         """
+        ${runtimeExports}
+
         printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
 
         cat <<-END_VERSIONS > versions.yml
@@ -40,6 +45,8 @@ process RNA_FILTERED_BAM {
     }
     else {
         """
+        ${runtimeExports}
+
         if [[ ! -x "\$SAMTOOLS_BIN" ]]; then
           echo "Missing configured RNA runtime executable: \$SAMTOOLS_BIN" >&2
           exit 1
