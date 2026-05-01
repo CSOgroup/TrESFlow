@@ -3,6 +3,8 @@ import bio
 from bio import *
 from typing import Dict, Set, List, Tuple
 
+CANONICAL_CELL_TAG = "XI"
+
 # -----------------------------
 # Normalize SB: by design SB in comment includes injected base as FIRST base.
 # Key is "all bases after the first one".
@@ -125,21 +127,28 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 		)
 		sys.exit(1)
 
-	canonical = canonical_cell_id(sample, group_name, cell_barcode_without_sb(cb, sb, sample, group_name))
+	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+	canonical = canonical_cell_id(sample, group_name, technical_cell)
 	out: List[str] = []
 	has_rg = False
+	has_canonical = False
 
 	for token in comment.split():
 		if token.startswith("CB:"):
-			out.append("CB:Z:" + canonical)
+			out.append("CB:Z:" + technical_cell)
 		elif token.startswith("RG:"):
-			out.append("RG:Z:" + canonical)
+			out.append("RG:Z:" + technical_cell)
 			has_rg = True
+		elif token.startswith(CANONICAL_CELL_TAG + ":"):
+			out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
+			has_canonical = True
 		else:
 			out.append(token)
 
 	if not has_rg:
-		out.append("RG:Z:" + canonical)
+		out.append("RG:Z:" + technical_cell)
+	if not has_canonical:
+		out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
 
 	return "\t".join(out)
 

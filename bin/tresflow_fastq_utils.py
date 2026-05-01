@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 FASTQ_SUFFIXES = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
+CANONICAL_CELL_TAG = "XI"
 
 
 def resolve_temp_root() -> Path:
@@ -254,19 +255,26 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
             f"Missing CB or SB tag while canonicalizing cell ID for sample {sample} group {group_name}"
         )
 
-    canonical = canonical_cell_id(sample, group_name, cell_barcode_without_sb(cb, sb, sample, group_name))
+    technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+    canonical = canonical_cell_id(sample, group_name, technical_cell)
     tokens = []
     has_rg = False
+    has_canonical = False
     for token in comment.replace("\t", " ").split():
         if token.startswith("CB:"):
-            tokens.append(f"CB:Z:{canonical}")
+            tokens.append(f"CB:Z:{technical_cell}")
         elif token.startswith("RG:"):
-            tokens.append(f"RG:Z:{canonical}")
+            tokens.append(f"RG:Z:{technical_cell}")
             has_rg = True
+        elif token.startswith(f"{CANONICAL_CELL_TAG}:"):
+            tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
+            has_canonical = True
         else:
             tokens.append(token)
     if not has_rg:
-        tokens.append(f"RG:Z:{canonical}")
+        tokens.append(f"RG:Z:{technical_cell}")
+    if not has_canonical:
+        tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
     return "\t".join(tokens)
 
 
