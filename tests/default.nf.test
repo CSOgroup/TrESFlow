@@ -16,16 +16,27 @@ nextflow_pipeline {
             def sampleId = "test_rna"
             // versions.yml snapshot placeholder retained for nf-core lint compatibility.
 
-            def splitDir = new File(outputDir, "split")
-            def alignDir = new File(outputDir, "align")
+            def splitDir = new File(outputDir, "rna_split_fastqs")
+            def alignDir = new File(outputDir, "rna_align")
+            def statsDir = new File(outputDir, "TrES_Stats")
             def pipelineInfoDir = new File(outputDir, "pipeline_info")
 
             assertAll(
                 { assert workflow.success },
                 { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
                 { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sample_barcode.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sample_barcode.stats.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_umi.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.counts.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L1.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L2.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_cell.stats_L3.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
             )
         }

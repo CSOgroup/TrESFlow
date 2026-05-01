@@ -9,13 +9,15 @@ The exact directories present depend on whether the YAML samplesheet contains `r
 
 RNA-related outputs:
 
-- `split/`
-- `align/`
+- `rna_split_fastqs/`
+- `rna_align/`
+- `TrES_Stats/`
 
 DNA-related outputs:
 
-- `dna_split/`
+- `dna_split_fastqs/`
 - `dna_align/`
+- `TrES_Stats/`
 
 Shared reporting outputs:
 
@@ -23,15 +25,16 @@ Shared reporting outputs:
 
 ## RNA outputs
 
-### `split/`
+### `rna_split_fastqs/`
 
-Per-group RNA FASTQs and RG headers from the split stage:
+Per-group RNA FASTQs from the split stage:
 
 - `<sample>_<group>_R1.fastq.gz`
 - `<sample>_<group>_R2.fastq.gz`
-- `SAM_RG_Header_<sample>_<group>.tsv`
 
-### `align/`
+SAM read-group header TSVs are internal work files and are not published.
+
+### `rna_align/`
 
 STARsolo and filtered BAM outputs:
 
@@ -42,21 +45,49 @@ STARsolo and filtered BAM outputs:
 
 ## DNA outputs
 
-### `dna_split/`
+### `dna_split_fastqs/`
 
-Per-group and per-mark DNA split outputs:
+Per-group and per-mark DNA split FASTQs:
 
 - `<sample>_<group>_<mark>_R1.fastq.gz`
 - `<sample>_<group>_<mark>_R2.fastq.gz`
-- `SAM_RG_Header_<sample>_<group>_<mark>.tsv`
+
+SAM read-group header TSVs are internal work files and are not published.
 
 ### `dna_align/`
 
-Filtered aligned BAMs and per-barcode read counts:
+Final duplicate-filtered BAMs, coverage tracks, and per-barcode read counts:
 
-- `<sample>_<group>_<mark>.bam`
-- `<sample>_<group>_<mark>.bam.bai`
+- `<sample>_<group>_<mark>_NoDup.bam`
+- `<sample>_<group>_<mark>_NoDup.bam.bai`
+- `<sample>_<group>_<mark>_NoDup.bw`
 - `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv`
+
+## Tagging/count/stat outputs
+
+### `TrES_Stats/`
+
+Tagging summaries are published with modality-specific names:
+
+- `<sample>.rna_sample_barcode.counts.tsv`
+- `<sample>.rna_sample_barcode.stats.tsv`
+- `<sample>.rna_umi.counts.tsv`
+- `<sample>.rna_cell.counts.tsv`
+- `<sample>.rna_cell.stats_L1.tsv`
+- `<sample>.rna_cell.stats_L2.tsv`
+- `<sample>.rna_cell.stats_L3.tsv`
+- `<sample>.rna_tag_records.tsv.gz`
+- `<sample>.dna_sample_barcode.counts.tsv`
+- `<sample>.dna_sample_barcode.stats.tsv`
+- `<sample>.dna_modality.counts.tsv`
+- `<sample>.dna_modality.stats.tsv`
+- `<sample>.dna_cell.counts.tsv`
+- `<sample>.dna_cell.stats_L1.tsv`
+- `<sample>.dna_cell.stats_L2.tsv`
+- `<sample>.dna_cell.stats_L3.tsv`
+- `<sample>.dna_tag_records.tsv.gz`
+
+Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
 
 ## Pipeline information
 
@@ -87,6 +118,6 @@ with files such as:
 
 The pipeline does not keep intermediate tagging, uSAM, duplicate-marking, duplicate-split, or coverage side products in the published results.
 
-- published RNA FASTQs are the grouped split FASTQs under `split/`
-- published DNA FASTQs are the grouped and marked split FASTQs under `dna_split/`
-- earlier tag, trim, RNA uSAM, STAR aligned BAM, duplicate-marking, NoDup BAM, and non-published coverage files remain transient in `work/` unless captured manually
+- published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
+- published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
+- earlier tag, trim, RNA uSAM, STAR aligned BAM, duplicate-marking, and non-published coverage side products remain transient in `work/` unless captured manually

@@ -27,6 +27,7 @@ process BAM_COVERAGE_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "${splitName}_NoDup.bw"
     publishDir "${params.outdir ?: "${projectDir}/results"}/pipeline_info/warnings", mode: 'copy', overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
 
     input:
@@ -72,7 +73,7 @@ process BAM_COVERAGE_DNA {
         echo "Using SAMTOOLS_BIN=\$SAMTOOLS_BIN"
         echo "Using BAMCOVERAGE_BIN=\$BAMCOVERAGE_BIN"
 
-        mapped_reads="\$("\$SAMTOOLS_BIN" view -c -F 4 "${noDupBam}")"
+        mapped_reads="\$("\$SAMTOOLS_BIN" view --threads "${task.cpus}" -c -F 4 "${noDupBam}")"
         if [[ "\${mapped_reads}" -eq 0 ]]; then
           bam_path="\$(readlink -f "${noDupBam}")"
           cat >&2 <<'EOF'

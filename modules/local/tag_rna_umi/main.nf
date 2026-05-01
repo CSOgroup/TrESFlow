@@ -19,12 +19,15 @@ process TAG_RNA_UMI {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_umi.counts.tsv"
+
     input:
     tuple val(sampleId), val(meta), path(rawR2), path(taggedR1), path(taggedR2)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi.R1.fastq"), path("${sampleId}.sample_barcode_umi.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.umi.counts.tsv"), emit: metrics
+    path("${sampleId}.rna_umi.counts.tsv"), emit: tres_stats
     path("versions.yml"), emit: versions
 
     script:
@@ -49,6 +52,8 @@ process TAG_RNA_UMI {
       --output-r2 "${sampleId}.sample_barcode_umi.R2.fastq" \\
       --output-counts "${sampleId}.umi.counts.tsv" \\
       --rev-comp
+
+    cp "${sampleId}.umi.counts.tsv" "${sampleId}.rna_umi.counts.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

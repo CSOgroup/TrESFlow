@@ -24,12 +24,15 @@ process TAG_RNA_SAMPLE_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_sample_barcode.*.tsv"
+
     input:
     tuple val(sampleId), val(meta), path(r1), path(r2), path(sbGroupMap)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.sample_barcode.counts.tsv"), path("${sampleId}.sample_barcode.stats.tsv"), emit: metrics
+    path("${sampleId}.rna_sample_barcode.*.tsv"), emit: tres_stats
     path("versions.yml"), emit: versions
 
     script:
@@ -60,6 +63,9 @@ process TAG_RNA_SAMPLE_BARCODE {
       --output-r2 "${sampleId}.sample_barcode.R2.fastq" \\
       --output-counts "${sampleId}.sample_barcode.counts.tsv" \\
       --output-stats "${sampleId}.sample_barcode.stats.tsv"
+
+    cp "${sampleId}.sample_barcode.counts.tsv" "${sampleId}.rna_sample_barcode.counts.tsv"
+    cp "${sampleId}.sample_barcode.stats.tsv" "${sampleId}.rna_sample_barcode.stats.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

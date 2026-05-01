@@ -20,6 +20,8 @@ process TAG_DNA_SAMPLE_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.dna_sample_barcode.*.tsv"
+
     input:
     tuple val(sampleId), val(meta), path(indexRead), path(r1), path(r2), path(sbGroupMap)
 

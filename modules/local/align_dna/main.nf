@@ -16,7 +16,7 @@
  *
  * Notes:
  *   - Real execution uses the repo-owned core runtime copy under scripts/core_runtime/.
- *   - AlignDNA.sh internally hardcodes threads and the good-barcode threshold.
+ *   - AlignDNA.sh reads exported thread settings and keeps the upstream good-barcode threshold.
  */
 
 import RuntimeSupport
@@ -25,7 +25,7 @@ process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "*_ProperPairedMapped_reads_per_barcode.tsv"
 
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
@@ -39,8 +39,8 @@ process ALIGN_DNA {
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
     def alignThreads = task.cpus as int
-    def viewThreads = Math.min(alignThreads, 4)
-    def sortThreads = Math.min(alignThreads, 8)
+    def viewThreads = alignThreads
+    def sortThreads = alignThreads
     def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
     def runtimeExports = RuntimeSupport.shellExports(meta)
 

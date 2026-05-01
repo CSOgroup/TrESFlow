@@ -20,12 +20,17 @@ process TAG_RNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_cell.*.tsv"
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_tag_records.tsv.gz"
+
     input:
     tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
     tuple val(sampleId), path("${sampleId}.cell.counts.tsv"), path("${sampleId}.tag_records.tsv"), path("${sampleId}.cell.stats_L1.tsv"), path("${sampleId}.cell.stats_L2.tsv"), path("${sampleId}.cell.stats_L3.tsv"), emit: metrics
+    path("${sampleId}.rna_cell.*.tsv"), emit: tres_cell_stats
+    path("${sampleId}.rna_tag_records.tsv.gz"), emit: tres_tag_records
     path("versions.yml"), emit: versions
 
     script:
@@ -54,6 +59,18 @@ process TAG_RNA_CELL_BARCODE {
       --output-stats "${sampleId}.cell.stats_L1.tsv" \\
       --output-stats "${sampleId}.cell.stats_L2.tsv" \\
       --output-stats "${sampleId}.cell.stats_L3.tsv"
+
+    cp "${sampleId}.cell.counts.tsv" "${sampleId}.rna_cell.counts.tsv"
+    cp "${sampleId}.cell.stats_L1.tsv" "${sampleId}.rna_cell.stats_L1.tsv"
+    cp "${sampleId}.cell.stats_L2.tsv" "${sampleId}.rna_cell.stats_L2.tsv"
+    cp "${sampleId}.cell.stats_L3.tsv" "${sampleId}.rna_cell.stats_L3.tsv"
+
+    if [[ ! -x "\$PIGZ_BIN" ]]; then
+      echo "Missing configured pigz executable for TrES_Stats tag record compression: \$PIGZ_BIN" >&2
+      exit 1
+    fi
+    cp "${sampleId}.tag_records.tsv" "${sampleId}.rna_tag_records.tsv"
+    "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

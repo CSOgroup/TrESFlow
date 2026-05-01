@@ -17,7 +17,7 @@ process RNA_COVERAGE {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(filteredBam), val(starIndexDir), val(chromSizes)

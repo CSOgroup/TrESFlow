@@ -18,7 +18,7 @@ process RNA_STARSOLO_ALIGN {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/align", mode: 'copy', overwrite: true, pattern: "${splitName}.Solo.outGeneFull"
+    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true, pattern: "${splitName}.Solo.outGeneFull"
 
     input:
     tuple val(splitName), val(meta), path(usam), val(starIndexDir)

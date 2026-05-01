@@ -121,14 +121,16 @@ Architecture/DAG:
 
 RNA publishes:
 
-- `split/`
-- `align/`
+- `rna_split_fastqs/`
+- `rna_align/`
+- `TrES_Stats/`
 - `pipeline_info/`
 
 DNA publishes:
 
-- `dna_split/`
+- `dna_split_fastqs/`
 - `dna_align/`
+- `TrES_Stats/`
 - `pipeline_info/`
 
 ## Runtime Contract
@@ -160,12 +162,13 @@ The main remaining runtime CLI parameter is `--max_cpus`.
 Default local CPU budget:
 
 - `--max_cpus 64`
-- `RNA_STARSOLO_ALIGN` and `RNA_COVERAGE` reserve up to `24` cores each.
-- `RNA_FILTERED_BAM`, trim, split, duplicate-filter, and DNA coverage helper steps reserve up to `8` cores each.
-- `ALIGN_DNA` reserves up to `32` cores.
+- `RNA_STARSOLO_ALIGN` reserves up to `48` cores.
+- `RNA_COVERAGE` and `BAM_COVERAGE_DNA` reserve up to `32` cores.
+- `ALIGN_DNA` reserves up to `48` cores and passes that value to bwa-mem2 and samtools.
+- `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps reserve up to `16` cores.
 - tagging processes default to `6` cores and `64 GB` memory.
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
-- These are scheduler reservations. `ALIGN_DNA` still wraps an upstream script with its own internal thread behavior, so its Nextflow CPU value primarily controls local concurrency.
+- These are scheduler reservations derived from `--max_cpus`; Nextflow still prevents local tasks from exceeding the configured CPU budget.
 
 Every run writes:
 

@@ -24,7 +24,7 @@ process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/split", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_split_fastqs", mode: 'copy', overwrite: true, pattern: "${sampleId}_*_R[12].fastq.gz"
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
