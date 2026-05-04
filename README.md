@@ -17,7 +17,7 @@ micromamba install screen samtools bwa-mem2 star fastqc multiqc trim-galore deep
 
 Download the repo and cd in it:
 ```bash
-git clone git@github.com:AAnnan/TrESFlow.git
+git clone git@github.com:CSOgroup/TrESFlow.git
 cd TrESFlow
 ```
 
