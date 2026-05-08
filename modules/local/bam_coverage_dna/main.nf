@@ -104,7 +104,7 @@ EOF
           exit 0
         fi
 
-        tmp_root="\${TMPDIR:?TMPDIR must be set from samplesheet runtime.tmpdir}"
+        tmp_root="\${TMPDIR:?TMPDIR must be set from runtime tmpdir}"
         mkdir -p "\${tmp_root}"
         export MPLCONFIGDIR="\$(mktemp -d "\${tmp_root}/mplconfig-${splitName}.XXXXXX")"
         trap 'rm -rf "\${MPLCONFIGDIR}"' EXIT

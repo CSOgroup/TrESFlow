@@ -1,0 +1,3 @@
+ERROR ~ RNA STAR index file missing for references.rna_ref_dir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_star_file/rna/human/star/SAindex. Controlled by samplesheet field references.rna_ref_dir
+
+ -- Check script '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/main.nf' at line: 112 or see '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/fa7a103982dde61fcd9f6c867914fce1/meta/nextflow.log' file for more details

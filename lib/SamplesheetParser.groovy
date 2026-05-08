@@ -37,7 +37,7 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
-        final Map runtime = resolveRuntime(parsed, baseDir)
+        final Map runtime = resolveRuntime(parsed, baseDir, options)
         final Map references = resolveReferences(parsed, baseDir)
         final List<Map> samples = parseUnified(parsed, baseDir, libraryName, options, references)
         samples.each { row ->
@@ -186,7 +186,7 @@ class SamplesheetParser {
         final String ligationWhitelist,
         final Map references
     ) {
-        final Map reads = resolveReads(baseDir, dnaConfig, sampleId, MODALITY_DNA, ['i1', 'i2', 'r1', 'r2'])
+        final Map reads = resolveDnaReads(baseDir, dnaConfig, sampleId, tagmentation)
         final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
             dnaConfig.mark_barcodes,
             sampleId
@@ -568,8 +568,33 @@ class SamplesheetParser {
         }
     }
 
-    private static Map resolveRuntime(final Map parsed, final File baseDir) {
+    private static Map resolveDnaReads(
+        final File baseDir,
+        final Map dnaConfig,
+        final String sampleId,
+        final String tagmentation
+    ) {
+        final List<String> requiredReadNames = tagmentation == TAGMENTATION_DUAL
+            ? ['i1', 'r1', 'r2']
+            : ['i1', 'i2', 'r1', 'r2']
+        final Map resolved = resolveReads(baseDir, dnaConfig, sampleId, MODALITY_DNA, requiredReadNames)
+
+        if( tagmentation == TAGMENTATION_DUAL ) {
+            final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
+            final String i2Path = reads.i2?.toString()?.trim()
+            resolved.i2 = i2Path
+                ? resolveExistingPath(baseDir, i2Path)
+                : resolved.i1
+        }
+
+        return resolved
+    }
+
+    private static Map resolveRuntime(final Map parsed, final File baseDir, final Map options) {
         final Map runtime = asMap(parsed.runtime, 'runtime')
+        final String explicitTmpdir = runtime.tmpdir?.toString()?.trim()
+        final String defaultTmpdir = options.outdir?.toString()?.trim() ?: 'results'
+
         return [
             env_prefix: resolvePath(
                 baseDir,
@@ -577,7 +602,7 @@ class SamplesheetParser {
             ),
             tmpdir: resolvePath(
                 baseDir,
-                requireString(runtime.tmpdir, 'runtime.tmpdir')
+                explicitTmpdir ?: defaultTmpdir
             ),
         ]
     }

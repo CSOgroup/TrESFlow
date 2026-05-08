@@ -1,0 +1,7 @@
+reads	2	100.0%
+reads_with_ligation	2	100.0%
+reads_without_ligation	0	0.0%
+reads_with_ligation_at_0_mismatches	2	100.0%
+reads_with_ligation_at_1_mismatches	0	0.0%
+reads_with_ligation_all_segments	2	100.0%
+reads_with_ligation_missing_other_ligation	0	0.0%

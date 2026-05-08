@@ -98,7 +98,7 @@ def runCodonSeqPreflight(final Map runtimeParams) {
 
 log.warn """
 ================================================================================
-TrESFlow runtime TMPDIR is explicitly configured from the samplesheet:
+TrESFlow runtime TMPDIR resolved for this run:
   ${runtimeParams.runtime_tmpdir}
 
 This directory can become very large on production FASTQ/BAM runs. Monitor free

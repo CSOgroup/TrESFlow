@@ -56,18 +56,21 @@ SAM read-group header TSVs are internal work files and are not published.
 
 ### `dna_align/`
 
-Final duplicate-filtered BAMs, coverage tracks, and per-barcode read counts:
+Duplicate-marked BAMs, final duplicate-filtered BAMs, and coverage tracks:
 
+- `<sample>_<group>_<mark>_MarkedDup.bam`
+- `<sample>_<group>_<mark>_MarkedDup.bam.bai`
 - `<sample>_<group>_<mark>_NoDup.bam`
 - `<sample>_<group>_<mark>_NoDup.bam.bai`
 - `<sample>_<group>_<mark>_NoDup.bw`
-- `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv`
+
+`*_MarkedDup.bam` is retained so sequencing-efficiency reporting can count aligned DNA reads before duplicate removal. `*_NoDup.bam` remains the duplicate-filtered output used for downstream DNA coverage.
 
 ## Tagging/count/stat outputs
 
 ### `TrES_Stats/`
 
-Tagging summaries are published with modality-specific names:
+Tagging summaries and DNA per-barcode alignment stats are published with modality-specific names:
 
 - `<sample>.rna_sample_barcode.counts.tsv`
 - `<sample>.rna_sample_barcode.stats.tsv`
@@ -86,8 +89,37 @@ Tagging summaries are published with modality-specific names:
 - `<sample>.dna_cell.stats_L2.tsv`
 - `<sample>.dna_cell.stats_L3.tsv`
 - `<sample>.dna_tag_records.tsv.gz`
+- `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv`
 
 Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
+
+Sequencing-efficiency reports are also published under `TrES_Stats/`. Count tables use read records internally and include both `read_records` and `read_pairs`, where `read_pairs = read_records / 2`.
+
+RNA reports are written per sample and per sample group:
+
+- `<sample>.rna_sequencing_efficiency.tsv`
+- `<sample>_<group>.rna_sequencing_efficiency.tsv`
+- matching `.sankey.html`, `.sankey.pdf`, `.upset.pdf`, and `.upset.html` when exact intersections are renderable
+
+RNA stages are: total tagged records, valid sample barcode, valid L1 barcode, valid L2 barcode, valid L3 barcode, valid full cell barcode, UMI present, aligned reads from `*.filtered_cells.bam`, gene-assigned reads with `GX` present and not `-`, and final passing reads.
+
+DNA reports are written per sample, per sample group, and per sample group plus mark:
+
+- `<sample>.dna_sequencing_efficiency.tsv`
+- `<sample>_<group>.dna_sequencing_efficiency.tsv`
+- `<sample>_<group>_<mark>.dna_sequencing_efficiency.tsv`
+- matching `.sankey.html`, `.sankey.pdf`, `.upset.pdf`, and `.upset.html` when exact intersections are renderable
+
+DNA stages are: total tagged records, valid sample barcode, valid L1 barcode, valid L2 barcode, valid L3 barcode, valid full cell barcode, valid modality barcode, aligned reads before duplicate removal from `*_MarkedDup.bam`, aligned reads after duplicate removal from `*_NoDup.bam`, and final passing reads.
+
+Per-sample combined summaries are written as:
+
+- `<sample>.combined_sequencing_efficiency.tsv`
+- `<sample>.combined_sequencing_efficiency.html`
+- `<sample>.combined_sequencing_efficiency.pdf`
+- `sequencing_efficiency.warnings.tsv`
+
+Optional BAM-derived stages are skipped with warnings when their inputs are unavailable or unreadable; tag-record count tables and Sankey plots are still emitted for the available stages. These reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv` and are not currently integrated with MultiQC.
 
 ## Pipeline information
 
@@ -116,8 +148,9 @@ with files such as:
 
 ## FASTQ retention policy
 
-The pipeline does not keep intermediate tagging, uSAM, duplicate-marking, duplicate-split, or coverage side products in the published results.
+The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or coverage side products in the published results.
 
 - published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
 - published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
-- earlier tag, trim, RNA uSAM, STAR aligned BAM, duplicate-marking, and non-published coverage side products remain transient in `work/` unless captured manually
+- earlier tag, trim, RNA uSAM, STAR aligned BAM, and non-published coverage side products remain transient in `work/` unless captured manually
+- DNA duplicate-marked BAMs are published under `dna_align/` for sequencing-efficiency reporting

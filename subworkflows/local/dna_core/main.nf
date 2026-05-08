@@ -171,5 +171,6 @@ workflow DNA_CORE {
     coverage_bigwigs = BAM_COVERAGE_DNA.out.bw
     coverage_warnings = BAM_COVERAGE_DNA.out.warnings
     barcode_reports = ch_barcode_reports
+    tres_tag_records = TAG_DNA_CELL_BARCODE.out.tres_tag_records
     versions = ch_versions
 }

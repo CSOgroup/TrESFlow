@@ -2,7 +2,6 @@ library_name: TRESEQ_202601_CAM
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_real_example
 
 references:
   species: human

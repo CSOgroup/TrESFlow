@@ -6,7 +6,6 @@ library_name: Isa
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
 
 references:
   species: human
@@ -36,11 +35,11 @@ samples:
 
     dna:
       # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
-      # 3 nt DNA sample barcodes that differ from RNA barcodes.
+      # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
+      # required for single tagmentation and optional for dual tagmentation.
       tagmentation: dual
       reads:
         i1: /path/to/sample_DNA_I1.fq.gz
-        i2: /path/to/sample_DNA_I2.fq.gz
         r1: /path/to/sample_DNA_R1.fq.gz
         r2: /path/to/sample_DNA_R2.fq.gz
       mark_barcodes:

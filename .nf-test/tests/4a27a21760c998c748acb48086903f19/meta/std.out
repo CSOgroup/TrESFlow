@@ -1,0 +1,3 @@
+ERROR ~ Required ligation barcode whitelist not found: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/ligation_barcode_whitelist.txt. Controlled by samplesheet field references.ligation_barcode_whitelist
+
+ -- Check script '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/main.nf' at line: 112 or see '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/4a27a21760c998c748acb48086903f19/meta/nextflow.log' file for more details

@@ -149,5 +149,6 @@ workflow RNA_CORE {
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports
+    tres_tag_records = TAG_RNA_CELL_BARCODE.out.tres_tag_records
     versions         = ch_versions
 }

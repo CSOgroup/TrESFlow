@@ -1,0 +1,11 @@
+unit	unit_level	modality	stage_order	stage	stage_label	read_records	read_pairs	available	note
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	1	total_tagged	total tagged records	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	2	valid_sb	valid sample barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	3	valid_l1	valid L1 barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	4	valid_l2	valid L2 barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	5	valid_l3	valid L3 barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	6	valid_cb	valid full cell barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	7	valid_mo	valid modality barcode	1	0.5	true	
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	8	pre_dedup_aligned	aligned reads before duplicate removal			false	Optional BAM-derived stage unavailable
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	9	post_dedup_retained	aligned reads after duplicate removal			false	Optional BAM-derived stage unavailable
+dual_no_i2_Normal_H3K27ac	sample_group_mark	dna	10	final_passing	final passing reads			false	Final BAM-derived stage unavailable

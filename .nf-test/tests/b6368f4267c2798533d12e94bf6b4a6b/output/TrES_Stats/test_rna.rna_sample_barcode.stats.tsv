@@ -1,0 +1,5 @@
+reads	2	100.0%
+bc_reads	2	100.0%
+reads_without_bc	0	0.0%
+bc_reads_with_0_mismatches	2	100.0%
+bc_reads_with_1_mismatches	0	0.0%

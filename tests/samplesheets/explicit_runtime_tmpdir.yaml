@@ -1,0 +1,24 @@
+library_name: TESTLIB
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+  tmpdir: /tmp/TrESFlow_explicit_runtime_tmpdir
+
+references:
+  species: human
+  root: ../../assets/testdata/TrESFlow_References
+  ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: ../../assets/testdata/TrESFlow_References/rna/human/star
+
+samples:
+  test_rna:
+    groups:
+      Normal:
+        sb_barcodes: [CAGT]
+      Co2:
+        sb_barcodes: [ACGT]
+    rna:
+      reads:
+        i1: ../../assets/testdata/test_rna_I1.fastq
+        r1: ../../assets/testdata/test_rna_R1.fastq
+        r2: ../../assets/testdata/test_rna_R2.fastq

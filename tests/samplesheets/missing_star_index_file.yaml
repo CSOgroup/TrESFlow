@@ -6,8 +6,8 @@ runtime:
 
 references:
   species: human
-  root: ../../assets/testdata/TrESFlow_References_missing_star_file
-  ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References_missing_star_file/ligation_barcode_whitelist.txt
+  root: ../../assets/testdata/TrESFlow_References
+  ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References/ligation_barcode_whitelist.txt
   rna_ref_dir: ../../assets/testdata/TrESFlow_References_missing_star_file/rna/human/star
 
 samples:

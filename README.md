@@ -35,7 +35,6 @@ library_name: Isa
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
 
 references:
   species: human
@@ -57,16 +56,17 @@ samples:
 
     rna:
       reads:
-        i1: test_realdata/day15_I1.fq.gz
-        r1: test_realdata/day15_R1.fq.gz
-        r2: test_realdata/day15_R2.fq.gz
+        i1: /path/to/day15_RNA_I1.fastq.gz
+        r1: /path/to/day15_RNA_R1.fastq.gz
+        r2: /path/to/day15_RNA_R2.fastq.gz
 
     dna:
+      tagmentation: single
       reads:
-        i1: test_realdata/day15_DNA_I1.fq.gz
-        i2: test_realdata/day15_DNA_I2.fq.gz
-        r1: test_realdata/day15_DNA_R1.fq.gz
-        r2: test_realdata/day15_DNA_R2.fq.gz
+        i1: /path/to/day15_DNA_I1.fastq.gz
+        i2: /path/to/day15_DNA_I2.fastq.gz
+        r1: /path/to/day15_DNA_R1.fastq.gz
+        r2: /path/to/day15_DNA_R2.fastq.gz
       mark_barcodes:
         H3K27me3: AGGCTATA
         H3K27ac: GCCTCTAT
@@ -75,8 +75,9 @@ samples:
 Notes:
 
 - Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
-- `runtime.env_prefix`, `runtime.tmpdir`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. Runtime and reference paths are no longer accepted as normal CLI parameters.
+- `runtime.env_prefix`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. `runtime.tmpdir` is optional and defaults to `--outdir`. Runtime and reference paths are no longer accepted as normal CLI parameters.
 - `groups.<group>.sb_barcodes` remains supported for single-tagmentation samples. Use `rna_sb_barcodes` and `dna_sb_barcodes` when RNA and DNA sample barcodes differ; `dna.tagmentation: dual` requires explicit 3 nt `dna_sb_barcodes`.
+- `dna.reads.i2` is required for single tagmentation and optional for dual tagmentation.
 - `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
 - `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
@@ -113,6 +114,10 @@ DNA core:
 8. `SPLIT_DUPLICATES_DNA`
 9. `BAM_COVERAGE_DNA`
 
+Shared reporting:
+
+- `SEQUENCING_EFFICIENCY`
+
 Architecture/DAG:
 
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
@@ -133,11 +138,14 @@ DNA publishes:
 - `TrES_Stats/`
 - `pipeline_info/`
 
+`TrES_Stats/` includes RNA, DNA, and combined sequencing-efficiency tables and plots. Tables report both `read_records` and `read_pairs`, with `read_pairs = read_records / 2`; optional unavailable BAM-derived stages are skipped with warnings.
+
 ## Runtime Contract
 
 The runtime contract comes from the samplesheet `runtime:` block. `runtime.tmpdir`
-is exported as `TMPDIR` for pipeline tasks and can become very large on real runs.
-The pipeline creates the directory if it is missing and fails if it is not writable.
+is optional; when omitted, `--outdir` is exported as `TMPDIR` for pipeline tasks.
+This directory can become very large on real runs. The pipeline creates the directory
+if it is missing and fails if it is not writable.
 
 Reference paths are explicit in the samplesheet:
 

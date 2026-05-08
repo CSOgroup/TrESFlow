@@ -5,10 +5,12 @@
 `TrESFlow` supports one public input contract: a single hierarchical YAML samplesheet passed with `--samplesheet`.
 There is no CSV input mode in this repository.
 
-The pipeline runs two independent modality branches from that YAML:
+The pipeline runs two independent modality branches from that YAML, then builds sequencing-efficiency reports from the published tag-record and alignment channels:
 
 - `rna`: sample-barcode tagging, UMI tagging, cell-barcode tagging, trimming, split by SB groups, `FqToSAM`, STARsolo, filtered BAM, bigWigs
 - `dna`: sample-barcode tagging, modality tagging, cell-barcode tagging, trimming, split by SB groups and DNA marks, alignment, duplicate marking, NoDup BAM, bigWig
+
+Sequencing-efficiency reports are written to `TrES_Stats/` for RNA, DNA, and per-sample combined summaries. Tables count read records and also report `read_pairs = read_records / 2`; optional unavailable BAM-derived stages are skipped with warnings.
 
 ## Quick Start
 
@@ -39,7 +41,6 @@ library_name: Isa
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /mnt/dataFast/ahrmad/tmp/TrESFlow_Isa
 
 references:
   species: human
@@ -71,7 +72,6 @@ samples:
       tagmentation: dual
       reads:
         i1: /path/to/day15_DNA_I1.fastq.gz
-        i2: /path/to/day15_DNA_I2.fastq.gz
         r1: /path/to/day15_DNA_R1.fastq.gz
         r2: /path/to/day15_DNA_R2.fastq.gz
       mark_barcodes:
@@ -89,7 +89,7 @@ samples:
 ### `runtime`
 
 - `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, and `gatk`
-- `tmpdir`: explicit task temporary directory. The pipeline creates it if missing and fails if it is not writable.
+- `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
 
 ### `references`
 
@@ -121,10 +121,11 @@ The RNA block is optional, but if present it must contain:
 The DNA block is optional, but if present it must contain:
 
 - `reads.i1`
-- `reads.i2`
 - `reads.r1`
 - `reads.r2`
 - `mark_barcodes`
+
+`reads.i2` is required for `dna.tagmentation: single` and optional for `dna.tagmentation: dual`.
 
 `mark_barcodes` maps biological mark labels, such as `H3K27ac`, to their DNA modality barcodes.
 

@@ -1,0 +1,16 @@
+level	modality	unit	message
+WARNING	dna	dual_no_i2	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_MarkedDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2_Normal	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_MarkedDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2_Normal_H3K27ac	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_MarkedDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_NoDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2_Normal	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_NoDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2_Normal_H3K27ac	Could not read BAM-derived stage from dual_no_i2_Normal_H3K27ac_NoDup.bam; skipping stage: file does not contain alignment data
+WARNING	dna	dual_no_i2	aligned reads before duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2	aligned reads after duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2	final passing reads: Final BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal	aligned reads before duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal	aligned reads after duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal	final passing reads: Final BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal_H3K27ac	aligned reads before duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal_H3K27ac	aligned reads after duplicate removal: Optional BAM-derived stage unavailable
+WARNING	dna	dual_no_i2_Normal_H3K27ac	final passing reads: Final BAM-derived stage unavailable

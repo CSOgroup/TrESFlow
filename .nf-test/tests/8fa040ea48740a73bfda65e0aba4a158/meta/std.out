@@ -1,0 +1,1 @@
+Missing required field: samples.dual_missing.groups.Normal.dna_sb_barcodes. DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes; the pipeline will not derive them from RNA/sample sb_barcodes.

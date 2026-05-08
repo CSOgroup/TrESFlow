@@ -4,6 +4,7 @@ Core workflow only:
 
 - RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through `BAM_COVERAGE_DNA`
+- Shared sequencing-efficiency reporting from tag-record and alignment channels
 
 ```mermaid
 flowchart TD
@@ -26,6 +27,7 @@ flowchart TD
     REF --> DNA2
     REF --> DNA5
     REF --> DNA8
+    DERIVE --> REPORT
     DERIVE --> RNA0
     DERIVE --> RNA4
     DERIVE --> DNA0
@@ -57,6 +59,16 @@ flowchart TD
         DNA8[BAM_COVERAGE_DNA]
         DNA0 --> DNA1 --> DNA2 --> DNA3 --> DNA4 --> DNA5 --> DNA6 --> DNA7 --> DNA8
     end
+
+    subgraph Reporting[Shared Reporting]
+        REPORT[SEQUENCING_EFFICIENCY]
+    end
+
+    RNA2 --> REPORT
+    RNA7 --> REPORT
+    DNA2 --> REPORT
+    DNA6 --> REPORT
+    DNA7 --> REPORT
 ```
 
 Notes:

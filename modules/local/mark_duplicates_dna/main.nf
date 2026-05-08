@@ -28,6 +28,8 @@ process MARK_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
+    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "${splitName}_MarkedDup.bam*"
+
     input:
     tuple val(splitName), val(meta), path(alignedBam)
 

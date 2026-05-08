@@ -36,6 +36,14 @@ nextflow_pipeline {
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L2.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L3.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.sankey.html").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.sankey.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}_Normal.rna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() },
+                { assert !new File(statsDir, "${sampleId}.dna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "sequencing_efficiency.warnings.tsv").text.contains("Could not read BAM-derived stage") },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
             )
@@ -52,14 +60,15 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("Missing required field: runtime.env_prefix") }
+                { assert output.contains("Missing required field: runtime.env_prefix") }
             )
         }
     }
 
-    test("missing runtime.tmpdir fails") {
+    test("missing runtime.tmpdir defaults to outdir") {
 
         when {
             params {
@@ -69,9 +78,30 @@ nextflow_pipeline {
         }
 
         then {
+            def runtimeContract = new File(outputDir, "pipeline_info/runtime_contract.tsv")
             assertAll(
-                { assert !workflow.success },
-                { assert workflow.stderr.contains("Missing required field: runtime.tmpdir") }
+                { assert workflow.success },
+                { assert runtimeContract.exists() },
+                { assert runtimeContract.text.contains("runtime_tmpdir\t${outputDir}") }
+            )
+        }
+    }
+
+    test("explicit runtime.tmpdir is preserved") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/explicit_runtime_tmpdir.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def runtimeContract = new File(outputDir, "pipeline_info/runtime_contract.tsv")
+            assertAll(
+                { assert workflow.success },
+                { assert runtimeContract.exists() },
+                { assert runtimeContract.text.contains("runtime_tmpdir\t/tmp/TrESFlow_explicit_runtime_tmpdir") }
             )
         }
     }
@@ -86,9 +116,10 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("Missing required field: references.root") }
+                { assert output.contains("Missing required field: references.root") }
             )
         }
     }
@@ -104,9 +135,10 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("Deprecated parameter --runtime_env_prefix is no longer supported") }
+                { assert output.contains("Deprecated parameter --runtime_env_prefix is no longer supported") }
             )
         }
     }
@@ -121,10 +153,11 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("Required ligation barcode whitelist not found") },
-                { assert workflow.stderr.contains("references.ligation_barcode_whitelist") }
+                { assert output.contains("Required ligation barcode whitelist not found") },
+                { assert output.contains("references.ligation_barcode_whitelist") }
             )
         }
     }
@@ -139,10 +172,68 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("No complete bwa-mem2 sidecar set found in references.dna_ref_dir") },
-                { assert workflow.stderr.contains("hg38.fa.bwt.2bit.64") }
+                { assert output.contains("No complete bwa-mem2 sidecar set found in references.dna_ref_dir") },
+                { assert output.contains("hg38.fa.bwt.2bit.64") }
+            )
+        }
+    }
+
+    test("dual tagmentation without dna.reads.i2 runs and publishes DNA stats to TrES_Stats") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_without_i2.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "dual_no_i2"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def splitDir = new File(outputDir, "dna_split_fastqs")
+            def alignDir = new File(outputDir, "dna_align")
+            def statsDir = new File(outputDir, "TrES_Stats")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
+                { assert new File(alignDir, "${splitName}_MarkedDup.bam.bai").exists() },
+                { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
+                { assert new File(alignDir, "${splitName}_NoDup.bam.bai").exists() },
+                { assert new File(alignDir, "${splitName}_NoDup.bw").exists() },
+                { assert new File(statsDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
+                { assert !new File(alignDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}_Normal.dna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.sankey.html").exists() },
+                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.sankey.pdf").exists() },
+                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.upset.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() },
+                { assert !new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "sequencing_efficiency.warnings.tsv").text.contains("Could not read BAM-derived stage") }
+            )
+        }
+    }
+
+    test("single tagmentation without dna.reads.i2 fails") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/single_missing_i2.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
+            assertAll(
+                { assert !workflow.success },
+                { assert output.contains("Missing required field: samples.single_missing_i2.dna.reads.i2") }
             )
         }
     }
@@ -157,9 +248,10 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("Missing required field: references.rna_ref_dir") }
+                { assert output.contains("Missing required field: references.rna_ref_dir") }
             )
         }
     }
@@ -174,10 +266,11 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("RNA STAR index file missing for references.rna_ref_dir") },
-                { assert workflow.stderr.contains("SAindex") }
+                { assert output.contains("RNA STAR index file missing for references.rna_ref_dir") },
+                { assert output.contains("SAindex") }
             )
         }
     }
@@ -192,9 +285,10 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes") }
+                { assert output.contains("DNA dual tagmentation requires explicit 3 nt dna_sb_barcodes") }
             )
         }
     }
@@ -209,10 +303,11 @@ nextflow_pipeline {
         }
 
         then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
             assertAll(
                 { assert !workflow.success },
-                { assert workflow.stderr.contains("DNA sample barcode collision") },
-                { assert workflow.stderr.contains("AAA") }
+                { assert output.contains("DNA sample barcode collision") },
+                { assert output.contains("AAA") }
             )
         }
     }

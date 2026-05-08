@@ -1,0 +1,40 @@
+May-08 16:09:22.048 [main] INFO  com.askimed.nf.test.App - nf-test 0.9.5
+May-08 16:09:22.064 [main] INFO  com.askimed.nf.test.App - Arguments: [test]
+May-08 16:09:23.248 [main] INFO  com.askimed.nf.test.App - Nextflow Version: 25.04.6
+May-08 16:09:23.250 [main] INFO  com.askimed.nf.test.commands.RunTestsCommand - Load config from file /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nf-test.config...
+May-08 16:09:24.068 [main] INFO  com.askimed.nf.test.lang.dependencies.DependencyResolver - Loaded 24 files from directory /mnt/dataFast/ahrmad/tresflowdir/TrESFlow in 0.113 sec
+May-08 16:09:24.070 [main] INFO  com.askimed.nf.test.lang.dependencies.DependencyResolver - Found 1 files containing tests.
+May-08 16:09:24.070 [main] DEBUG com.askimed.nf.test.lang.dependencies.DependencyResolver - Found files: [/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/default.nf.test]
+May-08 16:09:24.635 [main] INFO  com.askimed.nf.test.commands.RunTestsCommand - Found 14 tests to execute.
+May-08 16:09:24.636 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Started test plan
+May-08 16:09:24.636 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Running testsuite 'TrESFlow RNA smoke test' from file '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/default.nf.test'.
+May-08 16:09:24.636 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'f2f7aeae: -profile test'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:09:40.315 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'f2f7aeae: -profile test' finished. status: PASSED
+May-08 16:09:40.318 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '39e90c05: missing runtime.env_prefix fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:09:45.198 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '39e90c05: missing runtime.env_prefix fails' finished. status: PASSED
+May-08 16:09:45.198 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '913714df: missing runtime.tmpdir defaults to outdir'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:09:58.829 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '913714df: missing runtime.tmpdir defaults to outdir' finished. status: PASSED
+May-08 16:09:58.829 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'b6368f42: explicit runtime.tmpdir is preserved'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:13.064 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'b6368f42: explicit runtime.tmpdir is preserved' finished. status: PASSED
+May-08 16:10:13.064 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'f1f9ae05: missing references.root fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:17.331 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'f1f9ae05: missing references.root fails' finished. status: PASSED
+May-08 16:10:17.332 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '2ce197c3: deprecated runtime_env_prefix param fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:21.584 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '2ce197c3: deprecated runtime_env_prefix param fails' finished. status: PASSED
+May-08 16:10:21.585 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '4a27a217: missing ligation whitelist does not fall back to test assets'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:26.648 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '4a27a217: missing ligation whitelist does not fall back to test assets' finished. status: PASSED
+May-08 16:10:26.649 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '5e9fbffe: missing bwa-mem2 sidecar fails before DNA execution'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:31.554 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '5e9fbffe: missing bwa-mem2 sidecar fails before DNA execution' finished. status: PASSED
+May-08 16:10:31.555 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '37141c3c: dual tagmentation without dna.reads.i2 runs and publishes DNA stats to TrES_Stats'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:46.274 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '37141c3c: dual tagmentation without dna.reads.i2 runs and publishes DNA stats to TrES_Stats' finished. status: PASSED
+May-08 16:10:46.274 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '888d3519: single tagmentation without dna.reads.i2 fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:51.152 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '888d3519: single tagmentation without dna.reads.i2 fails' finished. status: PASSED
+May-08 16:10:51.153 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'f6c2c103: missing rna_ref_dir fails when RNA is present'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:10:55.866 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'f6c2c103: missing rna_ref_dir fails when RNA is present' finished. status: PASSED
+May-08 16:10:55.867 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'fa7a1039: missing STAR index file fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:11:00.826 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'fa7a1039: missing STAR index file fails' finished. status: PASSED
+May-08 16:11:00.827 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test '8fa040ea: dual tagmentation without dna_sb_barcodes fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:11:05.736 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test '8fa040ea: dual tagmentation without dna_sb_barcodes fails' finished. status: PASSED
+May-08 16:11:05.737 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Run test 'd5d97207: dual tagmentation duplicate DNA sample barcode fails'. type: com.askimed.nf.test.lang.pipeline.PipelineTest
+May-08 16:11:10.429 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Test 'd5d97207: dual tagmentation duplicate DNA sample barcode fails' finished. status: PASSED
+May-08 16:11:10.430 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Testsuite 'TrESFlow RNA smoke test' finished. snapshot file: false, skipped tests: false, failed tests: false
+May-08 16:11:10.430 [main] INFO  com.askimed.nf.test.core.TestExecutionEngine - Executed 14 tests. 0 tests failed. Done!

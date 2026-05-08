@@ -25,7 +25,7 @@ process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "*_ProperPairedMapped_reads_per_barcode.tsv"
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "*_ProperPairedMapped_reads_per_barcode.tsv"
 
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)

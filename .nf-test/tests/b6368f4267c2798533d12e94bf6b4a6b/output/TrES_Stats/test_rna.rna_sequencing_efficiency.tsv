@@ -1,0 +1,11 @@
+unit	unit_level	modality	stage_order	stage	stage_label	read_records	read_pairs	available	note
+test_rna	sample	rna	1	total_tagged	total tagged records	2	1	true	
+test_rna	sample	rna	2	valid_sb	valid sample barcode	2	1	true	
+test_rna	sample	rna	3	valid_l1	valid L1 barcode	2	1	true	
+test_rna	sample	rna	4	valid_l2	valid L2 barcode	2	1	true	
+test_rna	sample	rna	5	valid_l3	valid L3 barcode	2	1	true	
+test_rna	sample	rna	6	valid_cb	valid full cell barcode	2	1	true	
+test_rna	sample	rna	7	umi_present	UMI present	2	1	true	
+test_rna	sample	rna	8	aligned	aligned reads from filtered_cells BAM			false	Optional BAM-derived stage unavailable
+test_rna	sample	rna	9	gx_assigned	gene-assigned reads			false	Optional BAM-derived stage unavailable
+test_rna	sample	rna	10	final_passing	final passing reads			false	Final BAM-derived stage unavailable

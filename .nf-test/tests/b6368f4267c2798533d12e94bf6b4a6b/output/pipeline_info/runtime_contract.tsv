@@ -1,0 +1,32 @@
+tool	configured_path	exists	currently_used
+python3	/home/annan/micromamba/envs/tres/bin/python3	true	yes
+trim_galore	/home/annan/micromamba/envs/tres/bin/trim_galore	true	yes
+STAR	/home/annan/micromamba/envs/tres/bin/STAR	true	yes
+samtools	/home/annan/micromamba/envs/tres/bin/samtools	true	yes
+bedGraphToBigWig	/home/annan/micromamba/envs/tres/bin/bedGraphToBigWig	true	yes
+bwa-mem2	/home/annan/micromamba/envs/tres/bin/bwa-mem2	true	yes
+bamCoverage	/home/annan/micromamba/envs/tres/bin/bamCoverage	true	yes
+gatk	/home/annan/micromamba/envs/tres/bin/gatk	true	yes
+codon	/home/annan/micromamba/envs/tres/bin/codon	true	yes
+pigz	/home/annan/micromamba/envs/tres/bin/pigz	true	yes
+
+[runtime_environment]
+runtime_env_prefix	/home/annan/micromamba/envs/tres
+runtime_bin_dir	/home/annan/micromamba/envs/tres/bin
+codon_home	/home/annan/micromamba/envs/tres
+runtime_tmpdir	/tmp/TrESFlow_explicit_runtime_tmpdir
+
+[host_codon_seq_preflight]
+Checking pinned Codon/Seq host prerequisites for every pipeline run
+required_codon_version=0.16.3
+required_seq_version=0.11.3
+CODON_HOME=/home/annan/micromamba/envs/tres
+codon_path=/home/annan/micromamba/envs/tres/bin/codon
+codon_path_source=configured
+codon_version_raw=0.16.3
+codon_version=0.16.3
+seq_plugin_dir=/home/annan/micromamba/envs/tres/lib/codon/plugins/seq
+seq_version_raw=0.11.3
+seq_version=0.11.3
+seq_supported_codon=>=0.15.4
+Host preflight passed for globally pinned pipeline toolchain.

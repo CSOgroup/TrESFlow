@@ -20,6 +20,7 @@ import WorkflowSupport
 
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
+include { SEQUENCING_EFFICIENCY } from '../modules/local/sequencing_efficiency/main'
 
 def toRnaCoreInput(final Map row) {
     tuple(
@@ -55,6 +56,13 @@ def samplesheetParseOptions() {
     ]
 }
 
+def uniqueFiles(final Collection paths) {
+    return paths
+        .findAll { it }
+        .collect { file(it) }
+        .unique { it.toString() }
+}
+
 def validateCoreResourceContract(final List<Map> rnaRows, final List<Map> dnaRows, final int maxCpus) {
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
@@ -87,6 +95,29 @@ workflow TRESEQ {
     RNA_CORE(ch_rna_samples)
     DNA_CORE(ch_dna_samples)
 
+    Channel
+        .fromList(uniqueFiles(sampleRows.collect { row -> row.sb_group_map }))
+        .collect()
+        .ifEmpty([])
+        .set { ch_efficiency_sb_group_maps }
+
+    Channel
+        .fromList(uniqueFiles(dnaRows.collect { row -> row.mo_map }))
+        .collect()
+        .ifEmpty([])
+        .set { ch_efficiency_dna_mo_maps }
+
+    SEQUENCING_EFFICIENCY(
+        sampleRows ? sampleRows[0] : [:],
+        RNA_CORE.out.tres_tag_records.collect().ifEmpty([]),
+        RNA_CORE.out.aligned_filtered_bams.map { splitName, meta, bam -> bam }.collect().ifEmpty([]),
+        DNA_CORE.out.tres_tag_records.collect().ifEmpty([]),
+        DNA_CORE.out.markeddup_bams.map { splitName, meta, bam -> bam }.collect().ifEmpty([]),
+        DNA_CORE.out.nodup_bams.map { splitName, meta, bam -> bam }.collect().ifEmpty([]),
+        ch_efficiency_sb_group_maps,
+        ch_efficiency_dna_mo_maps
+    )
+
     emit:
     tagged_fastqs               = RNA_CORE.out.tagged_fastqs
     trimmed_fastqs              = RNA_CORE.out.trimmed_fastqs
@@ -113,4 +144,6 @@ workflow TRESEQ {
     dna_coverage_bigwigs        = DNA_CORE.out.coverage_bigwigs
     dna_coverage_warnings       = DNA_CORE.out.coverage_warnings
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
+    sequencing_efficiency_reports = SEQUENCING_EFFICIENCY.out.reports
+    sequencing_efficiency_warnings = SEQUENCING_EFFICIENCY.out.warnings
 }

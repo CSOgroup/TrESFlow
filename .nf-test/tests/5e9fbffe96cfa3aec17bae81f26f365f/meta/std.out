@@ -1,0 +1,3 @@
+ERROR ~ No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
+
+ -- Check script '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/main.nf' at line: 112 or see '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/nextflow.log' file for more details

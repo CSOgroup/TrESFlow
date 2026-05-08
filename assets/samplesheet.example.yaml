@@ -2,7 +2,6 @@ library_name: TESTLIB
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /tmp/TrESFlow_test_tmp
 
 references:
   species: human
