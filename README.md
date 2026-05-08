@@ -90,36 +90,6 @@ Committed examples:
 
 ## Workflow Summary
 
-RNA core:
-
-1. `TAG_RNA_SAMPLE_BARCODE`
-2. `TAG_RNA_UMI`
-3. `TAG_RNA_CELL_BARCODE`
-4. `TRIM_RNA_FASTQS`
-5. `SPLIT_RNA_READS`
-6. `FQ_TO_SAM`
-7. `RNA_STARSOLO_ALIGN`
-8. `RNA_FILTERED_BAM`
-9. `RNA_COVERAGE`
-
-DNA core:
-
-1. `TAG_DNA_SAMPLE_BARCODE`
-2. `TAG_DNA_MODALITY_BARCODE`
-3. `TAG_DNA_CELL_BARCODE`
-4. `TRIM_DNA_FASTQS`
-5. `SPLIT_DNA_READS`
-6. `ALIGN_DNA`
-7. `MARK_DUPLICATES_DNA`
-8. `SPLIT_DUPLICATES_DNA`
-9. `BAM_COVERAGE_DNA`
-
-Shared reporting:
-
-- `SEQUENCING_EFFICIENCY`
-
-Architecture/DAG:
-
 - [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
 
 ## Outputs
