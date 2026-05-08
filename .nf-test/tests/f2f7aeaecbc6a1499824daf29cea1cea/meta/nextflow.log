@@ -1,162 +1,162 @@
-May-08 16:09:25.956 [main] DEBUG nextflow.cli.Launcher - $> nextflow -quiet -log /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/nextflow.log run /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config -params-file /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/params.json -ansi-log false -profile test -with-trace /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/trace.csv -w /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work
-May-08 16:09:26.038 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.6
-May-08 16:09:26.065 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/tmp/TrESFlow-nxf-home/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.1,nf-k8s@1.0.0,nf-tower@1.11.4,nf-wave@1.12.1
-May-08 16:09:26.093 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
-May-08 16:09:26.094 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
-May-08 16:09:26.098 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
-May-08 16:09:26.115 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
-May-08 16:09:26.147 [main] DEBUG nextflow.config.ConfigBuilder - Found config base: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 16:09:26.174 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 16:09:26.174 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
-May-08 16:09:26.176 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 16:09:26.176 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 16:09:26.177 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
-May-08 16:09:26.214 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /tmp/TrESFlow-nxf-home/secrets/store.json
-May-08 16:09:26.219 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@1efdcd5] - activable => nextflow.secret.LocalSecretsProvider@1efdcd5
-May-08 16:09:26.247 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 16:09:27.356 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 16:09:27.580 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 16:09:27.598 [main] DEBUG nextflow.config.ConfigBuilder - Available config profiles: [standard, test, test_full]
-May-08 16:09:27.639 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
-May-08 16:09:27.659 [main] INFO  nextflow.cli.CmdRun - Launching `/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf` [hungry_laplace] DSL2 - revision: 7013b787e1
-May-08 16:09:27.661 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
-May-08 16:09:27.661 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
-May-08 16:09:27.722 [main] DEBUG nextflow.Session - Session UUID: 080c06e7-e69a-43ea-8d4b-d0c136878a03
-May-08 16:09:27.722 [main] DEBUG nextflow.Session - Run name: hungry_laplace
-May-08 16:09:27.723 [main] DEBUG nextflow.Session - Executor pool size: 96
-May-08 16:09:27.733 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
-May-08 16:09:27.740 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
-May-08 16:09:27.763 [main] DEBUG nextflow.cli.CmdRun - 
+May-08 17:51:51.927 [main] DEBUG nextflow.cli.Launcher - $> nextflow -quiet -log /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/nextflow.log run /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config -params-file /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/params.json -ansi-log false -profile test -with-trace /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/trace.csv -w /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work
+May-08 17:51:52.030 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.6
+May-08 17:51:52.066 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/tmp/TrESFlow-nxf-home/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.1,nf-k8s@1.0.0,nf-tower@1.11.4,nf-wave@1.12.1
+May-08 17:51:52.102 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+May-08 17:51:52.104 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+May-08 17:51:52.110 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
+May-08 17:51:52.133 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
+May-08 17:51:52.195 [main] DEBUG nextflow.config.ConfigBuilder - Found config base: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-08 17:51:52.202 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-08 17:51:52.203 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
+May-08 17:51:52.205 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-08 17:51:52.205 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-08 17:51:52.206 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
+May-08 17:51:52.252 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /tmp/TrESFlow-nxf-home/secrets/store.json
+May-08 17:51:52.258 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@1efdcd5] - activable => nextflow.secret.LocalSecretsProvider@1efdcd5
+May-08 17:51:52.295 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-08 17:51:53.692 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-08 17:51:53.935 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-08 17:51:53.952 [main] DEBUG nextflow.config.ConfigBuilder - Available config profiles: [standard, test, test_full]
+May-08 17:51:53.986 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
+May-08 17:51:54.005 [main] INFO  nextflow.cli.CmdRun - Launching `/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf` [cheesy_hypatia] DSL2 - revision: 7013b787e1
+May-08 17:51:54.007 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
+May-08 17:51:54.007 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
+May-08 17:51:54.060 [main] DEBUG nextflow.Session - Session UUID: 864510b4-aed7-472f-8003-1e7a0e42fa54
+May-08 17:51:54.061 [main] DEBUG nextflow.Session - Run name: cheesy_hypatia
+May-08 17:51:54.061 [main] DEBUG nextflow.Session - Executor pool size: 96
+May-08 17:51:54.070 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
+May-08 17:51:54.077 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+May-08 17:51:54.102 [main] DEBUG nextflow.cli.CmdRun - 
   Version: 25.04.6 build 5954
   Created: 01-07-2025 11:27 UTC (13:27 CEST)
   System: Linux 5.14.0-611.54.1.el9_7.x86_64
   Runtime: Groovy 4.0.26 on OpenJDK 64-Bit Server VM 17.0.18-internal+0-adhoc.conda.src
   Encoding: UTF-8 (UTF-8)
-  Process: 678884@haas023.ds-a4-r09.cct.rcp.epfl.ch [10.92.40.15]
-  CPUs: 96 - Mem: 503.1 GB (2.3 GB) - Swap: 4 GB (4 GB)
-May-08 16:09:27.799 [main] DEBUG nextflow.Session - Work-dir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work [ext2/ext3]
-May-08 16:09:27.841 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
-May-08 16:09:27.852 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
-May-08 16:09:27.883 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
-May-08 16:09:27.920 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
-May-08 16:09:27.934 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 97; maxThreads: 1000
-May-08 16:09:28.009 [main] DEBUG nextflow.Session - Session start
-May-08 16:09:28.015 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow started -- trace file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/trace.csv
-May-08 16:09:28.025 [main] DEBUG nextflow.Session - Using default localLib path: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
-May-08 16:09:28.029 [main] DEBUG nextflow.Session - Adding to the classpath library: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
-May-08 16:09:28.834 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
-May-08 16:09:29.099 [main] WARN  nextflow.Nextflow - ================================================================================
+  Process: 861708@haas023.ds-a4-r09.cct.rcp.epfl.ch [10.92.40.15]
+  CPUs: 96 - Mem: 503.1 GB (8.7 GB) - Swap: 4 GB (4 GB)
+May-08 17:51:54.130 [main] DEBUG nextflow.Session - Work-dir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work [ext2/ext3]
+May-08 17:51:54.161 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
+May-08 17:51:54.171 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+May-08 17:51:54.196 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
+May-08 17:51:54.222 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
+May-08 17:51:54.233 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 97; maxThreads: 1000
+May-08 17:51:54.293 [main] DEBUG nextflow.Session - Session start
+May-08 17:51:54.297 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow started -- trace file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/meta/trace.csv
+May-08 17:51:54.305 [main] DEBUG nextflow.Session - Using default localLib path: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
+May-08 17:51:54.308 [main] DEBUG nextflow.Session - Adding to the classpath library: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
+May-08 17:51:55.168 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+May-08 17:51:55.456 [main] WARN  nextflow.Nextflow - ================================================================================
 TrESFlow runtime TMPDIR resolved for this run:
   /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/output
 
 This directory can become very large on production FASTQ/BAM runs. Monitor free
 space on the filesystem that backs this path.
 ================================================================================
-May-08 16:09:31.063 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_SAMPLE_BARCODE` matches process TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE
-May-08 16:09:31.078 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.078 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.085 [main] DEBUG nextflow.executor.Executor - [warm up] executor > local
-May-08 16:09:31.092 [main] DEBUG n.processor.LocalPollingMonitor - Creating local task monitor for executor 'local' > cpus=64; memory=503.1 GB; capacity=96; pollInterval=100ms; dumpInterval=5m
-May-08 16:09:31.094 [main] DEBUG n.processor.TaskPollingMonitor - >>> barrier register (monitor: local)
-May-08 16:09:31.119 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE': maxForks=0; fair=false; array=0
-May-08 16:09:31.177 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_UMI` matches process TRESEQ:RNA_CORE:TAG_RNA_UMI
-May-08 16:09:31.181 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.181 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.184 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_UMI': maxForks=0; fair=false; array=0
-May-08 16:09:31.213 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_CELL_BARCODE` matches process TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE
-May-08 16:09:31.217 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.218 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.220 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE': maxForks=0; fair=false; array=0
-May-08 16:09:31.234 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TRIM_RNA_FASTQS` matches process TRESEQ:RNA_CORE:TRIM_RNA_FASTQS
-May-08 16:09:31.239 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.239 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.240 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TRIM_RNA_FASTQS': maxForks=0; fair=false; array=0
-May-08 16:09:31.260 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_RNA_READS` matches process TRESEQ:RNA_CORE:SPLIT_RNA_READS
-May-08 16:09:31.264 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.264 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.265 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:SPLIT_RNA_READS': maxForks=0; fair=false; array=0
-May-08 16:09:31.283 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:FQ_TO_SAM` matches process TRESEQ:RNA_CORE:FQ_TO_SAM
-May-08 16:09:31.286 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.287 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.288 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:FQ_TO_SAM': maxForks=0; fair=false; array=0
-May-08 16:09:31.302 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_STARSOLO_ALIGN` matches process TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN
-May-08 16:09:31.305 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.305 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.306 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN': maxForks=0; fair=false; array=0
-May-08 16:09:31.322 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_FILTERED_BAM` matches process TRESEQ:RNA_CORE:RNA_FILTERED_BAM
-May-08 16:09:31.325 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.325 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.327 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_FILTERED_BAM': maxForks=0; fair=false; array=0
-May-08 16:09:31.344 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_COVERAGE` matches process TRESEQ:RNA_CORE:RNA_COVERAGE
-May-08 16:09:31.347 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.347 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.348 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_COVERAGE': maxForks=0; fair=false; array=0
-May-08 16:09:31.371 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_SAMPLE_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE
-May-08 16:09:31.374 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.374 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.375 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE': maxForks=0; fair=false; array=0
-May-08 16:09:31.395 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_MODALITY_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
-May-08 16:09:31.398 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.398 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.399 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE': maxForks=0; fair=false; array=0
-May-08 16:09:31.420 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_CELL_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE
-May-08 16:09:31.423 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.423 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.424 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE': maxForks=0; fair=false; array=0
-May-08 16:09:31.434 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TRIM_DNA_FASTQS` matches process TRESEQ:DNA_CORE:TRIM_DNA_FASTQS
-May-08 16:09:31.437 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.437 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.438 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TRIM_DNA_FASTQS': maxForks=0; fair=false; array=0
-May-08 16:09:31.453 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_DNA_READS` matches process TRESEQ:DNA_CORE:SPLIT_DNA_READS
-May-08 16:09:31.456 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.456 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.457 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:SPLIT_DNA_READS': maxForks=0; fair=false; array=0
-May-08 16:09:31.477 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:ALIGN_DNA` matches process TRESEQ:DNA_CORE:ALIGN_DNA
-May-08 16:09:31.479 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.480 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.481 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:ALIGN_DNA': maxForks=0; fair=false; array=0
-May-08 16:09:31.493 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:MARK_DUPLICATES_DNA` matches process TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA
-May-08 16:09:31.496 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.496 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.497 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA': maxForks=0; fair=false; array=0
-May-08 16:09:31.511 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_DUPLICATES_DNA` matches process TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA
-May-08 16:09:31.514 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.514 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.515 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA': maxForks=0; fair=false; array=0
-May-08 16:09:31.530 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:BAM_COVERAGE_DNA` matches process TRESEQ:DNA_CORE:BAM_COVERAGE_DNA
-May-08 16:09:31.532 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.532 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.533 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:BAM_COVERAGE_DNA': maxForks=0; fair=false; array=0
-May-08 16:09:31.600 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SEQUENCING_EFFICIENCY` matches process TRESEQ:SEQUENCING_EFFICIENCY
-May-08 16:09:31.602 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
-May-08 16:09:31.602 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
-May-08 16:09:31.603 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:SEQUENCING_EFFICIENCY': maxForks=0; fair=false; array=0
-May-08 16:09:31.611 [main] DEBUG nextflow.Session - Workflow process names [dsl2]: SPLIT_DUPLICATES_DNA, TRESEQ:SEQUENCING_EFFICIENCY, TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA, TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE, TRESEQ:RNA_CORE:FQ_TO_SAM, TRESEQ:RNA_CORE:TAG_RNA_UMI, TRESEQ:RNA_CORE:TRIM_RNA_FASTQS, RNA_STARSOLO_ALIGN, MARK_DUPLICATES_DNA, TRESEQ:DNA_CORE:ALIGN_DNA, TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA, TRESEQ:RNA_CORE:SPLIT_RNA_READS, TRIM_DNA_FASTQS, BAM_COVERAGE_DNA, TRESEQ:DNA_CORE:BAM_COVERAGE_DNA, TRESEQ:RNA_CORE:RNA_FILTERED_BAM, ALIGN_DNA, TAG_RNA_UMI, RNA_FILTERED_BAM, TRIM_RNA_FASTQS, TRESEQ:DNA_CORE:SPLIT_DNA_READS, RNA_COVERAGE, TAG_DNA_MODALITY_BARCODE, TRESEQ:RNA_CORE:RNA_COVERAGE, TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE, FQ_TO_SAM, TAG_DNA_CELL_BARCODE, TAG_DNA_SAMPLE_BARCODE, TRESEQ:DNA_CORE:TRIM_DNA_FASTQS, TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE, SEQUENCING_EFFICIENCY, SPLIT_RNA_READS, TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN, TAG_RNA_SAMPLE_BARCODE, TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE, SPLIT_DNA_READS, TAG_RNA_CELL_BARCODE, TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
-May-08 16:09:31.622 [main] DEBUG nextflow.Session - Igniting dataflow network (25)
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_UMI
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TRIM_RNA_FASTQS
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:SPLIT_RNA_READS
-May-08 16:09:31.624 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:FQ_TO_SAM
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_COVERAGE
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TRIM_DNA_FASTQS
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:SPLIT_DNA_READS
-May-08 16:09:31.625 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:ALIGN_DNA
-May-08 16:09:31.626 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA
-May-08 16:09:31.626 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA
-May-08 16:09:31.626 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:BAM_COVERAGE_DNA
-May-08 16:09:31.626 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:SEQUENCING_EFFICIENCY
-May-08 16:09:31.629 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
+May-08 17:51:57.239 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_SAMPLE_BARCODE` matches process TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE
+May-08 17:51:57.254 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.255 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.261 [main] DEBUG nextflow.executor.Executor - [warm up] executor > local
+May-08 17:51:57.267 [main] DEBUG n.processor.LocalPollingMonitor - Creating local task monitor for executor 'local' > cpus=4; memory=503.1 GB; capacity=96; pollInterval=100ms; dumpInterval=5m
+May-08 17:51:57.269 [main] DEBUG n.processor.TaskPollingMonitor - >>> barrier register (monitor: local)
+May-08 17:51:57.290 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE': maxForks=0; fair=false; array=0
+May-08 17:51:57.356 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_UMI` matches process TRESEQ:RNA_CORE:TAG_RNA_UMI
+May-08 17:51:57.361 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.361 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.365 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_UMI': maxForks=0; fair=false; array=0
+May-08 17:51:57.396 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_RNA_CELL_BARCODE` matches process TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE
+May-08 17:51:57.400 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.400 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.402 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE': maxForks=0; fair=false; array=0
+May-08 17:51:57.416 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TRIM_RNA_FASTQS` matches process TRESEQ:RNA_CORE:TRIM_RNA_FASTQS
+May-08 17:51:57.420 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.420 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.421 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:TRIM_RNA_FASTQS': maxForks=0; fair=false; array=0
+May-08 17:51:57.439 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_RNA_READS` matches process TRESEQ:RNA_CORE:SPLIT_RNA_READS
+May-08 17:51:57.443 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.444 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.445 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:SPLIT_RNA_READS': maxForks=0; fair=false; array=0
+May-08 17:51:57.461 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:FQ_TO_SAM` matches process TRESEQ:RNA_CORE:FQ_TO_SAM
+May-08 17:51:57.464 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.465 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.466 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:FQ_TO_SAM': maxForks=0; fair=false; array=0
+May-08 17:51:57.477 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_STARSOLO_ALIGN` matches process TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN
+May-08 17:51:57.480 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.480 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.481 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN': maxForks=0; fair=false; array=0
+May-08 17:51:57.494 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_FILTERED_BAM` matches process TRESEQ:RNA_CORE:RNA_FILTERED_BAM
+May-08 17:51:57.496 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.496 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.498 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_FILTERED_BAM': maxForks=0; fair=false; array=0
+May-08 17:51:57.510 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:RNA_COVERAGE` matches process TRESEQ:RNA_CORE:RNA_COVERAGE
+May-08 17:51:57.513 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.513 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.514 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:RNA_CORE:RNA_COVERAGE': maxForks=0; fair=false; array=0
+May-08 17:51:57.532 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_SAMPLE_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE
+May-08 17:51:57.535 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.535 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.536 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE': maxForks=0; fair=false; array=0
+May-08 17:51:57.554 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_MODALITY_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
+May-08 17:51:57.556 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.557 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.558 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE': maxForks=0; fair=false; array=0
+May-08 17:51:57.579 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TAG_DNA_CELL_BARCODE` matches process TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE
+May-08 17:51:57.582 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.582 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.584 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE': maxForks=0; fair=false; array=0
+May-08 17:51:57.595 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:TRIM_DNA_FASTQS` matches process TRESEQ:DNA_CORE:TRIM_DNA_FASTQS
+May-08 17:51:57.597 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.597 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.598 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:TRIM_DNA_FASTQS': maxForks=0; fair=false; array=0
+May-08 17:51:57.618 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_DNA_READS` matches process TRESEQ:DNA_CORE:SPLIT_DNA_READS
+May-08 17:51:57.621 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.621 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.622 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:SPLIT_DNA_READS': maxForks=0; fair=false; array=0
+May-08 17:51:57.642 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:ALIGN_DNA` matches process TRESEQ:DNA_CORE:ALIGN_DNA
+May-08 17:51:57.644 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.644 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.645 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:ALIGN_DNA': maxForks=0; fair=false; array=0
+May-08 17:51:57.657 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:MARK_DUPLICATES_DNA` matches process TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA
+May-08 17:51:57.660 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.660 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.661 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA': maxForks=0; fair=false; array=0
+May-08 17:51:57.675 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SPLIT_DUPLICATES_DNA` matches process TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA
+May-08 17:51:57.678 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.678 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.679 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA': maxForks=0; fair=false; array=0
+May-08 17:51:57.692 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:BAM_COVERAGE_DNA` matches process TRESEQ:DNA_CORE:BAM_COVERAGE_DNA
+May-08 17:51:57.694 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.694 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.695 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:DNA_CORE:BAM_COVERAGE_DNA': maxForks=0; fair=false; array=0
+May-08 17:51:57.748 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:SEQUENCING_EFFICIENCY` matches process TRESEQ:SEQUENCING_EFFICIENCY
+May-08 17:51:57.750 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: local
+May-08 17:51:57.750 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'local'
+May-08 17:51:57.751 [main] DEBUG nextflow.processor.TaskProcessor - Creating process 'TRESEQ:SEQUENCING_EFFICIENCY': maxForks=0; fair=false; array=0
+May-08 17:51:57.760 [main] DEBUG nextflow.Session - Workflow process names [dsl2]: SPLIT_DUPLICATES_DNA, TRESEQ:SEQUENCING_EFFICIENCY, TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA, TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE, TRESEQ:RNA_CORE:FQ_TO_SAM, TRESEQ:RNA_CORE:TAG_RNA_UMI, TRESEQ:RNA_CORE:TRIM_RNA_FASTQS, RNA_STARSOLO_ALIGN, MARK_DUPLICATES_DNA, TRESEQ:DNA_CORE:ALIGN_DNA, TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA, TRESEQ:RNA_CORE:SPLIT_RNA_READS, TRIM_DNA_FASTQS, BAM_COVERAGE_DNA, TRESEQ:DNA_CORE:BAM_COVERAGE_DNA, TRESEQ:RNA_CORE:RNA_FILTERED_BAM, ALIGN_DNA, TAG_RNA_UMI, RNA_FILTERED_BAM, TRIM_RNA_FASTQS, TRESEQ:DNA_CORE:SPLIT_DNA_READS, TAG_DNA_MODALITY_BARCODE, RNA_COVERAGE, TRESEQ:RNA_CORE:RNA_COVERAGE, TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE, FQ_TO_SAM, TAG_DNA_SAMPLE_BARCODE, TAG_DNA_CELL_BARCODE, TRESEQ:DNA_CORE:TRIM_DNA_FASTQS, TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE, SEQUENCING_EFFICIENCY, SPLIT_RNA_READS, TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN, TAG_RNA_SAMPLE_BARCODE, TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE, SPLIT_DNA_READS, TAG_RNA_CELL_BARCODE, TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
+May-08 17:51:57.769 [main] DEBUG nextflow.Session - Igniting dataflow network (25)
+May-08 17:51:57.770 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE
+May-08 17:51:57.771 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_UMI
+May-08 17:51:57.771 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE
+May-08 17:51:57.771 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:TRIM_RNA_FASTQS
+May-08 17:51:57.771 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:SPLIT_RNA_READS
+May-08 17:51:57.771 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:FQ_TO_SAM
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:RNA_CORE:RNA_COVERAGE
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_SAMPLE_BARCODE
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_MODALITY_BARCODE
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TAG_DNA_CELL_BARCODE
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:TRIM_DNA_FASTQS
+May-08 17:51:57.772 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:SPLIT_DNA_READS
+May-08 17:51:57.773 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:ALIGN_DNA
+May-08 17:51:57.773 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:MARK_DUPLICATES_DNA
+May-08 17:51:57.773 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:SPLIT_DUPLICATES_DNA
+May-08 17:51:57.773 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:DNA_CORE:BAM_COVERAGE_DNA
+May-08 17:51:57.774 [main] DEBUG nextflow.processor.TaskProcessor - Starting process > TRESEQ:SEQUENCING_EFFICIENCY
+May-08 17:51:57.776 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
   Script_7943fb050ae29edd: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/split_rna_reads/main.nf
-  Script_fbc9e182f0607ade: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/tag_dna_cell_barcode/main.nf
   Script_40757efc436e1442: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/split_dna_reads/main.nf
   Script_3c22d5df3e41af96: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/main.nf
+  Script_fbc9e182f0607ade: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/tag_dna_cell_barcode/main.nf
   Script_505d62218de131df: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/rna_starsolo_align/main.nf
   Script_a68e31dba82df3c7: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/subworkflows/local/dna_core/main.nf
   Script_d14251b75f6a2ab5: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/align_dna/main.nf
@@ -168,69 +168,75 @@ May-08 16:09:31.629 [main] DEBUG nextflow.script.ScriptRunner - Parsed script fi
   Script_ef0a05d3e59a80bf: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/rna_filtered_bam/main.nf
   Script_0f70320d3f20d691: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/mark_duplicates_dna/main.nf
   Script_b2b723a606c96045: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/tag_rna_sb/main.nf
-  Script_8d57b1b427625ddc: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/subworkflows/local/rna_core/main.nf
   Script_bb80cef7c6960cb7: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/split_duplicates_dna/main.nf
+  Script_8d57b1b427625ddc: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/subworkflows/local/rna_core/main.nf
   Script_7402ca258aff5ac2: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/rna_coverage/main.nf
   Script_136aafde936504e9: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/bam_coverage_dna/main.nf
   Script_43c22d3aed3db983: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/tag_dna_sb/main.nf
   Script_a9dbbf9bb4e484b3: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/trim_rna_fastqs/main.nf
   Script_63a7428c7477b9eb: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/workflows/treseq.nf
   Script_eb4ddac038ea63f3: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/modules/local/trim_dna_fastqs/main.nf
-May-08 16:09:31.629 [main] DEBUG nextflow.script.ScriptRunner - > Awaiting termination 
-May-08 16:09:31.630 [main] DEBUG nextflow.Session - Session await
-May-08 16:09:31.807 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:31.810 [Task submitter] INFO  nextflow.Session - [44/f23543] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE (test_rna)
-May-08 16:09:32.000 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 1; name: TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/44/f23543e0c4e12ff110ece46c4520dd]
-May-08 16:09:32.001 [Task monitor] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'TaskFinalizer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
-May-08 16:09:32.044 [TaskFinalizer-1] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'PublishDir' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
-May-08 16:09:32.058 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.059 [Task submitter] INFO  nextflow.Session - [6f/08271e] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_UMI (test_rna)
-May-08 16:09:32.239 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 2; name: TRESEQ:RNA_CORE:TAG_RNA_UMI (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/6f/08271e8e08e746e6bbdad36e837c83]
-May-08 16:09:32.282 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.283 [Task submitter] INFO  nextflow.Session - [af/82037a] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE (test_rna)
-May-08 16:09:32.467 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 3; name: TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/af/82037a17818162c0b4454e959dddf2]
-May-08 16:09:32.492 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.493 [Task submitter] INFO  nextflow.Session - [71/8eeae3] Submitted process > TRESEQ:RNA_CORE:TRIM_RNA_FASTQS (test_rna)
-May-08 16:09:32.672 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 4; name: TRESEQ:RNA_CORE:TRIM_RNA_FASTQS (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/71/8eeae37df581c6f308713002b36676]
-May-08 16:09:32.699 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.700 [Task submitter] INFO  nextflow.Session - [5b/c0996a] Submitted process > TRESEQ:RNA_CORE:SPLIT_RNA_READS (test_rna)
-May-08 16:09:32.922 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 5; name: TRESEQ:RNA_CORE:SPLIT_RNA_READS (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/5b/c0996a786bf58bd10fa4b1a67d762c]
-May-08 16:09:32.960 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.961 [Task submitter] INFO  nextflow.Session - [60/171bbf] Submitted process > TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Co2)
-May-08 16:09:32.969 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:32.970 [Task submitter] INFO  nextflow.Session - [49/757eab] Submitted process > TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Normal)
-May-08 16:09:33.146 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 6; name: TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/60/171bbfa4a44aeae1e0e1fd051403e1]
-May-08 16:09:33.163 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 7; name: TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/49/757eabd892405bec51a772982d9251]
-May-08 16:09:33.169 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.170 [Task submitter] INFO  nextflow.Session - [d7/179ab8] Submitted process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Co2)
-May-08 16:09:33.178 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.178 [Task submitter] INFO  nextflow.Session - [1a/a5232e] Submitted process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Normal)
-May-08 16:09:33.352 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 8; name: TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/d7/179ab89772f2faf37da3a91f616b1f]
-May-08 16:09:33.369 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 9; name: TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/1a/a5232e15ad69d0c4d6c3e73fc4e06d]
-May-08 16:09:33.375 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.376 [Task submitter] INFO  nextflow.Session - [fc/dd5ca5] Submitted process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Co2)
-May-08 16:09:33.386 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.387 [Task submitter] INFO  nextflow.Session - [7d/970dcc] Submitted process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Normal)
-May-08 16:09:33.561 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 10; name: TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/fc/dd5ca57db16b7acd82dfdc3154b99e]
-May-08 16:09:33.581 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 11; name: TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/7d/970dcc872b7f9e56ca4af76079a843]
-May-08 16:09:33.586 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.587 [Task submitter] INFO  nextflow.Session - [30/2b9704] Submitted process > TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Co2)
-May-08 16:09:33.595 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.596 [Task submitter] INFO  nextflow.Session - [0c/25d585] Submitted process > TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Normal)
-May-08 16:09:33.602 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
-May-08 16:09:33.602 [Task submitter] INFO  nextflow.Session - [f9/9bd39b] Submitted process > TRESEQ:SEQUENCING_EFFICIENCY (sequencing_efficiency)
-May-08 16:09:33.772 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 12; name: TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/30/2b9704f395cef95a61a4f4972bbf99]
-May-08 16:09:33.788 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 13; name: TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/0c/25d585b2468ce549f895db6b0e0bf8]
-May-08 16:09:39.389 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 14; name: TRESEQ:SEQUENCING_EFFICIENCY (sequencing_efficiency); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/f9/9bd39bbc84ad68286f6eb7f7cb71aa]
-May-08 16:09:39.399 [main] DEBUG nextflow.Session - Session await > all processes finished
-May-08 16:09:39.490 [Task monitor] DEBUG n.processor.TaskPollingMonitor - <<< barrier arrives (monitor: local) - terminating tasks monitor poll loop
-May-08 16:09:39.490 [main] DEBUG nextflow.Session - Session await > all barriers passed
-May-08 16:09:39.493 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'TaskFinalizer' shutdown completed (hard=false)
-May-08 16:09:39.494 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'PublishDir' shutdown completed (hard=false)
-May-08 16:09:39.502 [main] DEBUG n.trace.WorkflowStatsObserver - Workflow completed > WorkflowStats[succeededCount=14; failedCount=0; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=6.2s; failedDuration=0ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=3; peakCpus=3; peakMemory=6 GB; ]
-May-08 16:09:39.502 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow completed -- saving trace file
-May-08 16:09:39.503 [main] DEBUG nextflow.trace.ReportObserver - Workflow completed -- rendering execution report
-May-08 16:09:39.995 [main] DEBUG nextflow.trace.TimelineObserver - Workflow completed -- rendering execution timeline
-May-08 16:09:40.098 [main] DEBUG nextflow.cache.CacheDB - Closing CacheDB done
-May-08 16:09:40.122 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'FileTransfer' shutdown completed (hard=false)
-May-08 16:09:40.123 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye
+May-08 17:51:57.776 [main] DEBUG nextflow.script.ScriptRunner - > Awaiting termination 
+May-08 17:51:57.776 [main] DEBUG nextflow.Session - Session await
+May-08 17:51:57.955 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:57.958 [Task submitter] INFO  nextflow.Session - [1b/41f05b] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE (test_rna)
+May-08 17:51:58.156 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 1; name: TRESEQ:RNA_CORE:TAG_RNA_SAMPLE_BARCODE (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/1b/41f05b9338bef4ef97e33d62807954]
+May-08 17:51:58.157 [Task monitor] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'TaskFinalizer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+May-08 17:51:58.200 [TaskFinalizer-1] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'PublishDir' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+May-08 17:51:58.220 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:58.221 [Task submitter] INFO  nextflow.Session - [99/b4f810] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_UMI (test_rna)
+May-08 17:51:58.382 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 2; name: TRESEQ:RNA_CORE:TAG_RNA_UMI (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/99/b4f810ab286d4f5d317c152b4f4d9a]
+May-08 17:51:58.425 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:58.426 [Task submitter] INFO  nextflow.Session - [de/62e867] Submitted process > TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE (test_rna)
+May-08 17:51:58.589 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 3; name: TRESEQ:RNA_CORE:TAG_RNA_CELL_BARCODE (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/de/62e8677b1d59183c8bb16842b8f1c6]
+May-08 17:51:58.617 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:58.618 [Task submitter] INFO  nextflow.Session - [03/c364f7] Submitted process > TRESEQ:RNA_CORE:TRIM_RNA_FASTQS (test_rna)
+May-08 17:51:58.777 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 4; name: TRESEQ:RNA_CORE:TRIM_RNA_FASTQS (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/03/c364f7909130ff3c046e1c6df5c19d]
+May-08 17:51:58.803 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:58.804 [Task submitter] INFO  nextflow.Session - [d1/1ce0d8] Submitted process > TRESEQ:RNA_CORE:SPLIT_RNA_READS (test_rna)
+May-08 17:51:58.993 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 5; name: TRESEQ:RNA_CORE:SPLIT_RNA_READS (test_rna); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/d1/1ce0d822e2aabb2b80be4678185d5e]
+May-08 17:51:59.026 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.027 [Task submitter] INFO  nextflow.Session - [4f/d4069d] Submitted process > TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Normal)
+May-08 17:51:59.032 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.033 [Task submitter] INFO  nextflow.Session - [c1/4049c2] Submitted process > TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Co2)
+May-08 17:51:59.188 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 7; name: TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/4f/d4069d5ee1ff4770b6f3ad502933e8]
+May-08 17:51:59.197 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 6; name: TRESEQ:RNA_CORE:FQ_TO_SAM (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/c1/4049c293c5fd718551732038c9cd89]
+May-08 17:51:59.213 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.213 [Task submitter] INFO  nextflow.Session - [80/9fb6f4] Submitted process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Normal)
+May-08 17:51:59.219 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.219 [Task submitter] INFO  nextflow.Session - [7f/3b64eb] Submitted process > TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Co2)
+May-08 17:51:59.373 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 8; name: TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/80/9fb6f43ddf5b95b07adb5e1bd74685]
+May-08 17:51:59.383 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 9; name: TRESEQ:RNA_CORE:RNA_STARSOLO_ALIGN (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/7f/3b64eb5ec895cb1cc8158a6f689329]
+May-08 17:51:59.398 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.399 [Task submitter] INFO  nextflow.Session - [c6/dcc921] Submitted process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Normal)
+May-08 17:51:59.405 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.406 [Task submitter] INFO  nextflow.Session - [4a/1b0c2f] Submitted process > TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Co2)
+May-08 17:51:59.567 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 11; name: TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/4a/1b0c2f0957e31c3f14ad73e6e16a23]
+May-08 17:51:59.599 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.600 [Task submitter] INFO  nextflow.Session - [b9/3438a2] Submitted process > TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Co2)
+May-08 17:51:59.667 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 10; name: TRESEQ:RNA_CORE:RNA_FILTERED_BAM (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/c6/dcc9215cad4f80f71af1aa7cb97c25]
+May-08 17:51:59.688 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.689 [Task submitter] INFO  nextflow.Session - [57/6a1335] Submitted process > TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Normal)
+May-08 17:51:59.696 [Task submitter] DEBUG n.executor.local.LocalTaskHandler - Launch cmd line: /bin/bash -ue .command.run
+May-08 17:51:59.697 [Task submitter] INFO  nextflow.Session - [b4/4faca2] Submitted process > TRESEQ:SEQUENCING_EFFICIENCY (sequencing_efficiency)
+May-08 17:51:59.760 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 12; name: TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Co2); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/b9/3438a2b1cbca312dad7fae887580b4]
+May-08 17:51:59.848 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 13; name: TRESEQ:RNA_CORE:RNA_COVERAGE (test_rna_Normal); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/57/6a1335aaa6696c08f6c5ce6ea88863]
+May-08 17:52:03.745 [Task monitor] DEBUG n.processor.TaskPollingMonitor - Task completed > TaskHandler[id: 14; name: TRESEQ:SEQUENCING_EFFICIENCY (sequencing_efficiency); status: COMPLETED; exit: 0; error: -; workDir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/f2f7aeaecbc6a1499824daf29cea1cea/work/b4/4faca2f0c388405a02e1c9a7f44d30]
+May-08 17:52:03.754 [main] DEBUG nextflow.Session - Session await > all processes finished
+May-08 17:52:03.846 [Task monitor] DEBUG n.processor.TaskPollingMonitor - <<< barrier arrives (monitor: local) - terminating tasks monitor poll loop
+May-08 17:52:03.847 [main] DEBUG nextflow.Session - Session await > all barriers passed
+May-08 17:52:03.851 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'TaskFinalizer' shutdown completed (hard=false)
+May-08 17:52:03.852 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'PublishDir' shutdown completed (hard=false)
+May-08 17:52:03.861 [main] DEBUG n.trace.WorkflowStatsObserver - Workflow completed > WorkflowStats[succeededCount=14; failedCount=0; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=4.5s; failedDuration=0ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=3; peakCpus=3; peakMemory=6 GB; ]
+May-08 17:52:03.862 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow completed -- saving trace file
+May-08 17:52:03.863 [main] DEBUG nextflow.trace.ReportObserver - Workflow completed -- rendering execution report
+May-08 17:52:04.390 [main] DEBUG nextflow.trace.TimelineObserver - Workflow completed -- rendering execution timeline
+May-08 17:52:04.499 [main] DEBUG nextflow.cache.CacheDB - Closing CacheDB done
+May-08 17:52:04.525 [main] DEBUG nextflow.plugin.PluginsFacade - Using Default plugin manager
+May-08 17:52:04.528 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+May-08 17:52:04.529 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+May-08 17:52:04.530 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
+May-08 17:52:04.531 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
+May-08 17:52:04.613 [main] DEBUG nextflow.cache.CacheDB - Closing CacheDB done
+May-08 17:52:04.614 [main] DEBUG nextflow.util.ThreadPoolManager - Thread pool 'FileTransfer' shutdown completed (hard=false)
+May-08 17:52:04.614 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye

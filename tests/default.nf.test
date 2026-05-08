@@ -68,6 +68,30 @@ nextflow_pipeline {
         }
     }
 
+    test("cleanup_work false keeps pipeline success and published outputs") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cleanup_work = false
+            }
+        }
+
+        then {
+            def sampleId = "test_rna"
+            def splitDir = new File(outputDir, "rna_split_fastqs")
+            def statsDir = new File(outputDir, "TrES_Stats")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() }
+            )
+        }
+    }
+
     test("missing runtime.tmpdir defaults to outdir") {
 
         when {

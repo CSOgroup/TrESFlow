@@ -152,8 +152,27 @@ The main public parameters are:
 - `--samplesheet`
 - `--outdir`
 - `--max_cpus`
+- `--cleanup_work`
+- `--rna_starsolo_cpus`
+- `--dna_align_cpus`
+- `--coverage_cpus`
+- `--helper_cpus`
+- `--tagging_cpus`
+- `--tagging_memory`
 
 Deprecated runtime/reference CLI parameters now fail with a hard error.
+
+For local execution, `--max_cpus` is the global executor cap and all bundled per-process CPU reservations are capped by it. The default reservations favor concurrency across independent samples, groups, and DNA marks:
+
+- RNA STARsolo and DNA alignment default to `16` CPUs each.
+- RNA and DNA coverage default to `8` CPUs.
+- trim, split, RNA filtered-BAM, and DNA duplicate-filter helpers default to `4` CPUs.
+- barcode-tagging steps default to `4` CPUs and `32 GB` memory.
+- `FQ_TO_SAM`, `MARK_DUPLICATES_DNA`, and `SEQUENCING_EFFICIENCY` stay at `1` CPU.
+
+Override the bucket params above on the command line or in a Nextflow config when a specific machine or scheduler profile can support larger reservations.
+
+`--cleanup_work` defaults to `true`. TrESFlow uses Nextflow's supported successful-run cleanup to remove task work directories after final outputs are published and all downstream consumers have completed. This keeps large FASTQ, uSAM, tag-record, and BAM intermediates from remaining in `work/` after a successful run. The tradeoff is that `--resume` is not expected to be reliable for cleaned tasks. Set `--cleanup_work false` for debugging or for runs where preserving work directories is more important than disk cleanup.
 
 ## Bundled Examples
 

@@ -46,6 +46,41 @@
                     "description": "Maximum local CPU budget used to derive per-process scheduler reservations in the bundled local profiles.",
                     "default": 64
                 },
+                "cleanup_work": {
+                    "type": "boolean",
+                    "description": "Enable Nextflow cleanup of successful task work directories after a successful run. This reduces retained work/ storage and makes --resume unreliable for cleaned tasks.",
+                    "default": true
+                },
+                "tagging_cpus": {
+                    "type": "integer",
+                    "description": "Default local CPU reservation for barcode-tagging processes. The value is capped by --max_cpus.",
+                    "default": 4
+                },
+                "tagging_memory": {
+                    "type": "string",
+                    "description": "Default local memory reservation for barcode-tagging processes.",
+                    "default": "32 GB"
+                },
+                "helper_cpus": {
+                    "type": "integer",
+                    "description": "Default local CPU reservation for trim, split, filtered-BAM, and duplicate-filter helper processes. The value is capped by --max_cpus.",
+                    "default": 4
+                },
+                "rna_starsolo_cpus": {
+                    "type": "integer",
+                    "description": "Default local CPU reservation for RNA_STARSOLO_ALIGN. The value is capped by --max_cpus.",
+                    "default": 16
+                },
+                "dna_align_cpus": {
+                    "type": "integer",
+                    "description": "Default local CPU reservation for ALIGN_DNA and its bwa-mem2/samtools wrapper. The value is capped by --max_cpus.",
+                    "default": 16
+                },
+                "coverage_cpus": {
+                    "type": "integer",
+                    "description": "Default local CPU reservation for RNA_COVERAGE and BAM_COVERAGE_DNA. The value is capped by --max_cpus.",
+                    "default": 8
+                },
                 "publish_dir_mode": {
                     "type": "string",
                     "description": "PublishDir mode applied by the lightweight modules.config layer.",

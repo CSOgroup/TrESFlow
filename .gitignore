@@ -1,6 +1,8 @@
 
 upstream/
 .nextflow*
+.nf-test/
+.nf-test.log
 results/
 work/
 .DS_Store

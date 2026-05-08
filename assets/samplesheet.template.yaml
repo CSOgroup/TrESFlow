@@ -5,16 +5,16 @@
 library_name: Isa
 
 runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
+  env_prefix: /path/to/env/prefix
 
 references:
   species: human
-  root: /mnt/dataFast/ahrmad/TrESFlow_References
-  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
-  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
-  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
-  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
-  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  root: /path/to/TrESFlow_References
+  ligation_barcode_whitelist: /path/to/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /path/to/TrESFlow_References/rna/human/star
+  dna_ref_dir: /path/to/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /path/to/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /path/to/TrESFlow_References/dna/human/hg38.chrom.sizes
   dna_effective_genome_size: 2913022398
 
 samples:

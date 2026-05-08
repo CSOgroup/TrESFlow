@@ -152,5 +152,7 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or cover
 
 - published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
 - published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
-- earlier tag, trim, RNA uSAM, STAR aligned BAM, and non-published coverage side products remain transient in `work/` unless captured manually
+- earlier tag, trim, RNA uSAM, STAR aligned BAM, tag-record, and non-published coverage side products are transient task outputs
 - DNA duplicate-marked BAMs are published under `dna_align/` for sequencing-efficiency reporting
+
+By default, `--cleanup_work true` asks Nextflow to clean successful task work directories after the workflow finishes successfully. This preserves published outputs while reducing retained `work/` storage. Set `--cleanup_work false` to keep work directories for debugging or a more resume-friendly run.

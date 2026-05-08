@@ -23,7 +23,7 @@ cd TrESFlow
 
 Install codon in your env:
 ```bash
-./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix (for ex:/home/ahrmad/micromamba/envs/tres)
+./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix
 ```
 
 ## Samplesheet Contract
@@ -31,42 +31,50 @@ Install codon in your env:
 The only supported public input contract is one hierarchical YAML samplesheet.
 
 ```yaml
+# Generic hierarchical samplesheet template.
+# Keep one biological sample entry per sample under `samples:`.
+# Omit the `rna:` or `dna:` block if that modality is not present.
+
 library_name: Isa
 
 runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
+  env_prefix: /path/to/env/prefix
 
 references:
   species: human
-  root: /mnt/dataFast/ahrmad/TrESFlow_References
-  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
-  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
-  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
-  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
-  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  root: /path/to/TrESFlow_References
+  ligation_barcode_whitelist: /path/to/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /path/to/TrESFlow_References/rna/human/star
+  dna_ref_dir: /path/to/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /path/to/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /path/to/TrESFlow_References/dna/human/hg38.chrom.sizes
   dna_effective_genome_size: 2913022398
 
 samples:
-  day15:
+  sample_id:
     groups:
-      Normal:
-        sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
-      Co2:
-        sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+      group_a:
+        rna_sb_barcodes: [AAAA, CCCC]
+        dna_sb_barcodes: [AAA, CCC]
+      group_b:
+        rna_sb_barcodes: [GGGG, TTTT]
+        dna_sb_barcodes: [GGG, TTT]
 
     rna:
       reads:
-        i1: /path/to/day15_RNA_I1.fastq.gz
-        r1: /path/to/day15_RNA_R1.fastq.gz
-        r2: /path/to/day15_RNA_R2.fastq.gz
+        i1: /path/to/sample_I1.fq.gz
+        r1: /path/to/sample_R1.fq.gz
+        r2: /path/to/sample_R2.fq.gz
 
     dna:
-      tagmentation: single
+      # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
+      # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
+      # required for single tagmentation and optional for dual tagmentation.
+      tagmentation: dual
       reads:
-        i1: /path/to/day15_DNA_I1.fastq.gz
-        i2: /path/to/day15_DNA_I2.fastq.gz
-        r1: /path/to/day15_DNA_R1.fastq.gz
-        r2: /path/to/day15_DNA_R2.fastq.gz
+        i1: /path/to/sample_DNA_I1.fq.gz
+        r1: /path/to/sample_DNA_R1.fq.gz
+        r2: /path/to/sample_DNA_R2.fq.gz
       mark_barcodes:
         H3K27me3: AGGCTATA
         H3K27ac: GCCTCTAT
@@ -119,15 +127,15 @@ if it is missing and fails if it is not writable.
 
 Reference paths are explicit in the samplesheet:
 
-```yaml
+```text
 references:
   species: human
-  root: /mnt/dataFast/ahrmad/TrESFlow_References
-  ligation_barcode_whitelist: /mnt/dataFast/ahrmad/TrESFlow_References/ligation_barcode_whitelist.txt
-  rna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/rna/human/star
-  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
-  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
-  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  root: /path/to/TrESFlow_References
+  ligation_barcode_whitelist: /path/to/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: /path/to/TrESFlow_References/rna/human/star
+  dna_ref_dir: /path/to/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /path/to/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /path/to/TrESFlow_References/dna/human/hg38.chrom.sizes
   dna_effective_genome_size: 2913022398
 ```
 
@@ -135,18 +143,22 @@ references:
 
 `references.dna_ref_dir` must contain exactly one complete bwa-mem2 sidecar set. The pipeline infers the prefix from files such as `hg38.fa.0123`, `hg38.fa.amb`, `hg38.fa.ann`, `hg38.fa.bwt.2bit.64`, and `hg38.fa.pac`.
 
-The main remaining runtime CLI parameter is `--max_cpus`.
+The main remaining runtime CLI parameter is `--max_cpus`, with optional process-bucket CPU overrides for local execution.
 
 Default local CPU budget:
 
 - `--max_cpus 64`
-- `RNA_STARSOLO_ALIGN` reserves up to `48` cores.
-- `RNA_COVERAGE` and `BAM_COVERAGE_DNA` reserve up to `32` cores.
-- `ALIGN_DNA` reserves up to `48` cores and passes that value to bwa-mem2 and samtools.
-- `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps reserve up to `16` cores.
-- tagging processes default to `6` cores and `64 GB` memory.
+- `--cleanup_work true`, which removes successful task work directories after a successful run.
+- `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
+- `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
+- `RNA_COVERAGE` and `BAM_COVERAGE_DNA` default to `--coverage_cpus 8`.
+- `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps default to `--helper_cpus 4`.
+- tagging processes default to `--tagging_cpus 4` and `--tagging_memory '32 GB'`.
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
-- These are scheduler reservations derived from `--max_cpus`; Nextflow still prevents local tasks from exceeding the configured CPU budget.
+- `SEQUENCING_EFFICIENCY` stays at `1` core.
+- These are scheduler reservations capped by `--max_cpus`; users can override them with CLI params or Nextflow config.
+
+Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses Nextflow's successful-run cleanup to remove task work directories after outputs have been published and downstream tasks have completed. This substantially reduces retained `work/` storage, but cleaned tasks are not expected to be usable with `--resume`. Set `--cleanup_work false` when you need the previous resume-friendly behavior for debugging or iterative development.
 
 Every run writes:
 
@@ -162,7 +174,7 @@ The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_run
 
 ```bash
 NXF_OFFLINE=true nextflow run . \
-  --samplesheet /mnt/dataFast/ahrmad/TEST_NF/isa_multiome.yaml \
-  --outdir /mnt/dataFast/ahrmad/TEST_NF/TrESFlow_Isa \
+  --samplesheet /path/to/samplesheet.yaml \
+  --outdir /path/to/TrESFlow_results \
   --max_cpus 32
 ```
