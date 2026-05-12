@@ -10,7 +10,6 @@ threads="${ALIGN_DNA_THREADS:-8}"
 view_threads="${ALIGN_DNA_VIEW_THREADS:-4}"
 sort_threads="${ALIGN_DNA_SORT_THREADS:-8}"
 sort_mem="${ALIGN_DNA_SORT_MEM:-1G}"
-min_good_reads_in_cells="${ALIGN_DNA_MIN_GOOD_READS:-100}"
 
 if (( view_threads > threads )); then
   view_threads="${threads}"
@@ -55,18 +54,12 @@ tail -n +"$((last_sq_line + 1))" "${RGID}_TEMPHEADER.sam" > "${RGID}_TEMPHEADER2
 # Append the new header to the RG-replaced SAM file and convert to BAM
 { cat ${RGID}_TEMPHEADER1.sam ${PathSam_header} ${RGID}_TEMPHEADER2.sam; "${SAMTOOLS_BIN}" view --threads ${view_threads} ${RGID}_TEMP.sam; } | "${SAMTOOLS_BIN}" sort --threads ${sort_threads} -m ${sort_mem} -n -o ${RGID}_TEMP.bam -
 
-echo "Get numbers of properly paired and mapped reads per barcode..."
+echo "Removing blacklist-overlapping reads..."
 # Remove reads overlapping with the blacklist
 "${SAMTOOLS_BIN}" view --threads ${view_threads} --bam --with-header --output ${RGID}_TEMP_inBLRegions.bam --unoutput ${RGID}_TEMP_outBLRegions.bam -L ${blacklist_bed} ${RGID}_TEMP.bam
 
-# Get the number of Properly paired and mapped reads per barcode
-"${SAMTOOLS_BIN}" view --require-flags 0x2 ${RGID}_TEMP_outBLRegions.bam | awk '/RG:Z:/{match($0, /RG:Z:([^\t]*)/); cnts[substr($0, RSTART+5, RLENGTH-5)]++} END {for (bc in cnts) print cnts[bc] "\t" bc}' > ${outdir}/${RGID}_ProperPairedMapped_reads_per_barcode.tsv
-
-echo "Filtering and sorting..."
-# Get the barcodes with more than min_good_reads_in_cells reads
-awk -v threshold="$min_good_reads_in_cells" -F'\t' '$1 >= threshold {print $2}' ${outdir}/${RGID}_ProperPairedMapped_reads_per_barcode.tsv > ${RGID}_GoodBarcodes.txt
-# Keep only the Properly paired and mapped reads from the barcodes with less than min_good_reads_in_cells reads
-"${SAMTOOLS_BIN}" view --threads ${view_threads} --with-header --require-flags 0x2 --read-group-file ${RGID}_GoodBarcodes.txt --output ${RGID}_TEMP_Good.bam ${RGID}_TEMP_outBLRegions.bam
+echo "Filtering properly paired mapped reads and sorting..."
+"${SAMTOOLS_BIN}" view --threads ${view_threads} --with-header --require-flags 0x2 --output ${RGID}_TEMP_Good.bam ${RGID}_TEMP_outBLRegions.bam
 
 ## Sort and output final bam
 "${SAMTOOLS_BIN}" sort -@ ${sort_threads} -m ${sort_mem} -o ${PathOutputBam} ${RGID}_TEMP_Good.bam
@@ -76,4 +69,4 @@ awk -v threshold="$min_good_reads_in_cells" -F'\t' '$1 >= threshold {print $2}' 
 
 #Remove temp files
 echo "Removing temp files..."
-rm ${RGID}_TEMP.sam ${RGID}_TEMPHEADER.sam ${RGID}_TEMPHEADER1.sam ${RGID}_TEMPHEADER2.sam ${RGID}_TEMP.bam ${RGID}_TEMP_Good.bam ${RGID}_GoodBarcodes.txt ${RGID}_TEMP_inBLRegions.bam ${RGID}_TEMP_outBLRegions.bam
+rm ${RGID}_TEMP.sam ${RGID}_TEMPHEADER.sam ${RGID}_TEMPHEADER1.sam ${RGID}_TEMPHEADER2.sam ${RGID}_TEMP.bam ${RGID}_TEMP_Good.bam ${RGID}_TEMP_inBLRegions.bam ${RGID}_TEMP_outBLRegions.bam

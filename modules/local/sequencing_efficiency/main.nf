@@ -6,7 +6,7 @@
  *   - DNA duplicate-marked and NoDup BAMs
  *   - derived SB group and DNA modality maps
  * Outputs:
- *   - sequencing-efficiency count tables, Sankey plots, UpSet plots, combined summaries, and warnings
+ *   - sequencing-efficiency UpSet PDF plots
  */
 
 import RuntimeSupport
@@ -14,7 +14,7 @@ import RuntimeSupport
 process SEQUENCING_EFFICIENCY {
     tag "sequencing_efficiency"
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true
+    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "*.upset.pdf"
 
     input:
     val runtimeMeta
@@ -27,8 +27,7 @@ process SEQUENCING_EFFICIENCY {
     path dnaMoMaps
 
     output:
-    path("*.*_sequencing_efficiency*"), emit: reports
-    path("sequencing_efficiency.warnings.tsv"), emit: warnings
+    path("*.upset.pdf"), emit: reports
     path("versions.yml"), emit: versions
 
     script:
@@ -54,7 +53,8 @@ process SEQUENCING_EFFICIENCY {
       --dna-markeddup-bams ${dnaMarkedDupArgs} \\
       --dna-nodup-bams ${dnaNoDupArgs} \\
       --sb-group-maps ${sbGroupMapArgs} \\
-      --dna-mo-maps ${dnaMoMapArgs}
+      --dna-mo-maps ${dnaMoMapArgs} \\
+      --min-read-pairs-per-cell "${params.efficiency_min_read_pairs_per_cell}"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

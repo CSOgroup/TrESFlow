@@ -70,7 +70,7 @@ Duplicate-marked BAMs, final duplicate-filtered BAMs, and coverage tracks:
 
 ### `TrES_Stats/`
 
-Tagging summaries and DNA per-barcode alignment stats are published with modality-specific names:
+Tagging summaries are published with modality-specific names:
 
 - `<sample>.rna_sample_barcode.counts.tsv`
 - `<sample>.rna_sample_barcode.stats.tsv`
@@ -89,37 +89,27 @@ Tagging summaries and DNA per-barcode alignment stats are published with modalit
 - `<sample>.dna_cell.stats_L2.tsv`
 - `<sample>.dna_cell.stats_L3.tsv`
 - `<sample>.dna_tag_records.tsv.gz`
-- `<sample>_<group>_<mark>_ProperPairedMapped_reads_per_barcode.tsv`
 
 Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
 
-Sequencing-efficiency reports are also published under `TrES_Stats/`. Count tables use read records internally and include both `read_records` and `read_pairs`, where `read_pairs = read_records / 2`.
+Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, HTML reports, TSV/CSV count tables, combined RNA+DNA summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log.
 
-RNA reports are written per sample and per sample group:
+RNA UpSet PDFs are written per sample and per sample group:
 
-- `<sample>.rna_sequencing_efficiency.tsv`
-- `<sample>_<group>.rna_sequencing_efficiency.tsv`
-- matching `.sankey.html`, `.sankey.pdf`, `.upset.pdf`, and `.upset.html` when exact intersections are renderable
+- `<sample>.rna_sequencing_efficiency.upset.pdf`
+- `<sample>_<group>.rna_sequencing_efficiency.upset.pdf`
 
-RNA stages are: total tagged records, valid sample barcode, valid L1 barcode, valid L2 barcode, valid L3 barcode, valid full cell barcode, UMI present, aligned reads from `*.filtered_cells.bam`, gene-assigned reads with `GX` present and not `-`, and final passing reads.
+RNA UpSet categories are: `Reads +`, `Sample +`, `Ligation +`, `CB +`, `CB>100 +`, `UMI +`, `Mapped +`, and `GX +`. `Ligation +` means `L1`, `L2`, and `L3` are all present and not `NoMatch`. `CB>100 +` means the read's cell barcode has at least `--efficiency_min_read_pairs_per_cell` BAM-derived read pairs, default `100`, counted as unique query names per `CB` tag with `RG` fallback only when `CB` is absent. `GX +` requires a `GX` tag present and not `-`.
 
-DNA reports are written per sample, per sample group, and per sample group plus mark:
+DNA UpSet PDFs are written per sample, per sample group, and per sample group plus mark:
 
-- `<sample>.dna_sequencing_efficiency.tsv`
-- `<sample>_<group>.dna_sequencing_efficiency.tsv`
-- `<sample>_<group>_<mark>.dna_sequencing_efficiency.tsv`
-- matching `.sankey.html`, `.sankey.pdf`, `.upset.pdf`, and `.upset.html` when exact intersections are renderable
+- `<sample>.dna_sequencing_efficiency.upset.pdf`
+- `<sample>_<group>.dna_sequencing_efficiency.upset.pdf`
+- `<sample>_<group>_<mark>.dna_sequencing_efficiency.upset.pdf`
 
-DNA stages are: total tagged records, valid sample barcode, valid L1 barcode, valid L2 barcode, valid L3 barcode, valid full cell barcode, valid modality barcode, aligned reads before duplicate removal from `*_MarkedDup.bam`, aligned reads after duplicate removal from `*_NoDup.bam`, and final passing reads.
+DNA UpSet categories are: `Reads +`, `Sample +`, `Ligation +`, `CB +`, `CB>100 +`, `Modality +`, `Mapped +`, and `Unique +`. `Mapped +` comes from mapped read names in `*_MarkedDup.bam`. `Unique +` comes from mapped read names retained in `*_NoDup.bam`, with a non-duplicate `*_MarkedDup.bam` fallback only if NoDup is unavailable or unreadable. DNA alignment no longer filters out low-count barcodes during `ALIGN_DNA`; low-count status is visualized by `CB>100 +`.
 
-Per-sample combined summaries are written as:
-
-- `<sample>.combined_sequencing_efficiency.tsv`
-- `<sample>.combined_sequencing_efficiency.html`
-- `<sample>.combined_sequencing_efficiency.pdf`
-- `sequencing_efficiency.warnings.tsv`
-
-Optional BAM-derived stages are skipped with warnings when their inputs are unavailable or unreadable; tag-record count tables and Sankey plots are still emitted for the available stages. These reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv` and are not currently integrated with MultiQC.
+Sequencing-efficiency reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv`; that file is no longer produced by `ALIGN_DNA`. These reports are not currently integrated with MultiQC.
 
 ## Pipeline information
 

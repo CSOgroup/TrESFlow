@@ -81,6 +81,11 @@
                     "description": "Default local CPU reservation for RNA_COVERAGE and BAM_COVERAGE_DNA. The value is capped by --max_cpus.",
                     "default": 8
                 },
+                "efficiency_min_read_pairs_per_cell": {
+                    "type": "integer",
+                    "description": "Minimum BAM-derived unique query-name read-pair support for a cell barcode to be counted in the sequencing-efficiency CB>100 + UpSet category.",
+                    "default": 100
+                },
                 "publish_dir_mode": {
                     "type": "string",
                     "description": "PublishDir mode applied by the lightweight modules.config layer.",

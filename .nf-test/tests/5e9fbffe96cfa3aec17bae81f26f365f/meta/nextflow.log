@@ -1,61 +1,61 @@
-May-08 17:53:08.705 [main] DEBUG nextflow.cli.Launcher - $> nextflow -quiet -log /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/nextflow.log run /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config -params-file /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/params.json -ansi-log false -profile test -with-trace /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/trace.csv -w /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/work
-May-08 17:53:08.791 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.6
-May-08 17:53:08.818 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/tmp/TrESFlow-nxf-home/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.1,nf-k8s@1.0.0,nf-tower@1.11.4,nf-wave@1.12.1
-May-08 17:53:08.848 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
-May-08 17:53:08.850 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
-May-08 17:53:08.854 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
-May-08 17:53:08.872 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
-May-08 17:53:08.928 [main] DEBUG nextflow.config.ConfigBuilder - Found config base: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 17:53:08.933 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 17:53:08.933 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
-May-08 17:53:08.935 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 17:53:08.935 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
-May-08 17:53:08.936 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
-May-08 17:53:08.973 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /tmp/TrESFlow-nxf-home/secrets/store.json
-May-08 17:53:08.978 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@1efdcd5] - activable => nextflow.secret.LocalSecretsProvider@1efdcd5
-May-08 17:53:09.007 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 17:53:10.250 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 17:53:10.500 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
-May-08 17:53:10.519 [main] DEBUG nextflow.config.ConfigBuilder - Available config profiles: [standard, test, test_full]
-May-08 17:53:10.555 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
-May-08 17:53:10.576 [main] INFO  nextflow.cli.CmdRun - Launching `/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf` [desperate_shannon] DSL2 - revision: 7013b787e1
-May-08 17:53:10.578 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
-May-08 17:53:10.578 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
-May-08 17:53:10.639 [main] DEBUG nextflow.Session - Session UUID: 0fa75f36-9871-4971-85aa-2f8cb01ffe9a
-May-08 17:53:10.640 [main] DEBUG nextflow.Session - Run name: desperate_shannon
-May-08 17:53:10.640 [main] DEBUG nextflow.Session - Executor pool size: 96
-May-08 17:53:10.651 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
-May-08 17:53:10.659 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
-May-08 17:53:10.684 [main] DEBUG nextflow.cli.CmdRun - 
+May-12 15:23:14.947 [main] DEBUG nextflow.cli.Launcher - $> nextflow -quiet -log /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/nextflow.log run /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config -c /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config -params-file /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/params.json -ansi-log false -profile test -with-trace /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/trace.csv -w /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/work
+May-12 15:23:15.026 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 25.04.6
+May-12 15:23:15.052 [main] DEBUG nextflow.plugin.PluginsFacade - Setting up plugin manager > mode=prod; embedded=false; plugins-dir=/tmp/TrESFlow-nxf-home/plugins; core-plugins: nf-amazon@2.15.0,nf-azure@1.16.0,nf-cloudcache@0.4.3,nf-codecommit@0.2.3,nf-console@1.2.1,nf-google@1.21.1,nf-k8s@1.0.0,nf-tower@1.11.4,nf-wave@1.12.1
+May-12 15:23:15.079 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Enabled plugins: []
+May-12 15:23:15.080 [main] INFO  o.pf4j.DefaultPluginStatusProvider - Disabled plugins: []
+May-12 15:23:15.085 [main] INFO  org.pf4j.DefaultPluginManager - PF4J version 3.12.0 in 'deployment' mode
+May-12 15:23:15.102 [main] INFO  org.pf4j.AbstractPluginManager - No plugins
+May-12 15:23:15.132 [main] DEBUG nextflow.config.ConfigBuilder - Found config base: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-12 15:23:15.137 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-12 15:23:15.138 [main] DEBUG nextflow.config.ConfigBuilder - User config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
+May-12 15:23:15.139 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-12 15:23:15.140 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/nextflow.config
+May-12 15:23:15.140 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/nextflow.config
+May-12 15:23:15.201 [main] DEBUG n.secret.LocalSecretsProvider - Secrets store: /tmp/TrESFlow-nxf-home/secrets/store.json
+May-12 15:23:15.205 [main] DEBUG nextflow.secret.SecretsLoader - Discovered secrets providers: [nextflow.secret.LocalSecretsProvider@1efdcd5] - activable => nextflow.secret.LocalSecretsProvider@1efdcd5
+May-12 15:23:15.234 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-12 15:23:16.408 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-12 15:23:16.708 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `test`
+May-12 15:23:16.733 [main] DEBUG nextflow.config.ConfigBuilder - Available config profiles: [standard, test, test_full]
+May-12 15:23:16.779 [main] DEBUG nextflow.cli.CmdRun - Applied DSL=2 from script declaration
+May-12 15:23:16.801 [main] INFO  nextflow.cli.CmdRun - Launching `/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/tests/../main.nf` [elegant_celsius] DSL2 - revision: 7013b787e1
+May-12 15:23:16.803 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins default=[]
+May-12 15:23:16.803 [main] DEBUG nextflow.plugin.PluginsFacade - Plugins resolved requirement=[]
+May-12 15:23:16.868 [main] DEBUG nextflow.Session - Session UUID: 8b443ba7-be4a-48c5-bf78-c1c6bd652c95
+May-12 15:23:16.869 [main] DEBUG nextflow.Session - Run name: elegant_celsius
+May-12 15:23:16.869 [main] DEBUG nextflow.Session - Executor pool size: 96
+May-12 15:23:16.881 [main] DEBUG nextflow.file.FilePorter - File porter settings maxRetries=3; maxTransfers=50; pollTimeout=null
+May-12 15:23:16.890 [main] DEBUG nextflow.util.ThreadPoolBuilder - Creating thread pool 'FileTransfer' minSize=10; maxSize=288; workQueue=LinkedBlockingQueue[-1]; allowCoreThreadTimeout=false
+May-12 15:23:16.919 [main] DEBUG nextflow.cli.CmdRun - 
   Version: 25.04.6 build 5954
   Created: 01-07-2025 11:27 UTC (13:27 CEST)
   System: Linux 5.14.0-611.54.1.el9_7.x86_64
   Runtime: Groovy 4.0.26 on OpenJDK 64-Bit Server VM 17.0.18-internal+0-adhoc.conda.src
   Encoding: UTF-8 (UTF-8)
-  Process: 873376@haas023.ds-a4-r09.cct.rcp.epfl.ch [10.92.40.15]
-  CPUs: 96 - Mem: 503.1 GB (2.5 GB) - Swap: 4 GB (4 GB)
-May-08 17:53:10.722 [main] DEBUG nextflow.Session - Work-dir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/work [ext2/ext3]
-May-08 17:53:10.761 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
-May-08 17:53:10.773 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
-May-08 17:53:10.802 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
-May-08 17:53:10.836 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
-May-08 17:53:10.850 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 97; maxThreads: 1000
-May-08 17:53:10.921 [main] DEBUG nextflow.Session - Session start
-May-08 17:53:10.928 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow started -- trace file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/trace.csv
-May-08 17:53:10.939 [main] DEBUG nextflow.Session - Using default localLib path: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
-May-08 17:53:10.944 [main] DEBUG nextflow.Session - Adding to the classpath library: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
-May-08 17:53:11.902 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
-May-08 17:53:12.155 [main] WARN  nextflow.Nextflow - ================================================================================
+  Process: 1300304@haas023.ds-a4-r09.cct.rcp.epfl.ch [10.92.40.15]
+  CPUs: 96 - Mem: 503.1 GB (134 GB) - Swap: 4 GB (4 GB)
+May-12 15:23:16.955 [main] DEBUG nextflow.Session - Work-dir: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/work [ext2/ext3]
+May-12 15:23:16.994 [main] DEBUG nextflow.executor.ExecutorFactory - Extension executors providers=[]
+May-12 15:23:17.006 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+May-12 15:23:17.037 [main] DEBUG nextflow.Session - Observer factory (v2): LinObserverFactory
+May-12 15:23:17.067 [main] DEBUG nextflow.cache.CacheFactory - Using Nextflow cache factory: nextflow.cache.DefaultCacheFactory
+May-12 15:23:17.081 [main] DEBUG nextflow.util.CustomThreadPool - Creating default thread pool > poolSize: 97; maxThreads: 1000
+May-12 15:23:17.152 [main] DEBUG nextflow.Session - Session start
+May-12 15:23:17.157 [main] DEBUG nextflow.trace.TraceFileObserver - Workflow started -- trace file: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/.nf-test/tests/5e9fbffe96cfa3aec17bae81f26f365f/meta/trace.csv
+May-12 15:23:17.166 [main] DEBUG nextflow.Session - Using default localLib path: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
+May-12 15:23:17.170 [main] DEBUG nextflow.Session - Adding to the classpath library: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/lib
+May-12 15:23:18.001 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+May-12 15:23:18.252 [main] WARN  nextflow.Nextflow - ================================================================================
 TrESFlow runtime TMPDIR resolved for this run:
   /tmp/TrESFlow_missing_bwa_sidecar
 
 This directory can become very large on production FASTQ/BAM runs. Monitor free
 space on the filesystem that backs this path.
 ================================================================================
-May-08 17:53:12.258 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
+May-12 15:23:18.356 [main] DEBUG nextflow.script.ScriptRunner - Parsed script files:
   Script_3c22d5df3e41af96: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/main.nf
-May-08 17:53:12.258 [main] DEBUG nextflow.Session - Session aborted -- Cause: No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
-May-08 17:53:12.270 [main] ERROR nextflow.cli.Launcher - No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
+May-12 15:23:18.357 [main] DEBUG nextflow.Session - Session aborted -- Cause: No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
+May-12 15:23:18.368 [main] ERROR nextflow.cli.Launcher - No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
 java.lang.IllegalArgumentException: No complete bwa-mem2 sidecar set found in references.dna_ref_dir '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa'. Detected prefix '/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa' is missing: /mnt/dataFast/ahrmad/tresflowdir/TrESFlow/assets/testdata/TrESFlow_References_missing_bwa_sidecar/dna/human/bwa/hg38.fa.bwt.2bit.64
 	at org.codehaus.groovy.vmplugin.v8.IndyInterface.fromCache(IndyInterface.java:321)
 	at WorkflowSupport.inferBwaMem2Prefix(WorkflowSupport.groovy:188)

@@ -4,7 +4,7 @@ Core workflow only:
 
 - RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through `BAM_COVERAGE_DNA`
-- Shared sequencing-efficiency reporting from tag-record and alignment channels
+- Shared sequencing-efficiency UpSet PDF reporting from tag-record and alignment channels
 
 ```mermaid
 flowchart TD
@@ -75,4 +75,5 @@ Notes:
 
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
+- DNA alignment does not enforce a low-count cell-barcode threshold; the BAM-derived `CB>100 +` category in sequencing-efficiency plots shows that status.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).

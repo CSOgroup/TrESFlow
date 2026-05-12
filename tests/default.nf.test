@@ -36,14 +36,14 @@ nextflow_pipeline {
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L2.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L3.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
-                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.sankey.html").exists() },
-                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.sankey.pdf").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() },
-                { assert new File(statsDir, "${sampleId}_Normal.rna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() },
-                { assert !new File(statsDir, "${sampleId}.dna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "sequencing_efficiency.warnings.tsv").text.contains("Could not read BAM-derived stage") },
+                { assert new File(statsDir, "${sampleId}_Normal.rna_sequencing_efficiency.upset.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}_Co2.rna_sequencing_efficiency.upset.pdf").exists() },
+                { assert !statsDir.listFiles().any { it.name.contains("sequencing_efficiency") && !it.name.endsWith(".upset.pdf") } },
+                { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
+                { assert !statsDir.listFiles().any { it.name.contains("combined_sequencing_efficiency") } },
+                { assert !new File(statsDir, "sequencing_efficiency.warnings.tsv").exists() },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
             )
@@ -86,8 +86,8 @@ nextflow_pipeline {
                 { assert workflow.success },
                 { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
-                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() }
+                { assert new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() },
+                { assert !statsDir.listFiles().any { it.name.contains("sequencing_efficiency") && !it.name.endsWith(".upset.pdf") } }
             )
         }
     }
@@ -229,17 +229,17 @@ nextflow_pipeline {
                 { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bam.bai").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bw").exists() },
-                { assert new File(statsDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
+                { assert !new File(statsDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
                 { assert !new File(alignDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
-                { assert new File(statsDir, "${sampleId}.dna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${sampleId}_Normal.dna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.sankey.html").exists() },
-                { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.sankey.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_sequencing_efficiency.upset.pdf").exists() },
+                { assert new File(statsDir, "${sampleId}_Normal.dna_sequencing_efficiency.upset.pdf").exists() },
                 { assert new File(statsDir, "${splitName}.dna_sequencing_efficiency.upset.pdf").exists() },
-                { assert new File(statsDir, "${sampleId}.combined_sequencing_efficiency.tsv").exists() },
-                { assert !new File(statsDir, "${sampleId}.rna_sequencing_efficiency.tsv").exists() },
-                { assert new File(statsDir, "sequencing_efficiency.warnings.tsv").text.contains("Could not read BAM-derived stage") }
+                { assert !statsDir.listFiles().any { it.name.contains("sequencing_efficiency") && !it.name.endsWith(".upset.pdf") } },
+                { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
+                { assert !statsDir.listFiles().any { it.name.contains("combined_sequencing_efficiency") } },
+                { assert !new File(statsDir, "sequencing_efficiency.warnings.tsv").exists() },
+                { assert !new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() }
             )
         }
     }

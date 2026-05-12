@@ -1,9 +1,0 @@
-level	modality	unit	message
-WARNING	rna	test_rna	Could not read BAM-derived stage from test_rna_Normal.filtered_cells.bam; skipping stage: file does not contain alignment data
-WARNING	rna	test_rna_Normal	Could not read BAM-derived stage from test_rna_Normal.filtered_cells.bam; skipping stage: file does not contain alignment data
-WARNING	rna	test_rna	aligned reads from filtered_cells BAM: Optional BAM-derived stage unavailable
-WARNING	rna	test_rna	gene-assigned reads: Optional BAM-derived stage unavailable
-WARNING	rna	test_rna	final passing reads: Final BAM-derived stage unavailable
-WARNING	rna	test_rna_Normal	aligned reads from filtered_cells BAM: Optional BAM-derived stage unavailable
-WARNING	rna	test_rna_Normal	gene-assigned reads: Optional BAM-derived stage unavailable
-WARNING	rna	test_rna_Normal	final passing reads: Final BAM-derived stage unavailable

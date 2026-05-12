@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Build RNA/DNA sequencing-efficiency tables and plots from TrESFlow outputs."""
+"""Build RNA/DNA sequencing-efficiency UpSet PDFs from TrESFlow outputs."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import gzip
-import html
-import math
 import re
 import sys
 from collections import defaultdict
@@ -18,50 +16,28 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 TAG_RE = re.compile(r"^([A-Za-z][A-Za-z0-9]):[A-Za-z]:(.*)$")
 
-RNA_TAG_STAGES = [
-    ("valid_sb", "valid sample barcode"),
-    ("valid_l1", "valid L1 barcode"),
-    ("valid_l2", "valid L2 barcode"),
-    ("valid_l3", "valid L3 barcode"),
-    ("valid_cb", "valid full cell barcode"),
-    ("umi_present", "UMI present"),
+COMMON_CATEGORIES = [
+    ("reads", "Reads +"),
+    ("sample", "Sample +"),
+    ("ligation", "Ligation +"),
+    ("cb", "CB +"),
+    ("cb100", "CB>100 +"),
 ]
 
-DNA_TAG_STAGES = [
-    ("valid_sb", "valid sample barcode"),
-    ("valid_l1", "valid L1 barcode"),
-    ("valid_l2", "valid L2 barcode"),
-    ("valid_l3", "valid L3 barcode"),
-    ("valid_cb", "valid full cell barcode"),
-    ("valid_mo", "valid modality barcode"),
+RNA_CATEGORIES = COMMON_CATEGORIES + [
+    ("umi", "UMI +"),
+    ("mapped", "Mapped +"),
+    ("gx", "GX +"),
 ]
 
-RNA_BAM_STAGES = [
-    ("aligned", "aligned reads from filtered_cells BAM"),
-    ("gx_assigned", "gene-assigned reads"),
+DNA_CATEGORIES = COMMON_CATEGORIES + [
+    ("modality", "Modality +"),
+    ("mapped", "Mapped +"),
+    ("unique", "Unique +"),
 ]
 
-DNA_BAM_STAGES = [
-    ("pre_dedup_aligned", "aligned reads before duplicate removal"),
-    ("post_dedup_retained", "aligned reads after duplicate removal"),
-]
 
-UPSET_LABELS = {
-    "valid_sb": "valid SB",
-    "valid_l1": "valid L1",
-    "valid_l2": "valid L2",
-    "valid_l3": "valid L3",
-    "valid_cb": "valid CB",
-    "umi_present": "UMI present",
-    "valid_mo": "valid MO",
-    "aligned": "aligned",
-    "gx_assigned": "GX assigned",
-    "pre_dedup_aligned": "pre-dedup aligned",
-    "post_dedup_retained": "post-dedup retained",
-}
-
-
-@dataclass
+@dataclass(frozen=True)
 class WarningRecord:
     modality: str
     unit: str
@@ -76,27 +52,35 @@ class UnitReport:
     tagged_ids: Set[str] = field(default_factory=set)
     stage_sets: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
     stage_available: Set[str] = field(default_factory=set)
-    warnings: List[str] = field(default_factory=list)
+    warnings: Set[str] = field(default_factory=set)
 
     def add_warning(self, message: str) -> None:
-        if message not in self.warnings:
-            self.warnings.append(message)
+        self.warnings.add(message)
+
+    def register_tag_categories(self) -> None:
+        categories = RNA_CATEGORIES if self.modality == "rna" else DNA_CATEGORIES
+        for stage, _label in categories:
+            if stage in {"mapped", "gx", "unique", "cb100"}:
+                continue
+            self.stage_available.add(stage)
 
     def add_tag_record(self, read_id: str, tags: Dict[str, str]) -> None:
+        self.register_tag_categories()
         self.tagged_ids.add(read_id)
-        checks = {
-            "valid_sb": is_present(tags.get("SB")),
-            "valid_l1": is_present(tags.get("L1")),
-            "valid_l2": is_present(tags.get("L2")),
-            "valid_l3": is_present(tags.get("L3")),
-            "valid_cb": is_present(tags.get("CB")),
-            "umi_present": is_present(tags.get("UM")),
-            "valid_mo": is_present(tags.get("MO")),
-        }
+        self.stage_sets["reads"].add(read_id)
 
-        for stage, passed in checks.items():
-            if passed:
-                self.stage_sets[stage].add(read_id)
+        if is_present(tags.get("SB")):
+            self.stage_sets["sample"].add(read_id)
+        if all(is_present(tags.get(tag)) for tag in ("L1", "L2", "L3")):
+            self.stage_sets["ligation"].add(read_id)
+        if is_present(tags.get("CB")):
+            self.stage_sets["cb"].add(read_id)
+
+        if self.modality == "rna":
+            if is_present(tags.get("UM")):
+                self.stage_sets["umi"].add(read_id)
+        elif is_present(tags.get("MO")):
+            self.stage_sets["modality"].add(read_id)
 
     def add_stage_ids(self, stage: str, read_ids: Set[str]) -> None:
         self.stage_available.add(stage)
@@ -113,6 +97,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dna-nodup-bams", nargs="*", default=[], type=Path)
     parser.add_argument("--sb-group-maps", nargs="*", default=[], type=Path)
     parser.add_argument("--dna-mo-maps", nargs="*", default=[], type=Path)
+    parser.add_argument("--min-read-pairs-per-cell", default=100, type=int)
     return parser.parse_args()
 
 
@@ -121,20 +106,6 @@ def is_present(value: Optional[str]) -> bool:
         return False
     cleaned = str(value).strip()
     return cleaned not in {"", "-", "NoMatch", "nomatch", "NA", "N/A", "None", "null"}
-
-
-def read_pairs(read_records: Optional[int]) -> Optional[float]:
-    if read_records is None:
-        return None
-    return read_records / 2.0
-
-
-def format_number(value: Optional[float]) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
-    return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
 def open_maybe_gzip(path: Path):
@@ -259,6 +230,11 @@ def get_unit(units: Dict[Tuple[str, str], UnitReport], modality: str, name: str,
     return units[key]
 
 
+def add_warning(warnings: List[WarningRecord], unit: UnitReport, message: str) -> None:
+    unit.add_warning(message)
+    warnings.append(WarningRecord(unit.modality, unit.name, message))
+
+
 def add_tag_records(
     units: Dict[Tuple[str, str], UnitReport],
     modality: str,
@@ -290,10 +266,8 @@ def add_tag_records(
                         if mark:
                             mark_unit = get_unit(units, modality, f"{sample}_{group}_{mark}", "sample_group_mark")
                             mark_unit.add_tag_record(read_id, tags)
-    except Exception as exc:  # pragma: no cover - exercised by integration tests
-        message = f"Could not parse tag records {path}: {exc}"
-        sample_unit.add_warning(message)
-        warnings.append(WarningRecord(modality, sample, message))
+    except Exception as exc:  # pragma: no cover - integration behavior
+        add_warning(warnings, sample_unit, f"Could not parse tag records {path}: {exc}")
 
 
 def parse_split_name(split_name: str, sample_ids: Iterable[str], modality: str) -> Tuple[str, Optional[str], Optional[str]]:
@@ -325,184 +299,184 @@ def split_from_bam(path: Path, suffix: str) -> str:
     return name
 
 
-def safe_bam_ids(path: Path, gx_only: bool = False) -> Tuple[Optional[Set[str]], Optional[str]]:
-    try:
-        import pysam  # type: ignore
-    except Exception as exc:  # pragma: no cover - depends on runtime env
-        return None, f"pysam is unavailable; skipping BAM-derived stage for {path}: {exc}"
-
-    read_ids: Set[str] = set()
-    try:
-        with pysam.AlignmentFile(str(path), "rb") as bam:
-            for read in bam.fetch(until_eof=True):
-                if read.is_unmapped:
-                    continue
-                if gx_only:
-                    if not read.has_tag("GX"):
-                        continue
-                    gx_value = read.get_tag("GX")
-                    if not is_present(str(gx_value)):
-                        continue
-                read_ids.add(read.query_name)
-    except Exception as exc:
-        return None, f"Could not read BAM-derived stage from {path}; skipping stage: {exc}"
-
-    return read_ids, None
-
-
-def add_bam_stage(
+def get_target_units(
     units: Dict[Tuple[str, str], UnitReport],
     modality: str,
-    path: Path,
+    split_name: str,
     suffix: str,
-    stage: str,
     sample_ids: Iterable[str],
-    warnings: List[WarningRecord],
-    gx_only: bool = False,
-) -> None:
-    split_name = split_from_bam(path, suffix)
-    sample, group, mark = parse_split_name(split_name, sample_ids, modality)
+) -> List[UnitReport]:
+    sample, group, mark = parse_split_name(split_from_bam(Path(split_name), suffix), sample_ids, modality)
     target_units = [get_unit(units, modality, sample, "sample")]
     if group:
         target_units.append(get_unit(units, modality, f"{sample}_{group}", "sample_group"))
     if modality == "dna" and group and mark:
         target_units.append(get_unit(units, modality, f"{sample}_{group}_{mark}", "sample_group_mark"))
-
-    read_ids, warning = safe_bam_ids(path, gx_only=gx_only)
-    if warning:
-        for unit in target_units:
-            unit.add_warning(warning)
-            warnings.append(WarningRecord(modality, unit.name, warning))
-        return
-
-    assert read_ids is not None
-    for unit in target_units:
-        unit.add_stage_ids(stage, read_ids)
+    return target_units
 
 
-def stage_defs_for_modality(modality: str) -> List[Tuple[str, str]]:
-    if modality == "rna":
-        return [("total_tagged", "total tagged records")] + RNA_TAG_STAGES + RNA_BAM_STAGES + [
-            ("final_passing", "final passing reads")
-        ]
-    return [("total_tagged", "total tagged records")] + DNA_TAG_STAGES + DNA_BAM_STAGES + [
-        ("final_passing", "final passing reads")
-    ]
+@dataclass
+class BamObservation:
+    mapped_ids: Set[str] = field(default_factory=set)
+    gx_ids: Set[str] = field(default_factory=set)
+    cb100_ids: Set[str] = field(default_factory=set)
+    nonduplicate_ids: Set[str] = field(default_factory=set)
+    cb100_available: bool = False
+    warnings: List[str] = field(default_factory=list)
 
 
-def final_stage_name(modality: str) -> str:
-    return "gx_assigned" if modality == "rna" else "post_dedup_retained"
+def read_cell_barcode(read) -> Tuple[Optional[str], Optional[str]]:
+    if read.has_tag("CB"):
+        value = str(read.get_tag("CB"))
+        if is_present(value):
+            return value, "CB"
+    if read.has_tag("RG"):
+        value = str(read.get_tag("RG"))
+        if is_present(value):
+            return value, "RG"
+    return None, None
 
 
-def available_tag_stage(unit: UnitReport, stage: str) -> bool:
-    return bool(unit.tagged_ids) and stage in unit.stage_sets
+def collect_bam_observation(path: Path, min_read_pairs_per_cell: int) -> Tuple[Optional[BamObservation], Optional[str]]:
+    try:
+        import pysam  # type: ignore
+    except Exception as exc:  # pragma: no cover - depends on runtime env
+        return None, f"pysam is unavailable; skipping BAM-derived categories for {path}: {exc}"
 
+    observation = BamObservation()
+    cb_to_read_names: Dict[str, Set[str]] = defaultdict(set)
+    used_barcode_source: Optional[str] = None
 
-def make_stage_rows(unit: UnitReport) -> List[Dict[str, object]]:
-    rows: List[Dict[str, object]] = []
-    active_ids: Optional[Set[str]] = set(unit.tagged_ids) if unit.tagged_ids else None
+    try:
+        with pysam.AlignmentFile(str(path), "rb") as bam:
+            for read in bam.fetch(until_eof=True):
+                if read.is_unmapped:
+                    continue
+                read_name = read.query_name
+                observation.mapped_ids.add(read_name)
 
-    for order, (stage, label) in enumerate(stage_defs_for_modality(unit.modality), start=1):
-        count: Optional[int]
-        available = True
-        note = ""
+                if read.has_tag("GX") and is_present(str(read.get_tag("GX"))):
+                    observation.gx_ids.add(read_name)
 
-        if stage == "total_tagged":
-            count = len(unit.tagged_ids) if unit.tagged_ids else None
-            available = bool(unit.tagged_ids)
-        elif stage == "final_passing":
-            final_stage = final_stage_name(unit.modality)
-            if final_stage in unit.stage_sets and final_stage in unit.stage_available:
-                count = len(unit.stage_sets[final_stage])
-            elif final_stage in unit.stage_sets and active_ids is not None:
-                count = len(active_ids & unit.stage_sets[final_stage])
-            else:
-                count = None
-                available = False
-                note = "Final BAM-derived stage unavailable"
-        else:
-            is_bam_stage = stage in {name for name, _ in RNA_BAM_STAGES + DNA_BAM_STAGES}
-            if is_bam_stage and stage not in unit.stage_available:
-                count = None
-                available = False
-                note = "Optional BAM-derived stage unavailable"
-            elif stage not in unit.stage_sets:
-                count = None
-                available = False
-                note = "No reads passed this stage"
-            elif active_ids is not None:
-                stage_ids = unit.stage_sets[stage]
-                intersected = active_ids & stage_ids
-                if is_bam_stage and active_ids and stage_ids and not intersected:
-                    count = len(stage_ids)
-                    active_ids = set(stage_ids)
-                    note = "Read-name intersection unavailable; using BAM stage count"
-                else:
-                    count = len(intersected)
-                    active_ids = intersected
-            else:
-                count = len(unit.stage_sets[stage])
-                active_ids = set(unit.stage_sets[stage])
+                if not read.is_duplicate:
+                    observation.nonduplicate_ids.add(read_name)
 
-        if not available and count is None:
-            active_ids = None if stage in {name for name, _ in RNA_BAM_STAGES + DNA_BAM_STAGES} else active_ids
+                cell_barcode, barcode_source = read_cell_barcode(read)
+                if cell_barcode:
+                    cb_to_read_names[cell_barcode].add(read_name)
+                    used_barcode_source = used_barcode_source or barcode_source
+    except Exception as exc:
+        return None, f"Could not read BAM-derived categories from {path}; skipping those categories: {exc}"
 
-        rows.append(
-            {
-                "unit": unit.name,
-                "unit_level": unit.level,
-                "modality": unit.modality,
-                "stage_order": order,
-                "stage": stage,
-                "stage_label": label,
-                "read_records": count,
-                "read_pairs": read_pairs(count),
-                "available": str(bool(available)).lower(),
-                "note": note,
-            }
+    if cb_to_read_names:
+        observation.cb100_available = True
+        high_count_barcodes = {
+            cb for cb, read_names in cb_to_read_names.items() if len(read_names) >= min_read_pairs_per_cell
+        }
+        observation.cb100_ids = {
+            read_name
+            for cb in high_count_barcodes
+            for read_name in cb_to_read_names[cb]
+        }
+        if used_barcode_source == "RG":
+            observation.warnings.append(
+                f"{path.name}: CB tag unavailable for at least one read; used RG tag as cell-barcode fallback for CB>100 +"
+            )
+    else:
+        observation.warnings.append(
+            f"{path.name}: no CB or RG tag found on mapped reads; omitting CB>100 + for affected units"
         )
 
-    return rows
+    return observation, None
 
 
-def write_table(path: Path, rows: List[Dict[str, object]]) -> None:
-    fieldnames = [
-        "unit",
-        "unit_level",
-        "modality",
-        "stage_order",
-        "stage",
-        "stage_label",
-        "read_records",
-        "read_pairs",
-        "available",
-        "note",
+def add_rna_bam(
+    units: Dict[Tuple[str, str], UnitReport],
+    path: Path,
+    sample_ids: Iterable[str],
+    min_read_pairs_per_cell: int,
+    warnings: List[WarningRecord],
+) -> None:
+    target_units = get_target_units(units, "rna", path.name, ".filtered_cells.bam", sample_ids)
+    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
+    if warning:
+        for unit in target_units:
+            add_warning(warnings, unit, warning)
+        return
+
+    assert observation is not None
+    for unit in target_units:
+        unit.add_stage_ids("mapped", observation.mapped_ids)
+        unit.add_stage_ids("gx", observation.gx_ids)
+        if observation.cb100_available:
+            unit.add_stage_ids("cb100", observation.cb100_ids)
+        for message in observation.warnings:
+            add_warning(warnings, unit, message)
+
+
+def add_dna_markeddup_bam(
+    units: Dict[Tuple[str, str], UnitReport],
+    path: Path,
+    sample_ids: Iterable[str],
+    min_read_pairs_per_cell: int,
+    warnings: List[WarningRecord],
+) -> None:
+    target_units = get_target_units(units, "dna", path.name, "_MarkedDup.bam", sample_ids)
+    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
+    if warning:
+        for unit in target_units:
+            add_warning(warnings, unit, warning)
+        return
+
+    assert observation is not None
+    for unit in target_units:
+        unit.add_stage_ids("mapped", observation.mapped_ids)
+        if observation.cb100_available:
+            unit.add_stage_ids("cb100", observation.cb100_ids)
+        unit.add_stage_ids("_unique_fallback", observation.nonduplicate_ids)
+        for message in observation.warnings:
+            add_warning(warnings, unit, message)
+
+
+def add_dna_nodup_bam(
+    units: Dict[Tuple[str, str], UnitReport],
+    path: Path,
+    sample_ids: Iterable[str],
+    min_read_pairs_per_cell: int,
+    warnings: List[WarningRecord],
+) -> None:
+    target_units = get_target_units(units, "dna", path.name, "_NoDup.bam", sample_ids)
+    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
+    if warning:
+        for unit in target_units:
+            add_warning(warnings, unit, warning)
+        return
+
+    assert observation is not None
+    for unit in target_units:
+        unit.add_stage_ids("unique", observation.mapped_ids)
+
+
+def apply_dna_unique_fallback(units: Dict[Tuple[str, str], UnitReport], warnings: List[WarningRecord]) -> None:
+    for unit in units.values():
+        if unit.modality != "dna":
+            continue
+        if "unique" in unit.stage_available or "_unique_fallback" not in unit.stage_available:
+            continue
+        unit.add_stage_ids("unique", set(unit.stage_sets.get("_unique_fallback", set())))
+        add_warning(
+            warnings,
+            unit,
+            "No readable DNA NoDup BAM was available for this unit; Unique + uses non-duplicate reads from MarkedDup BAM",
+        )
+
+
+def category_order(unit: UnitReport, min_read_pairs_per_cell: int) -> List[Tuple[str, str]]:
+    categories = RNA_CATEGORIES if unit.modality == "rna" else DNA_CATEGORIES
+    return [
+        (stage, f"CB>{min_read_pairs_per_cell} +" if stage == "cb100" else label)
+        for stage, label in categories
     ]
-    with open(path, "wt", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, delimiter="\t", fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            formatted = dict(row)
-            formatted["read_records"] = format_number(formatted["read_records"])  # type: ignore[arg-type]
-            formatted["read_pairs"] = format_number(formatted["read_pairs"])  # type: ignore[arg-type]
-            writer.writerow(formatted)
-
-
-def available_rows(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
-    return [row for row in rows if row["available"] == "true" and row["read_records"] is not None]
-
-
-def write_placeholder_html(path: Path, title: str, message: str) -> None:
-    path.write_text(
-        "<html><head><meta charset=\"utf-8\"><title>"
-        + html.escape(title)
-        + "</title></head><body><h1>"
-        + html.escape(title)
-        + "</h1><p>"
-        + html.escape(message)
-        + "</p></body></html>\n",
-        encoding="utf-8",
-    )
 
 
 def write_placeholder_pdf(path: Path, title: str, message: str) -> None:
@@ -512,10 +486,10 @@ def write_placeholder_pdf(path: Path, title: str, message: str) -> None:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-        fig, ax = plt.subplots(figsize=(8, 3))
+        fig, ax = plt.subplots(figsize=(10, 4))
         ax.axis("off")
-        ax.text(0.02, 0.8, title, fontsize=14, weight="bold", transform=ax.transAxes)
-        ax.text(0.02, 0.55, message, fontsize=10, transform=ax.transAxes, wrap=True)
+        ax.text(0.02, 0.78, title, fontsize=16, weight="bold", transform=ax.transAxes)
+        ax.text(0.02, 0.5, message, fontsize=11, transform=ax.transAxes, wrap=True)
         fig.tight_layout()
         fig.savefig(path)
         plt.close(fig)
@@ -523,253 +497,100 @@ def write_placeholder_pdf(path: Path, title: str, message: str) -> None:
         path.write_text(f"{title}\n\n{message}\n", encoding="utf-8")
 
 
-def write_sankey(unit: UnitReport, rows: List[Dict[str, object]], html_path: Path, pdf_path: Path) -> None:
-    data_rows = available_rows(rows)
-    title = f"{unit.name} {unit.modality.upper()} sequencing efficiency"
-    if len(data_rows) < 2:
-        message = "Not enough available stages to draw a sequencing-efficiency Sankey plot."
-        write_placeholder_html(html_path, title, message)
+def write_upset_pdf(
+    unit: UnitReport,
+    pdf_path: Path,
+    min_read_pairs_per_cell: int,
+    warnings: List[WarningRecord],
+) -> None:
+    title = unit.name.replace("_", " ")
+    categories = [
+        (stage, label)
+        for stage, label in category_order(unit, min_read_pairs_per_cell)
+        if stage in unit.stage_available
+    ]
+
+    if not unit.tagged_ids:
+        message = "No tag-record read identifiers were available for this unit."
+        add_warning(warnings, unit, message)
         write_placeholder_pdf(pdf_path, title, message)
         return
-
-    labels = [str(row["stage_label"]) for row in data_rows]
-    counts = [int(row["read_records"]) for row in data_rows]  # type: ignore[arg-type]
-
-    try:
-        import plotly.graph_objects as go
-        from plotly.offline import plot
-
-        node_labels = list(labels)
-        sources: List[int] = []
-        targets: List[int] = []
-        values: List[int] = []
-
-        for idx in range(len(counts) - 1):
-            current = counts[idx]
-            nxt = counts[idx + 1]
-            retained = max(min(current, nxt), 0)
-            lost = max(current - retained, 0)
-            sources.append(idx)
-            targets.append(idx + 1)
-            values.append(retained)
-            if lost > 0:
-                loss_idx = len(node_labels)
-                node_labels.append(f"lost after {labels[idx]}")
-                sources.append(idx)
-                targets.append(loss_idx)
-                values.append(lost)
-
-        figure = go.Figure(
-            data=[
-                go.Sankey(
-                    arrangement="snap",
-                    node={"label": node_labels, "pad": 18, "thickness": 14},
-                    link={"source": sources, "target": targets, "value": values},
-                )
-            ]
-        )
-        figure.update_layout(title_text=title, font_size=11)
-        plot(figure, filename=str(html_path), auto_open=False, include_plotlyjs="cdn")
-        try:
-            figure.write_image(str(pdf_path))
-            return
-        except Exception:
-            pass
-    except Exception:
-        write_placeholder_html(html_path, title, "Plotly is unavailable; see the PDF funnel plot.")
-
-    write_funnel_pdf(pdf_path, title, labels, counts)
-
-
-def write_funnel_pdf(path: Path, title: str, labels: List[str], counts: List[int]) -> None:
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        height = max(3.0, 0.42 * len(labels) + 1.5)
-        fig, ax = plt.subplots(figsize=(9, height))
-        y_labels = labels[::-1]
-        y_counts = counts[::-1]
-        ax.barh(y_labels, y_counts, color="#4C78A8")
-        ax.set_xlabel("read records")
-        ax.set_title(title)
-        for idx, value in enumerate(y_counts):
-            ax.text(value, idx, f" {value}", va="center", fontsize=8)
-        fig.tight_layout()
-        fig.savefig(path)
-        plt.close(fig)
-    except Exception as exc:
-        path.write_text(f"{title}\n\nUnable to render PDF plot: {exc}\n", encoding="utf-8")
-
-
-def write_upset(unit: UnitReport, html_path: Path, pdf_path: Path) -> None:
-    title = f"{unit.name} {unit.modality.upper()} sequencing-efficiency intersections"
-    stage_order = [stage for stage, _ in (RNA_TAG_STAGES + RNA_BAM_STAGES if unit.modality == "rna" else DNA_TAG_STAGES + DNA_BAM_STAGES)]
-    usable_stages = [stage for stage in stage_order if unit.stage_sets.get(stage)]
-
-    if len(usable_stages) < 2:
-        message = "Not enough available stage sets to draw an UpSet plot."
-        write_placeholder_html(html_path, title, message)
+    if len(categories) < 2:
+        message = "Not enough available sequencing-efficiency categories to draw an UpSet plot."
+        add_warning(warnings, unit, message)
         write_placeholder_pdf(pdf_path, title, message)
         return
 
     try:
         import pandas as pd
-
-        universe = sorted(set().union(*(unit.stage_sets[stage] for stage in usable_stages)))
-        if not universe:
-            raise ValueError("No read identifiers available for UpSet intersections")
-
-        labels = [UPSET_LABELS.get(stage, stage) for stage in usable_stages]
-        data = {
-            label: [read_id in unit.stage_sets[stage] for read_id in universe]
-            for label, stage in zip(labels, usable_stages)
-        }
-        frame = pd.DataFrame(data)
-        summary = frame.groupby(labels).size().rename("read_records").reset_index()
-        summary["read_pairs"] = summary["read_records"] / 2.0
-        summary.to_html(html_path, index=False)
-
         import matplotlib
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from upsetplot import UpSet
 
-        upset_data = frame.assign(read_records=1).groupby(labels)["read_records"].sum()
-        fig = plt.figure(figsize=(max(8, len(labels) * 1.2), 5))
-        UpSet(upset_data, subset_size="count", show_counts=True).plot(fig=fig)
-        fig.suptitle(title)
+        universe = sorted(unit.tagged_ids)
+        labels = [label for _stage, label in categories]
+        data = {
+            label: [read_id in unit.stage_sets.get(stage, set()) for read_id in universe]
+            for stage, label in categories
+        }
+        frame = pd.DataFrame(data)
+        upset_data = frame.assign(read_records=1).groupby(labels, sort=False)["read_records"].sum()
+
+        fig = plt.figure(figsize=(10, 12))
+        try:
+            upset = UpSet(
+                upset_data,
+                subset_size="count",
+                sort_by="-degree",
+                show_counts=True,
+                show_percentages=True,
+                min_subset_size="0.5%",
+                facecolor="darkblue",
+            )
+        except TypeError:
+            upset = UpSet(
+                upset_data,
+                subset_size="count",
+                sort_by="-degree",
+                show_counts=True,
+                show_percentages=True,
+                facecolor="darkblue",
+            )
+        upset.plot(fig=fig)
+        fig.suptitle(title, fontsize=16, fontweight="bold", y=0.995)
+        for axis in fig.axes:
+            axis.tick_params(axis="both", labelsize=9)
+            if axis.get_xlabel():
+                axis.set_xlabel(axis.get_xlabel(), fontsize=10)
+            if axis.get_ylabel():
+                axis.set_ylabel(axis.get_ylabel(), fontsize=10)
+        fig.tight_layout(rect=[0, 0, 1, 0.97])
         fig.savefig(pdf_path, bbox_inches="tight")
         plt.close(fig)
     except Exception as exc:
-        message = f"UpSet plot skipped because exact intersections could not be rendered: {exc}"
-        unit.add_warning(message)
-        write_placeholder_html(html_path, title, message)
+        message = f"UpSet plot could not be rendered for {unit.name}: {exc}"
+        add_warning(warnings, unit, message)
         write_placeholder_pdf(pdf_path, title, message)
 
 
-def write_warnings(path: Path, warnings: Sequence[WarningRecord]) -> None:
-    seen: Set[Tuple[str, str, str]] = set()
-    with open(path, "wt", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(["level", "modality", "unit", "message"])
-        for warning in warnings:
-            key = (warning.modality, warning.unit, warning.message)
-            if key in seen:
-                continue
-            seen.add(key)
-            writer.writerow(["WARNING", warning.modality, warning.unit, warning.message])
-            print(f"WARNING [{warning.modality}:{warning.unit}] {warning.message}", file=sys.stderr)
-
-
-def write_combined_summary(outdir: Path, units: Dict[Tuple[str, str], UnitReport]) -> None:
-    samples = sorted({unit.name for unit in units.values() if unit.level == "sample"})
-    for sample in samples:
-        rows = []
-        for modality in ("rna", "dna"):
-            unit = units.get(unit_key(modality, sample))
-            if unit is None:
-                continue
-            stage_rows = make_stage_rows(unit)
-            total = next((row for row in stage_rows if row["stage"] == "total_tagged"), None)
-            final = next((row for row in stage_rows if row["stage"] == "final_passing"), None)
-            total_count = total["read_records"] if total else None
-            final_count = final["read_records"] if final else None
-            retention = ""
-            if isinstance(total_count, int) and total_count > 0 and isinstance(final_count, int):
-                retention = format_number(final_count / total_count)
-            rows.append(
-                {
-                    "sample": sample,
-                    "modality": modality,
-                    "total_tagged_read_records": total_count,
-                    "total_tagged_read_pairs": read_pairs(total_count if isinstance(total_count, int) else None),
-                    "final_passing_read_records": final_count,
-                    "final_passing_read_pairs": read_pairs(final_count if isinstance(final_count, int) else None),
-                    "final_retention_fraction": retention,
-                }
-            )
-
-        if not rows:
+def emit_warnings(warnings: Sequence[WarningRecord]) -> None:
+    seen: Set[WarningRecord] = set()
+    for warning in warnings:
+        if warning in seen:
             continue
-
-        table_path = outdir / f"{sample}.combined_sequencing_efficiency.tsv"
-        with open(table_path, "wt", encoding="utf-8", newline="") as handle:
-            fieldnames = [
-                "sample",
-                "modality",
-                "total_tagged_read_records",
-                "total_tagged_read_pairs",
-                "final_passing_read_records",
-                "final_passing_read_pairs",
-                "final_retention_fraction",
-            ]
-            writer = csv.DictWriter(handle, delimiter="\t", fieldnames=fieldnames)
-            writer.writeheader()
-            for row in rows:
-                formatted = dict(row)
-                for key in [
-                    "total_tagged_read_records",
-                    "total_tagged_read_pairs",
-                    "final_passing_read_records",
-                    "final_passing_read_pairs",
-                ]:
-                    formatted[key] = format_number(formatted[key])  # type: ignore[arg-type]
-                writer.writerow(formatted)
-
-        write_combined_html(outdir / f"{sample}.combined_sequencing_efficiency.html", sample, rows)
-        write_combined_pdf(outdir / f"{sample}.combined_sequencing_efficiency.pdf", sample, rows)
-
-
-def write_combined_html(path: Path, sample: str, rows: List[Dict[str, object]]) -> None:
-    header = "".join(f"<th>{html.escape(key)}</th>" for key in rows[0].keys())
-    body = []
-    for row in rows:
-        body.append("".join(f"<td>{html.escape(format_number(value) if isinstance(value, float) else str(value or ''))}</td>" for value in row.values()))
-    path.write_text(
-        "<html><head><meta charset=\"utf-8\"><title>"
-        + html.escape(sample)
-        + " combined sequencing efficiency</title></head><body><table><thead><tr>"
-        + header
-        + "</tr></thead><tbody>"
-        + "".join(f"<tr>{cells}</tr>" for cells in body)
-        + "</tbody></table></body></html>\n",
-        encoding="utf-8",
-    )
-
-
-def write_combined_pdf(path: Path, sample: str, rows: List[Dict[str, object]]) -> None:
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        labels = [str(row["modality"]).upper() for row in rows]
-        totals = [int(row["total_tagged_read_records"] or 0) for row in rows]
-        finals = [int(row["final_passing_read_records"] or 0) for row in rows]
-
-        fig, ax = plt.subplots(figsize=(6, 4))
-        x_values = range(len(labels))
-        ax.bar([x - 0.18 for x in x_values], totals, width=0.36, label="total tagged")
-        ax.bar([x + 0.18 for x in x_values], finals, width=0.36, label="final passing")
-        ax.set_xticks(list(x_values), labels)
-        ax.set_ylabel("read records")
-        ax.set_title(f"{sample} combined sequencing efficiency")
-        ax.legend()
-        fig.tight_layout()
-        fig.savefig(path)
-        plt.close(fig)
-    except Exception as exc:
-        path.write_text(f"{sample} combined sequencing efficiency\n\nUnable to render PDF: {exc}\n", encoding="utf-8")
+        seen.add(warning)
+        print(f"WARNING [{warning.modality}:{warning.unit}] {warning.message}", file=sys.stderr)
 
 
 def main() -> int:
     args = parse_args()
     args.outdir.mkdir(parents=True, exist_ok=True)
+
+    if args.min_read_pairs_per_cell < 1:
+        print("--min-read-pairs-per-cell must be >= 1", file=sys.stderr)
+        return 2
 
     rna_sb_paths, dna_sb_paths = split_sb_group_map_paths(args.sb_group_maps)
     rna_sb_maps, rna_groups_by_sample = load_sb_group_maps(rna_sb_paths)
@@ -796,34 +617,22 @@ def main() -> int:
     sample_ids.update(dna_sb_maps.keys())
 
     for path in args.rna_filtered_bams:
-        add_bam_stage(units, "rna", path, ".filtered_cells.bam", "aligned", sample_ids, warnings)
-        add_bam_stage(units, "rna", path, ".filtered_cells.bam", "gx_assigned", sample_ids, warnings, gx_only=True)
+        add_rna_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
     for path in args.dna_markeddup_bams:
-        add_bam_stage(units, "dna", path, "_MarkedDup.bam", "pre_dedup_aligned", sample_ids, warnings)
+        add_dna_markeddup_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
     for path in args.dna_nodup_bams:
-        add_bam_stage(units, "dna", path, "_NoDup.bam", "post_dedup_retained", sample_ids, warnings)
+        add_dna_nodup_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
+    apply_dna_unique_fallback(units, warnings)
 
-    all_unit_warnings: List[WarningRecord] = list(warnings)
     for unit in sorted(units.values(), key=lambda item: (item.modality, item.name)):
-        if not unit.tagged_ids and not any(unit.stage_sets.values()):
+        if not unit.tagged_ids:
             continue
-        rows = make_stage_rows(unit)
-        for row in rows:
-            note = str(row.get("note") or "")
-            if row.get("available") == "false" and (
-                note.startswith("Optional BAM-derived stage unavailable")
-                or note.startswith("Final BAM-derived stage unavailable")
-            ):
-                unit.add_warning(f"{row['stage_label']}: {note}")
         prefix = args.outdir / f"{unit.name}.{unit.modality}_sequencing_efficiency"
-        write_table(Path(f"{prefix}.tsv"), rows)
-        write_sankey(unit, rows, Path(f"{prefix}.sankey.html"), Path(f"{prefix}.sankey.pdf"))
-        write_upset(unit, Path(f"{prefix}.upset.html"), Path(f"{prefix}.upset.pdf"))
-        for message in unit.warnings:
-            all_unit_warnings.append(WarningRecord(unit.modality, unit.name, message))
+        write_upset_pdf(unit, Path(f"{prefix}.upset.pdf"), args.min_read_pairs_per_cell, warnings)
+        for message in sorted(unit.warnings):
+            warnings.append(WarningRecord(unit.modality, unit.name, message))
 
-    write_combined_summary(args.outdir, units)
-    write_warnings(args.outdir / "sequencing_efficiency.warnings.tsv", all_unit_warnings)
+    emit_warnings(warnings)
     return 0
 
 

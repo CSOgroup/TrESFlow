@@ -12,11 +12,10 @@
  * Outputs:
  *   - filtered aligned BAM emitted directly by AlignDNA.sh
  *   - BAM index emitted directly by AlignDNA.sh
- *   - properly paired mapped reads per barcode TSV emitted directly by AlignDNA.sh
  *
  * Notes:
  *   - Real execution uses the repo-owned core runtime copy under scripts/core_runtime/.
- *   - AlignDNA.sh reads exported thread settings and keeps the upstream good-barcode threshold.
+ *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
 import RuntimeSupport
@@ -25,15 +24,12 @@ process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "*_ProperPairedMapped_reads_per_barcode.tsv"
-
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
     tuple val(splitName), val(meta), path("${splitName}.bam.bai"), emit: bai
-    tuple val(splitName), val(meta), path("${splitName}_ProperPairedMapped_reads_per_barcode.tsv"), emit: barcode_counts
     path("versions.yml"), emit: versions
 
     script:
@@ -50,9 +46,6 @@ process ALIGN_DNA {
 
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
-        cat > "${splitName}_ProperPairedMapped_reads_per_barcode.tsv" <<'EOF'
-1	mock_barcode
-EOF
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

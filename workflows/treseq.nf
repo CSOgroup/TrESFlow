@@ -135,7 +135,6 @@ workflow TRESEQ {
     dna_rg_headers              = DNA_CORE.out.rg_headers
     dna_aligned_bams            = DNA_CORE.out.aligned_bams
     dna_aligned_bais            = DNA_CORE.out.aligned_bais
-    dna_alignment_barcode_counts = DNA_CORE.out.alignment_barcode_counts
     dna_markeddup_bams          = DNA_CORE.out.markeddup_bams
     dna_markeddup_bais          = DNA_CORE.out.markeddup_bais
     dna_duplicate_metrics       = DNA_CORE.out.duplicate_metrics
@@ -145,5 +144,4 @@ workflow TRESEQ {
     dna_coverage_warnings       = DNA_CORE.out.coverage_warnings
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
     sequencing_efficiency_reports = SEQUENCING_EFFICIENCY.out.reports
-    sequencing_efficiency_warnings = SEQUENCING_EFFICIENCY.out.warnings
 }

@@ -116,7 +116,7 @@ DNA publishes:
 - `TrES_Stats/`
 - `pipeline_info/`
 
-`TrES_Stats/` includes RNA, DNA, and combined sequencing-efficiency tables and plots. Tables report both `read_records` and `read_pairs`, with `read_pairs = read_records / 2`; optional unavailable BAM-derived stages are skipped with warnings.
+`TrES_Stats/` includes RNA and DNA sequencing-efficiency UpSet PDF plots. Sankey plots, HTML reports, count tables, combined RNA+DNA reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
 
 ## Runtime Contract
 
@@ -157,8 +157,11 @@ Default local CPU budget:
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
 - `SEQUENCING_EFFICIENCY` stays at `1` core.
 - These are scheduler reservations capped by `--max_cpus`; users can override them with CLI params or Nextflow config.
+- `--efficiency_min_read_pairs_per_cell 100` controls the BAM-derived cell support threshold used for the `CB>100 +` sequencing-efficiency UpSet category.
 
 Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses Nextflow's successful-run cleanup to remove task work directories after outputs have been published and downstream tasks have completed. This substantially reduces retained `work/` storage, but cleaned tasks are not expected to be usable with `--resume`. Set `--cleanup_work false` when you need the previous resume-friendly behavior for debugging or iterative development.
+
+DNA alignment no longer removes low-count cell barcodes during `ALIGN_DNA`. The aligned BAM still keeps proper-pair mapped, non-blacklisted reads; duplicate removal is represented later by `*_NoDup.bam`, and duplicate status appears in DNA sequencing-efficiency plots as `Unique +`.
 
 Every run writes:
 

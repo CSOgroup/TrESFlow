@@ -11,7 +11,7 @@
  *   - DNA FASTQs tagged with SB, MO, then CB comments
  *   - trim_galore paired-end FASTQs from the CB-tagged DNA reads
  *   - Split_ReadsV2 per-group per-mark DNA FASTQs and SAM RG headers
- *   - AlignDNA filtered BAMs, BAM indexes, and properly paired mapped-read counts
+ *   - AlignDNA filtered BAMs and BAM indexes
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
  *   - duplicate-filtered NoDup BAMs and indexes
  *   - bigWig coverage tracks from the NoDup BAMs
@@ -162,7 +162,6 @@ workflow DNA_CORE {
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
     aligned_bams    = ALIGN_DNA.out.bam
     aligned_bais    = ALIGN_DNA.out.bai
-    alignment_barcode_counts = ALIGN_DNA.out.barcode_counts
     markeddup_bams = MARK_DUPLICATES_DNA.out.bam
     markeddup_bais = MARK_DUPLICATES_DNA.out.bai
     duplicate_metrics = MARK_DUPLICATES_DNA.out.metrics
