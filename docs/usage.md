@@ -129,6 +129,11 @@ The DNA block is optional, but if present it must contain:
 
 `reads.i2` is required for `dna.tagmentation: single` and optional for `dna.tagmentation: dual`.
 
+DNA ligation tagging uses the same `Tag_Lig3` correction and output format for both modes, but with mode-specific barcode-source reads and start positions:
+
+- `single`: ligation source `reads.i2`, L1/L2/L3 starts `15,53,91`
+- `dual`: ligation source `reads.i1`, L1/L2/L3 starts `41,79,117`
+
 `mark_barcodes` maps biological mark labels, such as `H3K27ac`, to their DNA modality barcodes.
 
 ## Derived Internal Contract

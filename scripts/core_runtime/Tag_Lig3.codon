@@ -186,7 +186,6 @@ def tag_fastq(
         max_hamming_dist=HD)
         
         if n_reads == 1:
-            assert len(bc_seq_l3) == len(bc_seq_l2) == len(bc_seq_l1) == int(BC_LEN), f"Length of the ligation barcodes ({BC_LEN}) don't match:\nbc_seq_l3:{len(bc_seq_l3)}\nbc_seq_l2:{len(bc_seq_l2)}\nbc_seq_l1:{len(bc_seq_l1)}"
             assert recordI2.name == recordR1.name == recordR2.name, f"I2 ({I2}) & R1 ({R1}) & R2 ({R2}) read names don't match."
 
         if corrected_bc_l3:
@@ -280,9 +279,9 @@ def main():
     START_LIST = [15,53,91]
 
     # Check that the correct number of arguments are passed
-    if not (isinstance(HD, int) and isinstance(BC_LEN, int) and len(sys.argv) == 8):
+    if not (isinstance(HD, int) and isinstance(BC_LEN, int) and len(sys.argv) in [8, 9]):
         sys.stderr.write(
-            f"Wrong call, exiting...\nUsage: codon run -plugin seq -release -D BC_LEN=<Barcode Length> -D HD=<Maximum Hamming Distance> {sys.argv[0]} <Path I2> <Path R1> <Path R2> <Path Whitelist> <Sample Name> <2-letter Tag> <Output Folder> \n\n")
+            f"Wrong call, exiting...\nUsage: codon run -plugin seq -release -D BC_LEN=<Barcode Length> -D HD=<Maximum Hamming Distance> {sys.argv[0]} <Path I2> <Path R1> <Path R2> <Path Whitelist> <Sample Name> <2-letter Tag> <Output Folder> [comma-separated L1,L2,L3 starts]\n\n")
         sys.exit(1)
     else:
         I2 = sys.argv[1]
@@ -292,15 +291,17 @@ def main():
         sample_name = sys.argv[5]
         tag_name = sys.argv[6]
         out = sys.argv[7]
+        if len(sys.argv) == 9:
+            start_tokens = sys.argv[8].split(',')
+            if len(start_tokens) != 3:
+                sys.stderr.write(f"\nExiting...\nExpected exactly three comma-separated ligation start positions, got: {sys.argv[8]}\n")
+                sys.exit(1)
+            START_LIST = [int(start_tokens[0]), int(start_tokens[1]), int(start_tokens[2])]
         
     # Check that the max_mismatches is 0, 1, 2 or 3
     if HD not in [0,1,2,3]:
         sys.stderr.write(f"\nExiting...\nMaximum Hamming Distance (HD) must be 0, 1, 2 or 3\n")
         sys.exit(1)
-
-    if sample_name=="Sc_K9D45_S5":
-        START_LIST = [42,80,118]
-
 
     # Read cell barcodes from file and convert to a set of Kmers.
     bc_whitelist = read_barcode_whitelist_from_file(bc_whitelist_filename=bc_whitelist_filename)

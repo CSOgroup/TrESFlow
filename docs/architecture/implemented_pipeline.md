@@ -75,5 +75,6 @@ Notes:
 
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
+- `TAG_DNA_CELL_BARCODE` uses mode-specific ligation sources and starts: single reads from DNA `i2` at `15,53,91`; dual reads from DNA `i1` at `41,79,117`.
 - DNA alignment does not enforce a low-count cell-barcode threshold; the BAM-derived `CB>100 +` category in sequencing-efficiency plots shows that status.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).

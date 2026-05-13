@@ -220,6 +220,9 @@ nextflow_pipeline {
             def splitDir = new File(outputDir, "dna_split_fastqs")
             def alignDir = new File(outputDir, "dna_align")
             def statsDir = new File(outputDir, "TrES_Stats")
+            def tagRecords = new java.util.zip.GZIPInputStream(
+                new FileInputStream(new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz"))
+            ).getText("UTF-8")
 
             assertAll(
                 { assert workflow.success },
@@ -239,7 +242,47 @@ nextflow_pipeline {
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
                 { assert !statsDir.listFiles().any { it.name.contains("combined_sequencing_efficiency") } },
                 { assert !new File(statsDir, "sequencing_efficiency.warnings.tsv").exists() },
-                { assert !new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() }
+                { assert !new File(statsDir, "${sampleId}.rna_sequencing_efficiency.upset.pdf").exists() },
+                { assert tagRecords.contains("CB:Z:AAAACGTACGTTGCATGCAGATCGATC") },
+                { assert tagRecords.contains("L1:Z:ACGTACGT") },
+                { assert tagRecords.contains("L2:Z:TGCATGCA") },
+                { assert tagRecords.contains("L3:Z:GATCGATC") },
+                { assert tagRecords.contains("SB:Z:AAA") },
+                { assert tagRecords.contains("MO:Z:AGGCTATA") }
+            )
+        }
+    }
+
+    test("single tagmentation with dna.reads.i2 uses legacy ligation starts") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/single_with_i2.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "single_with_i2"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def splitDir = new File(outputDir, "dna_split_fastqs")
+            def alignDir = new File(outputDir, "dna_align")
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def tagRecords = new java.util.zip.GZIPInputStream(
+                new FileInputStream(new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz"))
+            ).getText("UTF-8")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz").exists() },
+                { assert tagRecords.contains("CB:Z:CGTAACGTACGTTGCATGCAGATCGATC") },
+                { assert tagRecords.contains("L1:Z:ACGTACGT") },
+                { assert tagRecords.contains("L2:Z:TGCATGCA") },
+                { assert tagRecords.contains("L3:Z:GATCGATC") },
+                { assert tagRecords.contains("SB:Z:CGTA") },
+                { assert tagRecords.contains("MO:Z:TTTACGTA") }
             )
         }
     }

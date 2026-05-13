@@ -34,6 +34,14 @@ def selectDnaIndexRead(final Map meta, final Object i1, final Object i2, final S
     return meta[fieldName] == 'i1' ? i1 : i2
 }
 
+def selectDnaLigationRead(final Map meta, final Object i1, final Object i2) {
+    return meta.dna_tagmentation == 'dual' ? i1 : i2
+}
+
+def dnaLigationStartPositions(final Map meta) {
+    return meta.dna_tagmentation == 'dual' ? '41,79,117' : '15,53,91'
+}
+
 workflow DNA_CORE {
     take:
     ch_dna_samples
@@ -65,15 +73,20 @@ workflow DNA_CORE {
     TAG_DNA_MODALITY_BARCODE(ch_mo_input)
     ch_versions = ch_versions.mix(TAG_DNA_MODALITY_BARCODE.out.versions)
 
-    // Add ligation-derived cell barcodes from I1.
+    // Add ligation-derived cell barcodes from the tagmentation-specific DNA index stream.
     ch_cb_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
-        tuple(sampleId, meta, i1, cellWhitelist)
+        def ligationRead = selectDnaLigationRead(meta, i1, i2)
+        def ligationMeta = meta + [
+            dna_ligation_index_read    : meta.dna_tagmentation == 'dual' ? 'i1' : 'i2',
+            dna_ligation_start_positions: dnaLigationStartPositions(meta),
+        ]
+        tuple(sampleId, ligationMeta, ligationRead, cellWhitelist)
     }
 
     ch_cb_input = ch_cb_meta
         .join(TAG_DNA_MODALITY_BARCODE.out.tagged)
-        .map { sampleId, metaFromInput, i1, cellWhitelist, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, i1, taggedR1, taggedR2, cellWhitelist)
+        .map { sampleId, metaFromInput, ligationRead, cellWhitelist, metaFromTag, taggedR1, taggedR2 ->
+            tuple(sampleId, metaFromInput, ligationRead, taggedR1, taggedR2, cellWhitelist)
         }
 
     TAG_DNA_CELL_BARCODE(ch_cb_input)

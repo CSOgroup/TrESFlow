@@ -2,7 +2,7 @@ library_name: TESTLIB
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /tmp/TrESFlow_test_dual_without_i2_tmp
+  tmpdir: /tmp/TrESFlow_test_single_with_i2_tmp
 
 references:
   species: human
@@ -14,16 +14,17 @@ references:
   dna_effective_genome_size: 12
 
 samples:
-  dual_no_i2:
+  single_with_i2:
     groups:
       Normal:
-        dna_sb_barcodes: [AAA]
+        sb_barcodes: [CGTA]
 
     dna:
-      tagmentation: dual
+      tagmentation: single
       reads:
-        i1: ../../assets/testdata/test_dna_I1_dual_lig.fastq
+        i1: ../../assets/testdata/test_dna_I2_dummy.fastq
+        i2: ../../assets/testdata/test_dna_I2_single_lig.fastq
         r1: ../../assets/testdata/test_dna_R1.fastq
         r2: ../../assets/testdata/test_dna_R2.fastq
       mark_barcodes:
-        H3K27ac: AGGCTATA
+        H3K27ac: TTTACGTA

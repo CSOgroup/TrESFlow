@@ -6,7 +6,7 @@
  *
  * Inputs:
  *   - sample metadata
- *   - raw DNA I1 FASTQ as the ligation barcode source
+ *   - tagmentation-specific DNA index FASTQ as the ligation barcode source
  *   - DNA sample-barcode and modality-tagged R1 / R2 FASTQs
  *   - DNA ligation whitelist
  * Outputs:
@@ -24,7 +24,7 @@ process TAG_DNA_CELL_BARCODE {
     publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.dna_tag_records.tsv.gz"
 
     input:
-    tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
+    tuple val(sampleId), val(meta), path(ligationRead), path(taggedR1), path(taggedR2), path(cellWhitelist)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1.fastq"), path("${sampleId}.dna_sample_barcode_modality_cell.R2.fastq"), emit: tagged
@@ -40,10 +40,12 @@ process TAG_DNA_CELL_BARCODE {
     """
     ${runtimeExports}
 
+    echo "DNA tagmentation=${meta.dna_tagmentation}; DNA ligation index_read=${meta.dna_ligation_index_read}; ligation starts=${meta.dna_ligation_start_positions}" >&2
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag_Lig3.codon" \\
-      --i1 "${i1}" \\
+      --i1 "${ligationRead}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
       --whitelist "${cellWhitelist}" \\
@@ -51,6 +53,7 @@ process TAG_DNA_CELL_BARCODE {
       --tag "${meta.cell_tag}" \\
       --bc-len ${meta.cell_bc_len} \\
       --hd ${meta.cell_hd} \\
+      --start-positions "${meta.dna_ligation_start_positions}" \\
       --output-r1 "${sampleId}.dna_sample_barcode_modality_cell.R1.fastq" \\
       --output-r2 "${sampleId}.dna_sample_barcode_modality_cell.R2.fastq" \\
       --output-counts "${sampleId}.dna_cell.counts.tsv" \\

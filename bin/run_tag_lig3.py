@@ -48,9 +48,16 @@ def write_stats(output_stats: Path, n_reads: int, bc_reads: int, mismatch_stats,
     output_stats.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def parse_start_positions(value: str):
+    positions = [int(part.strip()) for part in value.split(",") if part.strip()]
+    if len(positions) != 3:
+        raise argparse.ArgumentTypeError("--start-positions must contain exactly three comma-separated integers")
+    return positions
+
+
 def mock_tag(args):
     whitelist = load_whitelist(args.whitelist)
-    start_positions = [15, 53, 91]
+    start_positions = args.start_positions
     lig_stats = [[0 for _ in range(args.hd + 1)] for _ in range(3)]
     barcode_counts = Counter()
     total_reads = 0
@@ -78,15 +85,14 @@ def mock_tag(args):
             ligation_values = []
             for idx, start in enumerate(start_positions):
                 barcode = i1_rec[1][start : start + args.bc_len]
-                if len(barcode) != args.bc_len:
-                    raise ValueError(f"Ligation barcode slice shorter than expected in {args.i1}: {barcode}")
                 if barcode in whitelist:
                     lig_stats[idx][0] += 1
                     ligation_values.append(barcode)
                 else:
                     ligation_values.append("NoMatch")
 
-            final_bc = "NoMatch" if "NoMatch" in ligation_values else sb_tag + "".join(ligation_values)
+            final_parts = [sb_tag] + ligation_values
+            final_bc = "NoMatch" if "NoMatch" in final_parts else "".join(final_parts)
             barcode_counts[final_bc] += 1
 
             header_comment = f"{args.tag}:Z:{final_bc}\tRG:Z:{final_bc}\t{r1_comment}"
@@ -131,6 +137,7 @@ def real_tag(args):
             args.sample,
             args.tag,
             str(tmp_path),
+            ",".join(str(position) for position in args.start_positions),
         ]
         codon_start = time.monotonic()
         log_event("Starting Codon Tag_Lig3.codon", args.i1, args.r1, args.r2)
@@ -174,6 +181,7 @@ def parse_args():
     parser.add_argument("--tag", required=True)
     parser.add_argument("--bc-len", required=True, type=int)
     parser.add_argument("--hd", required=True, type=int)
+    parser.add_argument("--start-positions", default=parse_start_positions("15,53,91"), type=parse_start_positions)
     parser.add_argument("--output-r1", required=True, type=Path)
     parser.add_argument("--output-r2", required=True, type=Path)
     parser.add_argument("--output-counts", required=True, type=Path)

@@ -37,6 +37,8 @@ samples:
       # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
       # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
       # required for single tagmentation and optional for dual tagmentation.
+      # Ligation starts are 15,53,91 from i2 in single mode and 41,79,117 from
+      # i1 in dual mode.
       tagmentation: dual
       reads:
         i1: /path/to/sample_DNA_I1.fq.gz
