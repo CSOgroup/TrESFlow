@@ -92,7 +92,7 @@ Tagging summaries are published with modality-specific names:
 
 Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
 
-Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, HTML reports, TSV/CSV count tables, combined RNA+DNA summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log.
+Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, HTML reports, TSV/CSV count tables, combined RNA+DNA summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log. Intersections are exact: the process streams category observations to task-local temporary files, sorts by unit/read id, reduces them to aggregate bitmask counts, and plots from those counts instead of storing every read id in memory.
 
 RNA UpSet PDFs are written per sample and per sample group:
 

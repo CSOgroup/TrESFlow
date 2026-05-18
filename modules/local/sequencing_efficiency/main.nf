@@ -43,7 +43,8 @@ process SEQUENCING_EFFICIENCY {
     """
     ${runtimeExports}
     export MPLCONFIGDIR="\$TMPDIR/matplotlib"
-    mkdir -p "\$MPLCONFIGDIR"
+    export SEQUENCING_EFFICIENCY_TMP="\$TMPDIR/sequencing_efficiency_sort"
+    mkdir -p "\$MPLCONFIGDIR" "\$SEQUENCING_EFFICIENCY_TMP"
 
     "\$PYTHON3_BIN" "${projectDir}/bin/run_sequencing_efficiency.py" \\
       --outdir . \\
@@ -54,7 +55,10 @@ process SEQUENCING_EFFICIENCY {
       --dna-nodup-bams ${dnaNoDupArgs} \\
       --sb-group-maps ${sbGroupMapArgs} \\
       --dna-mo-maps ${dnaMoMapArgs} \\
-      --min-read-pairs-per-cell "${params.efficiency_min_read_pairs_per_cell}"
+      --min-read-pairs-per-cell "${params.efficiency_min_read_pairs_per_cell}" \\
+      --sort-parallel "${task.cpus}" \\
+      --sort-buffer "${params.sequencing_efficiency_sort_buffer}" \\
+      --tmpdir "\$SEQUENCING_EFFICIENCY_TMP"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

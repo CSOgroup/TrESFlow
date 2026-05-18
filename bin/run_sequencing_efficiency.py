@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
-"""Build RNA/DNA sequencing-efficiency UpSet PDFs from TrESFlow outputs."""
+"""Build RNA/DNA sequencing-efficiency UpSet PDFs from TrESFlow outputs.
+
+The production path is an exact disk-backed reducer:
+1. stream tag-record and BAM-derived category observations as integer bitmasks;
+2. external-sort by unit/read id;
+3. reduce sorted observations to per-combination counts;
+4. render UpSet PDFs from aggregate counts.
+
+This avoids keeping every read id in Python sets or materializing a per-read
+pandas boolean matrix.
+"""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import gzip
+import os
 import re
+import shutil
+import subprocess
 import sys
-from collections import defaultdict
+import time
+import warnings as py_warnings
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -36,6 +51,16 @@ DNA_CATEGORIES = COMMON_CATEGORIES + [
     ("unique", "Unique +"),
 ]
 
+CATEGORY_TABLE = {"rna": RNA_CATEGORIES, "dna": DNA_CATEGORIES}
+CATEGORY_BITS = {
+    modality: {stage: 1 << idx for idx, (stage, _label) in enumerate(categories)}
+    for modality, categories in CATEGORY_TABLE.items()
+}
+TAG_DERIVED_STAGES = {
+    "rna": {"reads", "sample", "ligation", "cb", "umi"},
+    "dna": {"reads", "sample", "ligation", "cb", "modality"},
+}
+
 
 @dataclass(frozen=True)
 class WarningRecord:
@@ -45,46 +70,21 @@ class WarningRecord:
 
 
 @dataclass
-class UnitReport:
+class UnitState:
     name: str
     modality: str
     level: str
-    tagged_ids: Set[str] = field(default_factory=set)
-    stage_sets: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
     stage_available: Set[str] = field(default_factory=set)
     warnings: Set[str] = field(default_factory=set)
+    combination_counts: Counter[int] = field(default_factory=Counter)
+    fallback_unique_observed: bool = False
+    unique_bam_available: bool = False
 
     def add_warning(self, message: str) -> None:
         self.warnings.add(message)
 
-    def register_tag_categories(self) -> None:
-        categories = RNA_CATEGORIES if self.modality == "rna" else DNA_CATEGORIES
-        for stage, _label in categories:
-            if stage in {"mapped", "gx", "unique", "cb100"}:
-                continue
-            self.stage_available.add(stage)
-
-    def add_tag_record(self, read_id: str, tags: Dict[str, str]) -> None:
-        self.register_tag_categories()
-        self.tagged_ids.add(read_id)
-        self.stage_sets["reads"].add(read_id)
-
-        if is_present(tags.get("SB")):
-            self.stage_sets["sample"].add(read_id)
-        if all(is_present(tags.get(tag)) for tag in ("L1", "L2", "L3")):
-            self.stage_sets["ligation"].add(read_id)
-        if is_present(tags.get("CB")):
-            self.stage_sets["cb"].add(read_id)
-
-        if self.modality == "rna":
-            if is_present(tags.get("UM")):
-                self.stage_sets["umi"].add(read_id)
-        elif is_present(tags.get("MO")):
-            self.stage_sets["modality"].add(read_id)
-
-    def add_stage_ids(self, stage: str, read_ids: Set[str]) -> None:
-        self.stage_available.add(stage)
-        self.stage_sets[stage].update(read_ids)
+    def register(self, *stages: str) -> None:
+        self.stage_available.update(stage for stage in stages if stage in CATEGORY_BITS[self.modality])
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,7 +98,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sb-group-maps", nargs="*", default=[], type=Path)
     parser.add_argument("--dna-mo-maps", nargs="*", default=[], type=Path)
     parser.add_argument("--min-read-pairs-per-cell", default=100, type=int)
+    parser.add_argument("--sort-parallel", default=1, type=int)
+    parser.add_argument("--sort-buffer", default="2G")
+    parser.add_argument("--tmpdir", type=Path)
+    parser.add_argument("--debug-counts", type=Path, help=argparse.SUPPRESS)
     return parser.parse_args()
+
+
+def log(message: str) -> None:
+    print(f"[sequencing-efficiency] {message}", file=sys.stderr, flush=True)
 
 
 def is_present(value: Optional[str]) -> bool:
@@ -223,28 +231,59 @@ def unit_key(modality: str, name: str) -> Tuple[str, str]:
     return modality, name
 
 
-def get_unit(units: Dict[Tuple[str, str], UnitReport], modality: str, name: str, level: str) -> UnitReport:
+def get_unit(units: Dict[Tuple[str, str], UnitState], modality: str, name: str, level: str) -> UnitState:
     key = unit_key(modality, name)
     if key not in units:
-        units[key] = UnitReport(name=name, modality=modality, level=level)
+        units[key] = UnitState(name=name, modality=modality, level=level)
     return units[key]
 
 
-def add_warning(warnings: List[WarningRecord], unit: UnitReport, message: str) -> None:
+def add_warning(warnings: List[WarningRecord], unit: UnitState, message: str) -> None:
     unit.add_warning(message)
     warnings.append(WarningRecord(unit.modality, unit.name, message))
 
 
+def category_bit(modality: str, stage: str) -> int:
+    return CATEGORY_BITS[modality][stage]
+
+
+def tag_mask(modality: str, tags: Dict[str, str]) -> int:
+    mask = category_bit(modality, "reads")
+    if is_present(tags.get("SB")):
+        mask |= category_bit(modality, "sample")
+    if all(is_present(tags.get(tag)) for tag in ("L1", "L2", "L3")):
+        mask |= category_bit(modality, "ligation")
+    if is_present(tags.get("CB")):
+        mask |= category_bit(modality, "cb")
+    if modality == "rna":
+        if is_present(tags.get("UM")):
+            mask |= category_bit(modality, "umi")
+    elif is_present(tags.get("MO")):
+        mask |= category_bit(modality, "modality")
+    return mask
+
+
+def write_observation(handle, unit: UnitState, read_id: str, mask: int) -> None:
+    if "\t" in read_id:
+        read_id = read_id.replace("\t", " ")
+    handle.write(f"{unit.modality}\t{unit.name}\t{read_id}\t{mask}\n")
+
+
 def add_tag_records(
-    units: Dict[Tuple[str, str], UnitReport],
+    units: Dict[Tuple[str, str], UnitState],
     modality: str,
     path: Path,
     sb_maps: Dict[str, Dict[str, str]],
     mo_maps: Dict[str, Dict[Tuple[str, str], str]],
     warnings: List[WarningRecord],
-) -> None:
+    obs_handle,
+) -> Tuple[int, int]:
     sample = sample_from_tag_record(path, modality)
     sample_unit = get_unit(units, modality, sample, "sample")
+    sample_unit.register(*TAG_DERIVED_STAGES[modality])
+    started = time.monotonic()
+    line_count = 0
+    obs_count = 0
 
     try:
         with open_maybe_gzip(path) as handle:
@@ -256,18 +295,34 @@ def add_tag_records(
                 if read_id is None:
                     continue
 
-                sample_unit.add_tag_record(read_id, tags)
+                mask = tag_mask(modality, tags)
+                write_observation(obs_handle, sample_unit, read_id, mask)
+                obs_count += 1
+
                 group = resolve_group(sample, tags.get("SB"), sb_maps)
                 if group:
                     group_unit = get_unit(units, modality, f"{sample}_{group}", "sample_group")
-                    group_unit.add_tag_record(read_id, tags)
+                    group_unit.register(*TAG_DERIVED_STAGES[modality])
+                    write_observation(obs_handle, group_unit, read_id, mask)
+                    obs_count += 1
                     if modality == "dna":
                         mark = resolve_mark(sample, group, tags.get("MO"), mo_maps)
                         if mark:
                             mark_unit = get_unit(units, modality, f"{sample}_{group}_{mark}", "sample_group_mark")
-                            mark_unit.add_tag_record(read_id, tags)
+                            mark_unit.register(*TAG_DERIVED_STAGES[modality])
+                            write_observation(obs_handle, mark_unit, read_id, mask)
+                            obs_count += 1
+
+                line_count += 1
+                if line_count % 5_000_000 == 0:
+                    elapsed = time.monotonic() - started
+                    log(f"{path.name}: streamed {line_count:,} tag records in {elapsed:.1f}s")
     except Exception as exc:  # pragma: no cover - integration behavior
         add_warning(warnings, sample_unit, f"Could not parse tag records {path}: {exc}")
+
+    elapsed = time.monotonic() - started
+    log(f"{path.name}: wrote {obs_count:,} exact tag observations from {line_count:,} records in {elapsed:.1f}s")
+    return line_count, obs_count
 
 
 def parse_split_name(split_name: str, sample_ids: Iterable[str], modality: str) -> Tuple[str, Optional[str], Optional[str]]:
@@ -300,12 +355,12 @@ def split_from_bam(path: Path, suffix: str) -> str:
 
 
 def get_target_units(
-    units: Dict[Tuple[str, str], UnitReport],
+    units: Dict[Tuple[str, str], UnitState],
     modality: str,
     split_name: str,
     suffix: str,
     sample_ids: Iterable[str],
-) -> List[UnitReport]:
+) -> List[UnitState]:
     sample, group, mark = parse_split_name(split_from_bam(Path(split_name), suffix), sample_ids, modality)
     target_units = [get_unit(units, modality, sample, "sample")]
     if group:
@@ -313,16 +368,6 @@ def get_target_units(
     if modality == "dna" and group and mark:
         target_units.append(get_unit(units, modality, f"{sample}_{group}_{mark}", "sample_group_mark"))
     return target_units
-
-
-@dataclass
-class BamObservation:
-    mapped_ids: Set[str] = field(default_factory=set)
-    gx_ids: Set[str] = field(default_factory=set)
-    cb100_ids: Set[str] = field(default_factory=set)
-    nonduplicate_ids: Set[str] = field(default_factory=set)
-    cb100_available: bool = False
-    warnings: List[str] = field(default_factory=list)
 
 
 def read_cell_barcode(read) -> Tuple[Optional[str], Optional[str]]:
@@ -337,145 +382,296 @@ def read_cell_barcode(read) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-def collect_bam_observation(path: Path, min_read_pairs_per_cell: int) -> Tuple[Optional[BamObservation], Optional[str]]:
+def run_sort(
+    input_path: Path,
+    output_path: Path,
+    tmpdir: Path,
+    parallel: int,
+    buffer_size: str,
+    key_args: Sequence[str],
+    unique: bool = False,
+) -> None:
+    cmd = [
+        "sort",
+        "-t",
+        "\t",
+        "--parallel",
+        str(max(1, parallel)),
+        "-S",
+        buffer_size,
+        "-T",
+        str(tmpdir),
+    ]
+    if unique:
+        cmd.append("-u")
+    cmd.extend(key_args)
+    cmd.extend([str(input_path), "-o", str(output_path)])
+    started = time.monotonic()
+    subprocess.run(cmd, check=True)
+    log(f"sorted {input_path.name} in {time.monotonic() - started:.1f}s")
+
+
+def emit_cb100_observations(
+    sorted_pairs_path: Path,
+    target_units: Sequence[UnitState],
+    modality: str,
+    threshold: int,
+    obs_handle,
+) -> int:
+    cb100_bit = category_bit(modality, "cb100")
+    emitted = 0
+    current_cb: Optional[str] = None
+    read_names: List[str] = []
+
+    def flush_current() -> int:
+        if current_cb is None or len(read_names) < threshold:
+            return 0
+        local_count = 0
+        for read_name in read_names:
+            for unit in target_units:
+                write_observation(obs_handle, unit, read_name, cb100_bit)
+                local_count += 1
+        return local_count
+
+    with open(sorted_pairs_path, "rt", encoding="utf-8") as handle:
+        for raw_line in handle:
+            cb, read_name = raw_line.rstrip("\n").split("\t", 1)
+            if cb != current_cb:
+                emitted += flush_current()
+                current_cb = cb
+                read_names = [read_name]
+            else:
+                read_names.append(read_name)
+    emitted += flush_current()
+    return emitted
+
+
+def process_bam(
+    units: Dict[Tuple[str, str], UnitState],
+    path: Path,
+    modality: str,
+    bam_kind: str,
+    suffix: str,
+    sample_ids: Iterable[str],
+    min_read_pairs_per_cell: int,
+    warnings: List[WarningRecord],
+    obs_handle,
+    fallback_handle,
+    tmpdir: Path,
+    sort_parallel: int,
+    sort_buffer: str,
+) -> None:
+    target_units = get_target_units(units, modality, path.name, suffix, sample_ids)
+    started = time.monotonic()
+
     try:
         import pysam  # type: ignore
     except Exception as exc:  # pragma: no cover - depends on runtime env
-        return None, f"pysam is unavailable; skipping BAM-derived categories for {path}: {exc}"
+        for unit in target_units:
+            add_warning(warnings, unit, f"pysam is unavailable; skipping BAM-derived categories for {path}: {exc}")
+        return
 
-    observation = BamObservation()
-    cb_to_read_names: Dict[str, Set[str]] = defaultdict(set)
-    used_barcode_source: Optional[str] = None
+    if bam_kind == "rna_filtered":
+        bam_stages = ("mapped", "gx")
+        mapped_bit = category_bit("rna", "mapped")
+        gx_bit = category_bit("rna", "gx")
+        cb100_pair_path = tmpdir / f"{path.name}.cb_pairs.tsv"
+    elif bam_kind == "dna_markeddup":
+        bam_stages = ("mapped",)
+        mapped_bit = category_bit("dna", "mapped")
+        unique_bit = category_bit("dna", "unique")
+        cb100_pair_path = tmpdir / f"{path.name}.cb_pairs.tsv"
+    elif bam_kind == "dna_nodup":
+        bam_stages = ("unique",)
+        unique_bit = category_bit("dna", "unique")
+        cb100_pair_path = None
+    else:  # pragma: no cover - guarded by callers
+        raise ValueError(f"Unsupported BAM kind: {bam_kind}")
+
+    reads_seen = 0
+    mapped_seen = 0
+    category_observations = 0
+    cb_pair_count = 0
+    used_rg = False
+    cb_pair_handle = None
 
     try:
+        if cb100_pair_path is not None:
+            cb_pair_handle = open(cb100_pair_path, "wt", encoding="utf-8")
         with pysam.AlignmentFile(str(path), "rb") as bam:
             for read in bam.fetch(until_eof=True):
+                reads_seen += 1
                 if read.is_unmapped:
                     continue
+                mapped_seen += 1
                 read_name = read.query_name
-                observation.mapped_ids.add(read_name)
 
-                if read.has_tag("GX") and is_present(str(read.get_tag("GX"))):
-                    observation.gx_ids.add(read_name)
+                if bam_kind in {"rna_filtered", "dna_markeddup"}:
+                    for unit in target_units:
+                        write_observation(obs_handle, unit, read_name, mapped_bit)
+                        category_observations += 1
 
-                if not read.is_duplicate:
-                    observation.nonduplicate_ids.add(read_name)
+                if bam_kind == "rna_filtered" and read.has_tag("GX") and is_present(str(read.get_tag("GX"))):
+                    for unit in target_units:
+                        write_observation(obs_handle, unit, read_name, gx_bit)
+                        category_observations += 1
 
-                cell_barcode, barcode_source = read_cell_barcode(read)
-                if cell_barcode:
-                    cb_to_read_names[cell_barcode].add(read_name)
-                    used_barcode_source = used_barcode_source or barcode_source
+                if bam_kind == "dna_markeddup" and not read.is_duplicate:
+                    for unit in target_units:
+                        write_observation(fallback_handle, unit, read_name, unique_bit)
+                        unit.fallback_unique_observed = True
+
+                if bam_kind == "dna_nodup":
+                    for unit in target_units:
+                        write_observation(obs_handle, unit, read_name, unique_bit)
+                        category_observations += 1
+
+                if cb_pair_handle is not None:
+                    cell_barcode, barcode_source = read_cell_barcode(read)
+                    if cell_barcode:
+                        if barcode_source == "RG":
+                            used_rg = True
+                        cb_pair_handle.write(f"{cell_barcode}\t{read_name}\n")
+                        cb_pair_count += 1
+
+                if reads_seen % 5_000_000 == 0:
+                    log(f"{path.name}: streamed {reads_seen:,} BAM records in {time.monotonic() - started:.1f}s")
     except Exception as exc:
-        return None, f"Could not read BAM-derived categories from {path}; skipping those categories: {exc}"
+        for unit in target_units:
+            add_warning(warnings, unit, f"Could not read BAM-derived categories from {path}; skipping those categories: {exc}")
+        return
+    finally:
+        if cb_pair_handle is not None:
+            cb_pair_handle.close()
 
-    if cb_to_read_names:
-        observation.cb100_available = True
-        high_count_barcodes = {
-            cb for cb, read_names in cb_to_read_names.items() if len(read_names) >= min_read_pairs_per_cell
-        }
-        observation.cb100_ids = {
-            read_name
-            for cb in high_count_barcodes
-            for read_name in cb_to_read_names[cb]
-        }
-        if used_barcode_source == "RG":
-            observation.warnings.append(
-                f"{path.name}: CB tag unavailable for at least one read; used RG tag as cell-barcode fallback for CB>100 +"
+    for unit in target_units:
+        unit.register(*bam_stages)
+        if bam_kind == "dna_nodup":
+            unit.unique_bam_available = True
+
+    cb100_observations = 0
+    if cb100_pair_path is not None:
+        if cb_pair_count:
+            sorted_pairs_path = tmpdir / f"{path.name}.cb_pairs.sorted.tsv"
+            run_sort(
+                cb100_pair_path,
+                sorted_pairs_path,
+                tmpdir,
+                sort_parallel,
+                sort_buffer,
+                ["-k1,1", "-k2,2"],
+                unique=True,
             )
-    else:
-        observation.warnings.append(
-            f"{path.name}: no CB or RG tag found on mapped reads; omitting CB>100 + for affected units"
-        )
+            cb100_observations = emit_cb100_observations(
+                sorted_pairs_path,
+                target_units,
+                modality,
+                min_read_pairs_per_cell,
+                obs_handle,
+            )
+            for unit in target_units:
+                unit.register("cb100")
+            if used_rg:
+                for unit in target_units:
+                    add_warning(
+                        warnings,
+                        unit,
+                        f"{path.name}: CB tag unavailable for at least one read; used RG tag as cell-barcode fallback for CB>{min_read_pairs_per_cell} +",
+                    )
+            cb100_pair_path.unlink(missing_ok=True)
+            sorted_pairs_path.unlink(missing_ok=True)
+        else:
+            cb100_pair_path.unlink(missing_ok=True)
+            for unit in target_units:
+                add_warning(
+                    warnings,
+                    unit,
+                    f"{path.name}: no CB or RG tag found on mapped reads; omitting CB>{min_read_pairs_per_cell} + for affected units",
+                )
 
-    return observation, None
+    elapsed = time.monotonic() - started
+    log(
+        f"{path.name}: scanned {reads_seen:,} BAM records, {mapped_seen:,} mapped records, "
+        f"wrote {category_observations + cb100_observations:,} observations in {elapsed:.1f}s"
+    )
 
 
-def add_rna_bam(
-    units: Dict[Tuple[str, str], UnitReport],
-    path: Path,
-    sample_ids: Iterable[str],
-    min_read_pairs_per_cell: int,
+def append_needed_unique_fallbacks(
+    fallback_path: Path,
+    obs_handle,
+    units: Dict[Tuple[str, str], UnitState],
     warnings: List[WarningRecord],
-) -> None:
-    target_units = get_target_units(units, "rna", path.name, ".filtered_cells.bam", sample_ids)
-    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
-    if warning:
-        for unit in target_units:
-            add_warning(warnings, unit, warning)
-        return
+) -> int:
+    needed = {
+        (unit.modality, unit.name)
+        for unit in units.values()
+        if unit.modality == "dna" and not unit.unique_bam_available and unit.fallback_unique_observed
+    }
+    if not needed or not fallback_path.exists() or fallback_path.stat().st_size == 0:
+        return 0
 
-    assert observation is not None
-    for unit in target_units:
-        unit.add_stage_ids("mapped", observation.mapped_ids)
-        unit.add_stage_ids("gx", observation.gx_ids)
-        if observation.cb100_available:
-            unit.add_stage_ids("cb100", observation.cb100_ids)
-        for message in observation.warnings:
-            add_warning(warnings, unit, message)
+    appended = 0
+    with open(fallback_path, "rt", encoding="utf-8") as handle:
+        for raw_line in handle:
+            modality, unit_name, _read_id, _mask = raw_line.rstrip("\n").split("\t", 3)
+            if (modality, unit_name) not in needed:
+                continue
+            obs_handle.write(raw_line)
+            appended += 1
 
-
-def add_dna_markeddup_bam(
-    units: Dict[Tuple[str, str], UnitReport],
-    path: Path,
-    sample_ids: Iterable[str],
-    min_read_pairs_per_cell: int,
-    warnings: List[WarningRecord],
-) -> None:
-    target_units = get_target_units(units, "dna", path.name, "_MarkedDup.bam", sample_ids)
-    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
-    if warning:
-        for unit in target_units:
-            add_warning(warnings, unit, warning)
-        return
-
-    assert observation is not None
-    for unit in target_units:
-        unit.add_stage_ids("mapped", observation.mapped_ids)
-        if observation.cb100_available:
-            unit.add_stage_ids("cb100", observation.cb100_ids)
-        unit.add_stage_ids("_unique_fallback", observation.nonduplicate_ids)
-        for message in observation.warnings:
-            add_warning(warnings, unit, message)
-
-
-def add_dna_nodup_bam(
-    units: Dict[Tuple[str, str], UnitReport],
-    path: Path,
-    sample_ids: Iterable[str],
-    min_read_pairs_per_cell: int,
-    warnings: List[WarningRecord],
-) -> None:
-    target_units = get_target_units(units, "dna", path.name, "_NoDup.bam", sample_ids)
-    observation, warning = collect_bam_observation(path, min_read_pairs_per_cell)
-    if warning:
-        for unit in target_units:
-            add_warning(warnings, unit, warning)
-        return
-
-    assert observation is not None
-    for unit in target_units:
-        unit.add_stage_ids("unique", observation.mapped_ids)
-
-
-def apply_dna_unique_fallback(units: Dict[Tuple[str, str], UnitReport], warnings: List[WarningRecord]) -> None:
-    for unit in units.values():
-        if unit.modality != "dna":
-            continue
-        if "unique" in unit.stage_available or "_unique_fallback" not in unit.stage_available:
-            continue
-        unit.add_stage_ids("unique", set(unit.stage_sets.get("_unique_fallback", set())))
+    for modality, unit_name in sorted(needed):
+        unit = units[(modality, unit_name)]
+        unit.register("unique")
         add_warning(
             warnings,
             unit,
             "No readable DNA NoDup BAM was available for this unit; Unique + uses non-duplicate reads from MarkedDup BAM",
         )
+    log(f"appended {appended:,} DNA Unique + fallback observations from MarkedDup BAMs")
+    return appended
 
 
-def category_order(unit: UnitReport, min_read_pairs_per_cell: int) -> List[Tuple[str, str]]:
-    categories = RNA_CATEGORIES if unit.modality == "rna" else DNA_CATEGORIES
+def reduce_sorted_observations(
+    sorted_obs_path: Path,
+    units: Dict[Tuple[str, str], UnitState],
+) -> int:
+    started = time.monotonic()
+    reduced_reads = 0
+    current_key: Optional[Tuple[str, str, str]] = None
+    current_mask = 0
+
+    def flush_current() -> None:
+        nonlocal reduced_reads, current_mask, current_key
+        if current_key is None:
+            return
+        modality, unit_name, _read_id = current_key
+        reads_bit = category_bit(modality, "reads")
+        if current_mask & reads_bit:
+            unit = get_unit(units, modality, unit_name, "unknown")
+            unit.combination_counts[current_mask] += 1
+            reduced_reads += 1
+
+    with open(sorted_obs_path, "rt", encoding="utf-8") as handle:
+        for raw_line in handle:
+            modality, unit_name, read_id, mask_text = raw_line.rstrip("\n").split("\t", 3)
+            key = (modality, unit_name, read_id)
+            mask = int(mask_text)
+            if key != current_key:
+                flush_current()
+                current_key = key
+                current_mask = mask
+            else:
+                current_mask |= mask
+    flush_current()
+
+    log(f"reduced {reduced_reads:,} tag-record read ids in {time.monotonic() - started:.1f}s")
+    return reduced_reads
+
+
+def category_order(unit: UnitState, min_read_pairs_per_cell: int) -> List[Tuple[str, str]]:
     return [
         (stage, f"CB>{min_read_pairs_per_cell} +" if stage == "cb100" else label)
-        for stage, label in categories
+        for stage, label in CATEGORY_TABLE[unit.modality]
     ]
 
 
@@ -498,7 +694,7 @@ def write_placeholder_pdf(path: Path, title: str, message: str) -> None:
 
 
 def write_upset_pdf(
-    unit: UnitReport,
+    unit: UnitState,
     pdf_path: Path,
     min_read_pairs_per_cell: int,
     warnings: List[WarningRecord],
@@ -510,7 +706,7 @@ def write_upset_pdf(
         if stage in unit.stage_available
     ]
 
-    if not unit.tagged_ids:
+    if not unit.combination_counts:
         message = "No tag-record read identifiers were available for this unit."
         add_warning(warnings, unit, message)
         write_placeholder_pdf(pdf_path, title, message)
@@ -529,14 +725,14 @@ def write_upset_pdf(
         import matplotlib.pyplot as plt
         from upsetplot import UpSet
 
-        universe = sorted(unit.tagged_ids)
         labels = [label for _stage, label in categories]
-        data = {
-            label: [read_id in unit.stage_sets.get(stage, set()) for read_id in universe]
-            for stage, label in categories
-        }
-        frame = pd.DataFrame(data)
-        upset_data = frame.assign(read_records=1).groupby(labels, sort=False)["read_records"].sum()
+        bit_order = [category_bit(unit.modality, stage) for stage, _label in categories]
+        collapsed: Counter[Tuple[bool, ...]] = Counter()
+        for mask, count in unit.combination_counts.items():
+            collapsed[tuple(bool(mask & bit) for bit in bit_order)] += count
+
+        index = pd.MultiIndex.from_tuples(list(collapsed.keys()), names=labels)
+        upset_data = pd.Series(list(collapsed.values()), index=index, name="read_records")
 
         fig = plt.figure(figsize=(10, 12))
         try:
@@ -566,7 +762,9 @@ def write_upset_pdf(
                 axis.set_xlabel(axis.get_xlabel(), fontsize=10)
             if axis.get_ylabel():
                 axis.set_ylabel(axis.get_ylabel(), fontsize=10)
-        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        with py_warnings.catch_warnings():
+            py_warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
+            fig.tight_layout(rect=[0, 0, 1, 0.97])
         fig.savefig(pdf_path, bbox_inches="tight")
         plt.close(fig)
     except Exception as exc:
@@ -584,6 +782,28 @@ def emit_warnings(warnings: Sequence[WarningRecord]) -> None:
         print(f"WARNING [{warning.modality}:{warning.unit}] {warning.message}", file=sys.stderr)
 
 
+def write_debug_counts(path: Path, units: Dict[Tuple[str, str], UnitState]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wt", encoding="utf-8") as handle:
+        handle.write("modality\tunit\tmask\tread_records\tcategories\n")
+        for unit in sorted(units.values(), key=lambda item: (item.modality, item.name)):
+            for mask, count in sorted(unit.combination_counts.items()):
+                categories = [
+                    stage
+                    for stage, _label in CATEGORY_TABLE[unit.modality]
+                    if mask & category_bit(unit.modality, stage)
+                ]
+                handle.write(f"{unit.modality}\t{unit.name}\t{mask}\t{count}\t{','.join(categories)}\n")
+
+
+def prepare_temp_dir(args: argparse.Namespace) -> Path:
+    root = args.tmpdir if args.tmpdir else args.outdir
+    root.mkdir(parents=True, exist_ok=True)
+    tmpdir = root / f".sequencing_efficiency_tmp_{time.strftime('%Y%m%d%H%M%S')}_{os.getpid()}"
+    tmpdir.mkdir(parents=True, exist_ok=False)
+    return tmpdir
+
+
 def main() -> int:
     args = parse_args()
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -591,49 +811,122 @@ def main() -> int:
     if args.min_read_pairs_per_cell < 1:
         print("--min-read-pairs-per-cell must be >= 1", file=sys.stderr)
         return 2
+    if args.sort_parallel < 1:
+        print("--sort-parallel must be >= 1", file=sys.stderr)
+        return 2
 
     rna_sb_paths, dna_sb_paths = split_sb_group_map_paths(args.sb_group_maps)
     rna_sb_maps, rna_groups_by_sample = load_sb_group_maps(rna_sb_paths)
     dna_sb_maps, dna_groups_by_sample = load_sb_group_maps(dna_sb_paths)
     mo_maps = load_dna_mo_maps(args.dna_mo_maps)
-    units: Dict[Tuple[str, str], UnitReport] = {}
+    units: Dict[Tuple[str, str], UnitState] = {}
     warnings: List[WarningRecord] = []
+    tmpdir = prepare_temp_dir(args)
+    obs_path = tmpdir / "observations.tsv"
+    fallback_path = tmpdir / "dna_unique_fallback.tsv"
+    sorted_obs_path = tmpdir / "observations.sorted.tsv"
 
-    for sample, groups in rna_groups_by_sample.items():
-        for group in groups:
-            get_unit(units, "rna", f"{sample}_{group}", "sample_group")
-    for sample, groups in dna_groups_by_sample.items():
-        for group in groups:
-            get_unit(units, "dna", f"{sample}_{group}", "sample_group")
+    try:
+        for sample, groups in rna_groups_by_sample.items():
+            for group in groups:
+                get_unit(units, "rna", f"{sample}_{group}", "sample_group")
+        for sample, groups in dna_groups_by_sample.items():
+            for group in groups:
+                get_unit(units, "dna", f"{sample}_{group}", "sample_group")
 
-    for path in args.rna_tag_records:
-        add_tag_records(units, "rna", path, rna_sb_maps, mo_maps, warnings)
-    for path in args.dna_tag_records:
-        add_tag_records(units, "dna", path, dna_sb_maps, mo_maps, warnings)
+        with open(obs_path, "wt", encoding="utf-8") as obs_handle, open(
+            fallback_path, "wt", encoding="utf-8"
+        ) as fallback_handle:
+            for path in args.rna_tag_records:
+                add_tag_records(units, "rna", path, rna_sb_maps, mo_maps, warnings, obs_handle)
+            for path in args.dna_tag_records:
+                add_tag_records(units, "dna", path, dna_sb_maps, mo_maps, warnings, obs_handle)
 
-    sample_ids = {sample_from_tag_record(path, "rna") for path in args.rna_tag_records}
-    sample_ids.update(sample_from_tag_record(path, "dna") for path in args.dna_tag_records)
-    sample_ids.update(rna_sb_maps.keys())
-    sample_ids.update(dna_sb_maps.keys())
+            sample_ids = {sample_from_tag_record(path, "rna") for path in args.rna_tag_records}
+            sample_ids.update(sample_from_tag_record(path, "dna") for path in args.dna_tag_records)
+            sample_ids.update(rna_sb_maps.keys())
+            sample_ids.update(dna_sb_maps.keys())
 
-    for path in args.rna_filtered_bams:
-        add_rna_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
-    for path in args.dna_markeddup_bams:
-        add_dna_markeddup_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
-    for path in args.dna_nodup_bams:
-        add_dna_nodup_bam(units, path, sample_ids, args.min_read_pairs_per_cell, warnings)
-    apply_dna_unique_fallback(units, warnings)
+            for path in args.rna_filtered_bams:
+                process_bam(
+                    units,
+                    path,
+                    "rna",
+                    "rna_filtered",
+                    ".filtered_cells.bam",
+                    sample_ids,
+                    args.min_read_pairs_per_cell,
+                    warnings,
+                    obs_handle,
+                    fallback_handle,
+                    tmpdir,
+                    args.sort_parallel,
+                    args.sort_buffer,
+                )
+            for path in args.dna_markeddup_bams:
+                process_bam(
+                    units,
+                    path,
+                    "dna",
+                    "dna_markeddup",
+                    "_MarkedDup.bam",
+                    sample_ids,
+                    args.min_read_pairs_per_cell,
+                    warnings,
+                    obs_handle,
+                    fallback_handle,
+                    tmpdir,
+                    args.sort_parallel,
+                    args.sort_buffer,
+                )
+            for path in args.dna_nodup_bams:
+                process_bam(
+                    units,
+                    path,
+                    "dna",
+                    "dna_nodup",
+                    "_NoDup.bam",
+                    sample_ids,
+                    args.min_read_pairs_per_cell,
+                    warnings,
+                    obs_handle,
+                    fallback_handle,
+                    tmpdir,
+                    args.sort_parallel,
+                    args.sort_buffer,
+                )
 
-    for unit in sorted(units.values(), key=lambda item: (item.modality, item.name)):
-        if not unit.tagged_ids:
-            continue
-        prefix = args.outdir / f"{unit.name}.{unit.modality}_sequencing_efficiency"
-        write_upset_pdf(unit, Path(f"{prefix}.upset.pdf"), args.min_read_pairs_per_cell, warnings)
-        for message in sorted(unit.warnings):
-            warnings.append(WarningRecord(unit.modality, unit.name, message))
+            append_needed_unique_fallbacks(fallback_path, obs_handle, units, warnings)
 
-    emit_warnings(warnings)
-    return 0
+        if obs_path.stat().st_size > 0:
+            run_sort(
+                obs_path,
+                sorted_obs_path,
+                tmpdir,
+                args.sort_parallel,
+                args.sort_buffer,
+                ["-k1,1", "-k2,2", "-k3,3"],
+                unique=False,
+            )
+            reduce_sorted_observations(sorted_obs_path, units)
+        else:
+            log("no sequencing-efficiency observations were emitted")
+
+        for unit in sorted(units.values(), key=lambda item: (item.modality, item.name)):
+            if not unit.combination_counts:
+                continue
+            prefix = args.outdir / f"{unit.name}.{unit.modality}_sequencing_efficiency"
+            write_upset_pdf(unit, Path(f"{prefix}.upset.pdf"), args.min_read_pairs_per_cell, warnings)
+            for message in sorted(unit.warnings):
+                warnings.append(WarningRecord(unit.modality, unit.name, message))
+
+        if args.debug_counts:
+            write_debug_counts(args.debug_counts, units)
+
+        emit_warnings(warnings)
+        return 0
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
