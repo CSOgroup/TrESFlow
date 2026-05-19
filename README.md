@@ -70,7 +70,7 @@ samples:
       # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
       # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
       # required for single tagmentation and optional for dual tagmentation.
-      # Ligation starts are 15,53,91 from i2 in single mode and 41,79,117 from
+      # Ligation starts are 15,53,91 from i1 in single mode and 41,79,117 from
       # i1 in dual mode.
       tagmentation: dual
       reads:
@@ -88,7 +88,7 @@ Notes:
 - `runtime.env_prefix`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. `runtime.tmpdir` is optional and defaults to `--outdir`. Runtime and reference paths are no longer accepted as normal CLI parameters.
 - `groups.<group>.sb_barcodes` remains supported for single-tagmentation samples. Use `rna_sb_barcodes` and `dna_sb_barcodes` when RNA and DNA sample barcodes differ; `dna.tagmentation: dual` requires explicit 3 nt `dna_sb_barcodes`.
 - `dna.reads.i2` is required for single tagmentation and optional for dual tagmentation.
-- DNA ligation tagging uses `reads.i2` starts `15,53,91` for single tagmentation and `reads.i1` starts `41,79,117` for dual tagmentation.
+- DNA ligation tagging uses `reads.i1` starts `15,53,91` for single tagmentation and `reads.i1` starts `41,79,117` for dual tagmentation.
 - `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
 - `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.

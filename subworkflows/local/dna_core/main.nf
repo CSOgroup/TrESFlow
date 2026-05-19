@@ -35,7 +35,7 @@ def selectDnaIndexRead(final Map meta, final Object i1, final Object i2, final S
 }
 
 def selectDnaLigationRead(final Map meta, final Object i1, final Object i2) {
-    return meta.dna_tagmentation == 'dual' ? i1 : i2
+    return i1
 }
 
 def dnaLigationStartPositions(final Map meta) {
@@ -73,11 +73,12 @@ workflow DNA_CORE {
     TAG_DNA_MODALITY_BARCODE(ch_mo_input)
     ch_versions = ch_versions.mix(TAG_DNA_MODALITY_BARCODE.out.versions)
 
-    // Add ligation-derived cell barcodes from the tagmentation-specific DNA index stream.
+    // Add ligation-derived cell barcodes from DNA I1. Legacy single-tagmentation
+    // data still keeps SB/MO on I2, but L1/L2/L3 are read from I1.
     ch_cb_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         def ligationRead = selectDnaLigationRead(meta, i1, i2)
         def ligationMeta = meta + [
-            dna_ligation_index_read    : meta.dna_tagmentation == 'dual' ? 'i1' : 'i2',
+            dna_ligation_index_read    : 'i1',
             dna_ligation_start_positions: dnaLigationStartPositions(meta),
         ]
         tuple(sampleId, ligationMeta, ligationRead, cellWhitelist)
