@@ -157,10 +157,8 @@ Default local CPU budget:
 - `RNA_COVERAGE` and `BAM_COVERAGE_DNA` default to `--coverage_cpus 8`.
 - `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps default to `--helper_cpus 4`.
 - tagging processes default to `--tagging_cpus 4` and `--tagging_memory '32 GB'`.
-- `SEQUENCING_EFFICIENCY` defaults to `--sequencing_efficiency_cpus 8`, `--sequencing_efficiency_memory '32 GB'`, and `--sequencing_efficiency_time '12h'`; its exact UpSet reducer uses `--sequencing_efficiency_sort_buffer 2G` for GNU `sort`.
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
 - These are scheduler reservations capped by `--max_cpus`; users can override them with CLI params or Nextflow config.
-- `--efficiency_min_read_pairs_per_cell 100` controls the BAM-derived cell support threshold used for the `CB>100 +` sequencing-efficiency UpSet category.
 
 Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses Nextflow's successful-run cleanup to remove task work directories after outputs have been published and downstream tasks have completed. This substantially reduces retained `work/` storage, but cleaned tasks are not expected to be usable with `--resume`. Set `--cleanup_work false` when you need the previous resume-friendly behavior for debugging or iterative development.
 

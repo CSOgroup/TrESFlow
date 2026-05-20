@@ -81,31 +81,6 @@
                     "description": "Default local CPU reservation for RNA_COVERAGE and BAM_COVERAGE_DNA. The value is capped by --max_cpus.",
                     "default": 8
                 },
-                "efficiency_min_read_pairs_per_cell": {
-                    "type": "integer",
-                    "description": "Minimum BAM-derived unique query-name read-pair support for a cell barcode to be counted in the sequencing-efficiency CB>100 + UpSet category.",
-                    "default": 100
-                },
-                "sequencing_efficiency_cpus": {
-                    "type": "integer",
-                    "description": "Default local CPU reservation for SEQUENCING_EFFICIENCY. The value is capped by --max_cpus and is passed to external sort.",
-                    "default": 8
-                },
-                "sequencing_efficiency_memory": {
-                    "type": "string",
-                    "description": "Default local memory reservation for SEQUENCING_EFFICIENCY.",
-                    "default": "32 GB"
-                },
-                "sequencing_efficiency_time": {
-                    "type": "string",
-                    "description": "Default local running time limit for SEQUENCING_EFFICIENCY.",
-                    "default": "12h"
-                },
-                "sequencing_efficiency_sort_buffer": {
-                    "type": "string",
-                    "description": "GNU sort memory buffer used by the disk-backed exact sequencing-efficiency reducer.",
-                    "default": "2G"
-                },
                 "publish_dir_mode": {
                     "type": "string",
                     "description": "PublishDir mode applied by the lightweight modules.config layer.",

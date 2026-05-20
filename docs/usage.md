@@ -166,11 +166,6 @@ The main public parameters are:
 - `--helper_cpus`
 - `--tagging_cpus`
 - `--tagging_memory`
-- `--efficiency_min_read_pairs_per_cell`
-- `--sequencing_efficiency_cpus`
-- `--sequencing_efficiency_memory`
-- `--sequencing_efficiency_time`
-- `--sequencing_efficiency_sort_buffer`
 
 Deprecated runtime/reference CLI parameters now fail with a hard error.
 
@@ -180,14 +175,9 @@ For local execution, `--max_cpus` is the global executor cap and all bundled per
 - RNA and DNA coverage default to `8` CPUs.
 - trim, split, RNA filtered-BAM, and DNA duplicate-filter helpers default to `4` CPUs.
 - barcode-tagging steps default to `4` CPUs and `32 GB` memory.
-- `SEQUENCING_EFFICIENCY` defaults to `8` CPUs, `32 GB` memory, and `12h` so its exact disk-backed reducer can use parallel external sorting.
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` CPU.
 
 Override the bucket params above on the command line or in a Nextflow config when a specific machine or scheduler profile can support larger reservations.
-
-`--efficiency_min_read_pairs_per_cell` defaults to `100`. Sequencing-efficiency uses it to label reads as `CB>100 +` when their cell barcode has at least that many BAM-derived read pairs. The implementation counts unique query names per `CB` tag where available and falls back to `RG` only when `CB` is absent.
-
-Sequencing-efficiency keeps exact UpSet intersections by streaming category observations to temporary files, sorting by unit/read id, and reducing to aggregate bitmask counts before plotting. It does not build full per-read pandas tables in memory. `--sequencing_efficiency_sort_buffer` controls the GNU `sort` buffer, default `2G`; temporary sort files are written in the task scratch/tmp directory.
 
 `--cleanup_work` defaults to `true`. TrESFlow uses Nextflow's supported successful-run cleanup to remove task work directories after final outputs are published and all downstream consumers have completed. This keeps large FASTQ, uSAM, tag-record, and BAM intermediates from remaining in `work/` after a successful run. The tradeoff is that `--resume` is not expected to be reliable for cleaned tasks. Set `--cleanup_work false` for debugging or for runs where preserving work directories is more important than disk cleanup.
 

@@ -92,25 +92,6 @@ Tagging summaries are published with modality-specific names:
 
 Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
 
-Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, HTML reports, TSV/CSV count tables, combined RNA+DNA summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log. Intersections are exact: the process streams category observations to task-local temporary files, sorts by unit/read id, reduces them to aggregate bitmask counts, and plots from those counts instead of storing every read id in memory.
-
-RNA UpSet PDFs are written per sample and per sample group:
-
-- `<sample>.rna_sequencing_efficiency.upset.pdf`
-- `<sample>_<group>.rna_sequencing_efficiency.upset.pdf`
-
-RNA UpSet categories are: `Reads +`, `Sample +`, `Ligation +`, `CB +`, `CB>100 +`, `UMI +`, `Mapped +`, and `GX +`. `Ligation +` means `L1`, `L2`, and `L3` are all present and not `NoMatch`. `CB>100 +` means the read's cell barcode has at least `--efficiency_min_read_pairs_per_cell` BAM-derived read pairs, default `100`, counted as unique query names per `CB` tag with `RG` fallback only when `CB` is absent. `GX +` requires a `GX` tag present and not `-`.
-
-DNA UpSet PDFs are written per sample, per sample group, and per sample group plus mark:
-
-- `<sample>.dna_sequencing_efficiency.upset.pdf`
-- `<sample>_<group>.dna_sequencing_efficiency.upset.pdf`
-- `<sample>_<group>_<mark>.dna_sequencing_efficiency.upset.pdf`
-
-DNA UpSet categories are: `Reads +`, `Sample +`, `Ligation +`, `CB +`, `CB>100 +`, `Modality +`, `Mapped +`, and `Unique +`. `Mapped +` comes from mapped read names in `*_MarkedDup.bam`. `Unique +` comes from mapped read names retained in `*_NoDup.bam`, with a non-duplicate `*_MarkedDup.bam` fallback only if NoDup is unavailable or unreadable. DNA alignment no longer filters out low-count barcodes during `ALIGN_DNA`; low-count status is visualized by `CB>100 +`.
-
-Sequencing-efficiency reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv`; that file is no longer produced by `ALIGN_DNA`. These reports are not currently integrated with MultiQC.
-
 ## Pipeline information
 
 `pipeline_info/` contains execution metadata and the derived helper contract written from the YAML samplesheet.
