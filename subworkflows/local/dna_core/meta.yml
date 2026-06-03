@@ -14,9 +14,12 @@ components:
   - "trim/dna/fastqs"
   - "split/dna/reads"
   - "align/dna"
-  - "mark/duplicates/dna"
+  - "gatk4/markduplicates"
+  - "normalize/dna/markduplicates"
   - "split/duplicates/dna"
-  - "bam/coverage/dna"
+  - "check/dna/nodup/bam"
+  - "deeptools/bamcoverage"
+  - "normalize/dna/bamcoverage"
 input:
   - ch_dna_samples:
       type: tuple

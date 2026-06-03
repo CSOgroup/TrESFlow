@@ -26,9 +26,12 @@ include { TAG_DNA_CELL_BARCODE }     from '../../../modules/local/tag_dna_cell_b
 include { TRIM_DNA_FASTQS }          from '../../../modules/local/trim_dna_fastqs/main'
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
 include { ALIGN_DNA }                from '../../../modules/local/align_dna/main'
-include { MARK_DUPLICATES_DNA }      from '../../../modules/local/mark_duplicates_dna/main'
+include { GATK4_MARKDUPLICATES }     from '../../../modules/nf-core/gatk4/markduplicates/main'
+include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_dna_markduplicates/main'
 include { SPLIT_DUPLICATES_DNA }     from '../../../modules/local/split_duplicates_dna/main'
-include { BAM_COVERAGE_DNA }         from '../../../modules/local/bam_coverage_dna/main'
+include { CHECK_DNA_NODUP_BAM }      from '../../../modules/local/check_dna_nodup_bam/main'
+include { DEEPTOOLS_BAMCOVERAGE }    from '../../../modules/nf-core/deeptools/bamcoverage/main'
+include { NORMALIZE_DNA_BAMCOVERAGE } from '../../../modules/local/normalize_dna_bamcoverage/main'
 
 def selectDnaIndexRead(final Map meta, final Object i1, final Object i2, final String fieldName) {
     return meta[fieldName] == 'i1' ? i1 : i2
@@ -40,6 +43,19 @@ def selectDnaLigationRead(final Map meta, final Object i1, final Object i2) {
 
 def dnaLigationStartPositions(final Map meta) {
     return meta.dna_tagmentation == 'dual' ? '41,79,117' : '15,53,91'
+}
+
+def nfcoreDnaMeta(final String splitName, final Map meta, final String stage) {
+    return meta + [
+        id             : splitName,
+        tres_sample_id : meta.id,
+        tres_split_name: splitName,
+        tres_stage     : stage,
+    ]
+}
+
+def restoreDnaMeta(final Map meta) {
+    return meta + [id: meta.tres_sample_id ?: meta.id]
 }
 
 workflow DNA_CORE {
@@ -145,9 +161,32 @@ workflow DNA_CORE {
     // Finish the DNA core with alignment, duplicate marking, NoDup extraction, and coverage.
     ALIGN_DNA(ch_align_input)
     ch_versions = ch_versions.mix(ALIGN_DNA.out.versions)
-    MARK_DUPLICATES_DNA(ALIGN_DNA.out.bam)
-    ch_versions = ch_versions.mix(MARK_DUPLICATES_DNA.out.versions)
-    SPLIT_DUPLICATES_DNA(MARK_DUPLICATES_DNA.out.bam)
+
+    ch_gatk_markduplicates_input = ALIGN_DNA.out.bam.map { splitName, meta, alignedBam ->
+        tuple(nfcoreDnaMeta(splitName, meta, 'markeddup'), alignedBam)
+    }
+
+    GATK4_MARKDUPLICATES(ch_gatk_markduplicates_input, [], [])
+    ch_versions = ch_versions.mix(GATK4_MARKDUPLICATES.out.versions_gatk4)
+    ch_versions = ch_versions.mix(GATK4_MARKDUPLICATES.out.versions_samtools)
+
+    ch_normalize_markduplicates_input = GATK4_MARKDUPLICATES.out.bam
+        .join(GATK4_MARKDUPLICATES.out.bai)
+        .join(GATK4_MARKDUPLICATES.out.metrics)
+        .map { nfMeta, markedDupBam, markedDupBai, markedDupMetrics ->
+            tuple(
+                nfMeta.tres_split_name as String,
+                restoreDnaMeta(nfMeta),
+                markedDupBam,
+                markedDupBai,
+                markedDupMetrics
+            )
+        }
+
+    NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input)
+    ch_versions = ch_versions.mix(NORMALIZE_DNA_MARKDUPLICATES.out.versions)
+
+    SPLIT_DUPLICATES_DNA(NORMALIZE_DNA_MARKDUPLICATES.out.bam)
     ch_versions = ch_versions.mix(SPLIT_DUPLICATES_DNA.out.versions)
 
     ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
@@ -162,8 +201,32 @@ workflow DNA_CORE {
             )
         }
 
-    BAM_COVERAGE_DNA(ch_nodup_for_coverage)
-    ch_versions = ch_versions.mix(BAM_COVERAGE_DNA.out.versions)
+    CHECK_DNA_NODUP_BAM(ch_nodup_for_coverage)
+    ch_versions = ch_versions.mix(CHECK_DNA_NODUP_BAM.out.versions)
+
+    ch_deeptools_bamcoverage_input = CHECK_DNA_NODUP_BAM.out.ready.map { splitName, meta, noDupBam, noDupBai, effectiveGenomeSize ->
+        tuple(nfcoreDnaMeta(splitName, meta, 'nodup_coverage'), noDupBam, noDupBai)
+    }
+
+    DEEPTOOLS_BAMCOVERAGE(
+        ch_deeptools_bamcoverage_input,
+        [],
+        [],
+        tuple([id: 'no_blacklist'], [])
+    )
+    ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_deeptools)
+    ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_samtools)
+
+    ch_normalize_bamcoverage_input = DEEPTOOLS_BAMCOVERAGE.out.bigwig.map { nfMeta, bigwig ->
+        tuple(
+            nfMeta.tres_split_name as String,
+            restoreDnaMeta(nfMeta),
+            bigwig
+        )
+    }
+
+    NORMALIZE_DNA_BAMCOVERAGE(ch_normalize_bamcoverage_input)
+    ch_versions = ch_versions.mix(NORMALIZE_DNA_BAMCOVERAGE.out.versions)
 
     ch_barcode_reports = TAG_DNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics)
@@ -183,13 +246,13 @@ workflow DNA_CORE {
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
     aligned_bams    = ALIGN_DNA.out.bam
     aligned_bais    = ALIGN_DNA.out.bai
-    markeddup_bams = MARK_DUPLICATES_DNA.out.bam
-    markeddup_bais = MARK_DUPLICATES_DNA.out.bai
-    duplicate_metrics = MARK_DUPLICATES_DNA.out.metrics
+    markeddup_bams = NORMALIZE_DNA_MARKDUPLICATES.out.bam
+    markeddup_bais = NORMALIZE_DNA_MARKDUPLICATES.out.bai
+    duplicate_metrics = NORMALIZE_DNA_MARKDUPLICATES.out.metrics
     nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
     nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
-    coverage_bigwigs = BAM_COVERAGE_DNA.out.bw
-    coverage_warnings = BAM_COVERAGE_DNA.out.warnings
+    coverage_bigwigs = NORMALIZE_DNA_BAMCOVERAGE.out.bw
+    coverage_warnings = CHECK_DNA_NODUP_BAM.out.warnings
     barcode_reports = ch_barcode_reports
     barcode_report_files = ch_barcode_report_files
     tres_tag_records = TAG_DNA_CELL_BARCODE.out.tres_tag_records

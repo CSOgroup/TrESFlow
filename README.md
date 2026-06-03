@@ -192,6 +192,13 @@ Runs with real BAM outputs also write nf-core samtools sidecar QC under:
 
 - `${outdir}/qc/samtools/*.flagstat`
 - `${outdir}/qc/samtools/*.stats`
+- `${outdir}/qc/samtools/*.idxstats`
+- `${outdir}/qc/samtools/*.quickcheck.tsv`
+
+Raw FASTQ QC from nf-core FastQC is written under:
+
+- `${outdir}/qc/fastqc/*_fastqc.html`
+- `${outdir}/qc/fastqc/*_fastqc.zip`
 
 The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_runtime/). `upstream/source_scripts/` is kept only as provenance for the vendored core code.
 

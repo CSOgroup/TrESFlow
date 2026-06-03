@@ -22,8 +22,12 @@ include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
 include { SEQUENCING_EFFICIENCY } from '../modules/local/sequencing_efficiency/main'
 include { TRES_REPORT_HTML } from '../modules/local/tres_report_html/main'
+include { FASTQC } from '../modules/nf-core/fastqc/main'
 include { SAMTOOLS_FLAGSTAT } from '../modules/nf-core/samtools/flagstat/main'
 include { SAMTOOLS_STATS } from '../modules/nf-core/samtools/stats/main'
+include { SAMTOOLS_IDXSTATS } from '../modules/nf-core/samtools/idxstats/main'
+include { SAMTOOLS_QUICKCHECK } from '../modules/nf-core/samtools/quickcheck/main'
+include { SAMTOOLS_QUICKCHECK_REPORT } from '../modules/local/samtools_quickcheck_report/main'
 include { MULTIQC } from '../modules/nf-core/multiqc/main'
 
 def toRnaCoreInput(final Map row) {
@@ -76,6 +80,17 @@ def qcMeta(final Map meta, final String id, final String modality, final String 
     ]
 }
 
+def toFastqcInput(final Map row) {
+    final List reads = row.modality == 'dna'
+        ? [row.i1, row.i2, row.r1, row.r2]
+        : [row.i1, row.r1, row.r2]
+
+    return tuple(
+        qcMeta(row, "${row.modality}.${row.id}.raw", row.modality as String, 'raw_fastq', row.id as String),
+        reads.findAll { it }.collect { file(it) }
+    )
+}
+
 def validateCoreResourceContract(final List<Map> rnaRows, final List<Map> dnaRows, final int maxCpus) {
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
@@ -107,6 +122,13 @@ workflow TRESEQ {
     // RNA and DNA run as independent branches under the same samplesheet contract.
     RNA_CORE(ch_rna_samples)
     DNA_CORE(ch_dna_samples)
+
+    Channel
+        .fromList(sampleRows)
+        .map { row -> toFastqcInput(row) }
+        .set { ch_raw_fastqs_for_fastqc }
+
+    FASTQC(ch_raw_fastqs_for_fastqc)
 
     Channel
         .fromList(uniqueFiles(sampleRows.collect { row -> row.sb_group_map }))
@@ -160,10 +182,21 @@ workflow TRESEQ {
         .mix(ch_dna_markeddup_bams_for_qc)
         .mix(ch_dna_nodup_bams_for_qc)
 
+    ch_dna_indexed_bams_for_nfcore_qc = ch_dna_aligned_bams_for_qc
+        .mix(ch_dna_markeddup_bams_for_qc)
+        .mix(ch_dna_nodup_bams_for_qc)
+
+    ch_bams_for_nfcore_quickcheck = ch_bams_for_nfcore_qc.map { meta, bam, bai ->
+        tuple(meta, bam)
+    }
+
     ch_samtools_stats_reference = Channel.value(tuple([id: 'no_reference'], [], []))
 
     SAMTOOLS_FLAGSTAT(ch_bams_for_nfcore_qc)
     SAMTOOLS_STATS(ch_bams_for_nfcore_qc, ch_samtools_stats_reference)
+    SAMTOOLS_IDXSTATS(ch_dna_indexed_bams_for_nfcore_qc)
+    SAMTOOLS_QUICKCHECK(ch_bams_for_nfcore_quickcheck)
+    SAMTOOLS_QUICKCHECK_REPORT(SAMTOOLS_QUICKCHECK.out.bam)
 
     ch_barcode_report_files = RNA_CORE.out.barcode_report_files
         .mix(DNA_CORE.out.barcode_report_files)
@@ -172,8 +205,11 @@ workflow TRESEQ {
         .mix(RNA_CORE.out.aligned_solo_summaries.map { splitName, meta, soloSummary -> soloSummary })
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
+        .mix(FASTQC.out.zip.map { meta, zip -> zip })
         .mix(SAMTOOLS_FLAGSTAT.out.flagstat.map { meta, flagstat -> flagstat })
         .mix(SAMTOOLS_STATS.out.stats.map { meta, stats -> stats })
+        .mix(SAMTOOLS_IDXSTATS.out.idxstats.map { meta, idxstats -> idxstats })
+        .mix(SAMTOOLS_QUICKCHECK_REPORT.out.report.map { meta, report -> report })
 
     ch_tres_report_input = ch_report_source_files
         .collect()
@@ -225,6 +261,10 @@ workflow TRESEQ {
     sequencing_efficiency_reports = SEQUENCING_EFFICIENCY.out.reports
     samtools_flagstat           = SAMTOOLS_FLAGSTAT.out.flagstat
     samtools_stats              = SAMTOOLS_STATS.out.stats
+    samtools_idxstats           = SAMTOOLS_IDXSTATS.out.idxstats
+    samtools_quickcheck         = SAMTOOLS_QUICKCHECK_REPORT.out.report
+    fastqc_html                 = FASTQC.out.html
+    fastqc_zip                  = FASTQC.out.zip
     multiqc_report              = MULTIQC.out.report
     multiqc_data                = MULTIQC.out.data
     tres_report_html            = TRES_REPORT_HTML.out.html

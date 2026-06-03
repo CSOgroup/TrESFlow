@@ -17,7 +17,8 @@ End-of-run reporting is written separately:
 - `tres_report/tres_report.html`: TrESFlow-specific RNA/DNA mapping and barcode summary
 - `tres_report/tres_report_metrics.json`: machine-readable metrics used by the HTML report
 - `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
-- `qc/samtools/*.flagstat` and `qc/samtools/*.stats`: nf-core samtools sidecar QC for real BAM outputs
+- `qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs
+- `qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: nf-core samtools sidecar QC for real BAM outputs
 
 The samtools sidecars are disabled in `-profile test` because the smoke profile uses mock BAM text files rather than valid BAMs.
 
@@ -99,7 +100,7 @@ samples:
 
 ### `runtime`
 
-- `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, and `gatk`
+- `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, `FastQC`, and `gatk`
 - `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
 
 ### `references`
