@@ -169,6 +169,13 @@ workflow DNA_CORE {
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics)
         .mix(TAG_DNA_CELL_BARCODE.out.metrics)
 
+    ch_barcode_report_files = TAG_DNA_SAMPLE_BARCODE.out.metrics
+        .flatMap { sampleId, counts, stats -> [counts, stats] }
+        .mix(TAG_DNA_MODALITY_BARCODE.out.metrics.flatMap { sampleId, counts, stats -> [counts, stats] })
+        .mix(TAG_DNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
+            [counts, statsL1, statsL2, statsL3]
+        })
+
     emit:
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
@@ -184,6 +191,7 @@ workflow DNA_CORE {
     coverage_bigwigs = BAM_COVERAGE_DNA.out.bw
     coverage_warnings = BAM_COVERAGE_DNA.out.warnings
     barcode_reports = ch_barcode_reports
+    barcode_report_files = ch_barcode_report_files
     tres_tag_records = TAG_DNA_CELL_BARCODE.out.tres_tag_records
     versions = ch_versions
 }

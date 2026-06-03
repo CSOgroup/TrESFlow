@@ -110,6 +110,9 @@ RNA publishes:
 - `rna_split_fastqs/`
 - `rna_align/`
 - `TrES_Stats/`
+- `qc/samtools/`
+- `multiqc/`
+- `tres_report/`
 - `pipeline_info/`
 
 DNA publishes:
@@ -117,9 +120,17 @@ DNA publishes:
 - `dna_split_fastqs/`
 - `dna_align/`
 - `TrES_Stats/`
+- `qc/samtools/`
+- `multiqc/`
+- `tres_report/`
 - `pipeline_info/`
 
-`TrES_Stats/` includes RNA and DNA sequencing-efficiency UpSet PDF plots. Sankey plots, HTML reports, count tables, combined RNA+DNA reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
+`TrES_Stats/` includes RNA and DNA sequencing-efficiency UpSet PDF plots. Sankey plots, count tables, combined RNA+DNA sequencing-efficiency reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
+
+The pipeline also writes two end-of-run HTML reports:
+
+- `tres_report/tres_report.html`: compact TrESFlow-specific RNA/DNA mapping and barcode summary
+- `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 
 ## Runtime Contract
 
@@ -173,6 +184,14 @@ Every run writes:
 - `${outdir}/pipeline_info/execution_trace.tsv`
 - `${outdir}/pipeline_info/flowchart.html`
 - `${outdir}/pipeline_info/runtime_contract.tsv`
+- `${outdir}/tres_report/tres_report.html`
+- `${outdir}/tres_report/tres_report_metrics.json`
+- `${outdir}/multiqc/multiqc_report.html`
+
+Runs with real BAM outputs also write nf-core samtools sidecar QC under:
+
+- `${outdir}/qc/samtools/*.flagstat`
+- `${outdir}/qc/samtools/*.stats`
 
 The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_runtime/). `upstream/source_scripts/` is kept only as provenance for the vendored core code.
 

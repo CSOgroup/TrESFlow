@@ -21,6 +21,10 @@ import WorkflowSupport
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
 include { SEQUENCING_EFFICIENCY } from '../modules/local/sequencing_efficiency/main'
+include { TRES_REPORT_HTML } from '../modules/local/tres_report_html/main'
+include { SAMTOOLS_FLAGSTAT } from '../modules/nf-core/samtools/flagstat/main'
+include { SAMTOOLS_STATS } from '../modules/nf-core/samtools/stats/main'
+include { MULTIQC } from '../modules/nf-core/multiqc/main'
 
 def toRnaCoreInput(final Map row) {
     tuple(
@@ -61,6 +65,15 @@ def uniqueFiles(final Collection paths) {
         .findAll { it }
         .collect { file(it) }
         .unique { it.toString() }
+}
+
+def qcMeta(final Map meta, final String id, final String modality, final String stage, final String splitName) {
+    return meta + [
+        id              : id,
+        tres_modality   : modality,
+        tres_qc_stage   : stage,
+        tres_split_name : splitName,
+    ]
 }
 
 def validateCoreResourceContract(final List<Map> rnaRows, final List<Map> dnaRows, final int maxCpus) {
@@ -118,6 +131,70 @@ workflow TRESEQ {
         ch_efficiency_dna_mo_maps
     )
 
+    // nf-core sidecar QC modules. These do not alter the TrESFlow data path;
+    // they only read existing BAMs and emit standardized QC text files.
+    ch_rna_bams_for_qc = RNA_CORE.out.aligned_filtered_bams.map { splitName, meta, bam ->
+        tuple(qcMeta(meta, "rna.${splitName}.filtered_cells", 'rna', 'filtered_cells', splitName), bam, [])
+    }
+
+    ch_dna_aligned_bams_for_qc = DNA_CORE.out.aligned_bams
+        .join(DNA_CORE.out.aligned_bais)
+        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+            tuple(qcMeta(metaFromBam, "dna.${splitName}.aligned", 'dna', 'aligned', splitName), bam, bai)
+        }
+
+    ch_dna_markeddup_bams_for_qc = DNA_CORE.out.markeddup_bams
+        .join(DNA_CORE.out.markeddup_bais)
+        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+            tuple(qcMeta(metaFromBam, "dna.${splitName}.markeddup", 'dna', 'markeddup', splitName), bam, bai)
+        }
+
+    ch_dna_nodup_bams_for_qc = DNA_CORE.out.nodup_bams
+        .join(DNA_CORE.out.nodup_bais)
+        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+            tuple(qcMeta(metaFromBam, "dna.${splitName}.nodup", 'dna', 'nodup', splitName), bam, bai)
+        }
+
+    ch_bams_for_nfcore_qc = ch_rna_bams_for_qc
+        .mix(ch_dna_aligned_bams_for_qc)
+        .mix(ch_dna_markeddup_bams_for_qc)
+        .mix(ch_dna_nodup_bams_for_qc)
+
+    ch_samtools_stats_reference = Channel.value(tuple([id: 'no_reference'], [], []))
+
+    SAMTOOLS_FLAGSTAT(ch_bams_for_nfcore_qc)
+    SAMTOOLS_STATS(ch_bams_for_nfcore_qc, ch_samtools_stats_reference)
+
+    ch_barcode_report_files = RNA_CORE.out.barcode_report_files
+        .mix(DNA_CORE.out.barcode_report_files)
+
+    ch_report_source_files = ch_barcode_report_files
+        .mix(RNA_CORE.out.aligned_solo_summaries.map { splitName, meta, soloSummary -> soloSummary })
+        .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
+        .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
+        .mix(SAMTOOLS_FLAGSTAT.out.flagstat.map { meta, flagstat -> flagstat })
+        .mix(SAMTOOLS_STATS.out.stats.map { meta, stats -> stats })
+
+    ch_tres_report_input = ch_report_source_files
+        .collect()
+        .map { files -> tuple([id: 'tresflow'], files) }
+
+    ch_multiqc_input = ch_report_source_files
+        .collect()
+        .map { files ->
+            tuple(
+                [id: 'tresflow'],
+                files,
+                file("${projectDir}/assets/multiqc_config.yml"),
+                [],
+                [],
+                []
+            )
+        }
+
+    TRES_REPORT_HTML(ch_tres_report_input)
+    MULTIQC(ch_multiqc_input)
+
     emit:
     tagged_fastqs               = RNA_CORE.out.tagged_fastqs
     trimmed_fastqs              = RNA_CORE.out.trimmed_fastqs
@@ -125,6 +202,8 @@ workflow TRESEQ {
     rg_headers                  = RNA_CORE.out.rg_headers
     usam_files                  = RNA_CORE.out.usam_files
     aligned_solo_dirs           = RNA_CORE.out.aligned_solo_dirs
+    aligned_solo_summaries      = RNA_CORE.out.aligned_solo_summaries
+    aligned_star_logs           = RNA_CORE.out.aligned_star_logs
     aligned_filtered_bams       = RNA_CORE.out.aligned_filtered_bams
     aligned_stranded_bigwigs    = RNA_CORE.out.aligned_stranded_bigwigs
     aligned_unstranded_bigwigs = RNA_CORE.out.aligned_unstranded_bigwigs
@@ -144,4 +223,10 @@ workflow TRESEQ {
     dna_coverage_warnings       = DNA_CORE.out.coverage_warnings
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
     sequencing_efficiency_reports = SEQUENCING_EFFICIENCY.out.reports
+    samtools_flagstat           = SAMTOOLS_FLAGSTAT.out.flagstat
+    samtools_stats              = SAMTOOLS_STATS.out.stats
+    multiqc_report              = MULTIQC.out.report
+    multiqc_data                = MULTIQC.out.data
+    tres_report_html            = TRES_REPORT_HTML.out.html
+    tres_report_metrics_json    = TRES_REPORT_HTML.out.metrics_json
 }

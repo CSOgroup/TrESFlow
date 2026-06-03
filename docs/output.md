@@ -22,6 +22,9 @@ DNA-related outputs:
 Shared reporting outputs:
 
 - `pipeline_info/`
+- `qc/samtools/`
+- `multiqc/`
+- `tres_report/`
 
 ## RNA outputs
 
@@ -39,6 +42,7 @@ SAM read-group header TSVs are internal work files and are not published.
 STARsolo and filtered BAM outputs:
 
 - `<sample>_<group>.Solo.outGeneFull/`
+- `<sample>_<group>.Log.final.out`
 - `<sample>_<group>.filtered_cells.bam`
 - `<sample>_<group>.stranded_*.bw`
 - `<sample>_<group>.unstranded_*.bw`
@@ -92,7 +96,7 @@ Tagging summaries are published with modality-specific names:
 
 Only published tag-record tables are gzipped. Uncompressed tag-record TSVs are internal work files.
 
-Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, HTML reports, TSV/CSV count tables, combined RNA+DNA summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log. Intersections are exact: the process streams category observations to task-local temporary files, sorts by unit/read id, reduces them to aggregate bitmask counts, and plots from those counts instead of storing every read id in memory.
+Sequencing-efficiency reports are also published under `TrES_Stats/` as UpSet PDF plots only. No Sankey plots, TSV/CSV count tables, combined RNA+DNA sequencing-efficiency summaries, or `sequencing_efficiency.warnings.tsv` files are produced. Optional BAM-derived categories are skipped with warnings in the `SEQUENCING_EFFICIENCY` process log. Intersections are exact: the process streams category observations to task-local temporary files, sorts by unit/read id, reduces them to aggregate bitmask counts, and plots from those counts instead of storing every read id in memory.
 
 RNA UpSet PDFs are written per sample and per sample group:
 
@@ -109,7 +113,46 @@ DNA UpSet PDFs are written per sample, per sample group, and per sample group pl
 
 DNA UpSet categories are: `Reads +`, `Sample +`, `Ligation +`, `CB +`, `CB>100 +`, `Modality +`, `Mapped +`, and `Unique +`. `Mapped +` comes from mapped read names in `*_MarkedDup.bam`. `Unique +` comes from mapped read names retained in `*_NoDup.bam`, with a non-duplicate `*_MarkedDup.bam` fallback only if NoDup is unavailable or unreadable. DNA alignment no longer filters out low-count barcodes during `ALIGN_DNA`; low-count status is visualized by `CB>100 +`.
 
-Sequencing-efficiency reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv`; that file is no longer produced by `ALIGN_DNA`. These reports are not currently integrated with MultiQC.
+Sequencing-efficiency reports do not use `*_ProperPairedMapped_reads_per_barcode.tsv`; that file is no longer produced by `ALIGN_DNA`.
+
+## QC and HTML reports
+
+### `qc/samtools/`
+
+When real BAMs are produced, nf-core `samtools/flagstat` and `samtools/stats` sidecar modules write standardized BAM QC files:
+
+- `*.flagstat`
+- `*.stats`
+
+These modules read existing RNA filtered BAMs and DNA aligned / marked-duplicate / NoDup BAMs. They do not modify any downstream TrESFlow outputs.
+
+In `-profile test`, the samtools sidecars are disabled because the smoke profile intentionally uses lightweight mock BAM text files.
+
+### `multiqc/`
+
+nf-core `multiqc` writes:
+
+- `multiqc_report.html`
+- `multiqc_report_data/`
+
+MultiQC aggregates supported logs and QC text files, including STAR logs and samtools outputs when present.
+
+### `tres_report/`
+
+The TrESFlow-specific end-of-run report writes:
+
+- `tres_report.html`
+- `tres_report_metrics.json`
+
+This custom report is separate from MultiQC. It summarizes TrES-specific RNA/DNA mapping and barcode metrics in a compact HTML page:
+
+- RNA mapping to transcriptome and genome from STARsolo `Summary.csv`
+- DNA mapped-read and unique-read metrics from samtools/GATK outputs when DNA BAM QC is present
+- RNA/DNA sample-barcode and cell-barcode rates from TrES tagging stats
+- RNA observed UMI count from UMI tagging counts
+- DNA modality barcode rate from DNA modality tagging stats
+
+DNA has no UMI metric by design.
 
 ## Pipeline information
 

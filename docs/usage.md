@@ -5,12 +5,21 @@
 `TrESFlow` supports one public input contract: a single hierarchical YAML samplesheet passed with `--samplesheet`.
 There is no CSV input mode in this repository.
 
-The pipeline runs two independent modality branches from that YAML, then builds sequencing-efficiency UpSet plots from the published tag-record and alignment channels:
+The pipeline runs two independent modality branches from that YAML, then builds sequencing-efficiency UpSet plots, nf-core QC sidecar outputs, MultiQC, and a compact TrESFlow-specific HTML report from the published tag-record, STAR, samtools, and alignment channels:
 
 - `rna`: sample-barcode tagging, UMI tagging, cell-barcode tagging, trimming, split by SB groups, `FqToSAM`, STARsolo, filtered BAM, bigWigs
 - `dna`: sample-barcode tagging, modality tagging, cell-barcode tagging, trimming, split by SB groups and DNA marks, alignment, duplicate marking, NoDup BAM, bigWig
 
-Sequencing-efficiency outputs are written to `TrES_Stats/` as UpSet PDFs only. Sankey plots, HTML reports, count tables, combined RNA+DNA reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
+Sequencing-efficiency outputs are written to `TrES_Stats/` as UpSet PDFs only. Sankey plots, count tables, combined RNA+DNA sequencing-efficiency reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
+
+End-of-run reporting is written separately:
+
+- `tres_report/tres_report.html`: TrESFlow-specific RNA/DNA mapping and barcode summary
+- `tres_report/tres_report_metrics.json`: machine-readable metrics used by the HTML report
+- `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
+- `qc/samtools/*.flagstat` and `qc/samtools/*.stats`: nf-core samtools sidecar QC for real BAM outputs
+
+The samtools sidecars are disabled in `-profile test` because the smoke profile uses mock BAM text files rather than valid BAMs.
 
 DNA alignment no longer filters out low-count cell barcodes during `ALIGN_DNA`. Low-count status is visualized in sequencing-efficiency plots as `CB>100 +`, using BAM-derived unique query-name read-pair support.
 

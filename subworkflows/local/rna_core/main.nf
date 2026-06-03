@@ -138,6 +138,13 @@ workflow RNA_CORE {
         .mix(TAG_RNA_UMI.out.metrics)
         .mix(TAG_RNA_CELL_BARCODE.out.metrics)
 
+    ch_barcode_report_files = TAG_RNA_SAMPLE_BARCODE.out.metrics
+        .flatMap { sampleId, counts, stats -> [counts, stats] }
+        .mix(TAG_RNA_UMI.out.metrics.flatMap { sampleId, counts -> [counts] })
+        .mix(TAG_RNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
+            [counts, statsL1, statsL2, statsL3]
+        })
+
     emit:
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
@@ -145,10 +152,13 @@ workflow RNA_CORE {
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     usam_files       = FQ_TO_SAM.out.usam
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
+    aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
+    aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
     aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports
+    barcode_report_files = ch_barcode_report_files
     tres_tag_records = TAG_RNA_CELL_BARCODE.out.tres_tag_records
     versions         = ch_versions
 }

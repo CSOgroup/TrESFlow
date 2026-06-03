@@ -5,6 +5,7 @@ Core workflow only:
 - RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through `BAM_COVERAGE_DNA`
 - Shared sequencing-efficiency UpSet PDF reporting from tag-record and alignment channels
+- nf-core samtools sidecar QC, nf-core MultiQC, and a TrESFlow-specific HTML report at the end of the run
 
 ```mermaid
 flowchart TD
@@ -62,13 +63,26 @@ flowchart TD
 
     subgraph Reporting[Shared Reporting]
         REPORT[SEQUENCING_EFFICIENCY]
+        SAMTOOLS[nf-core SAMTOOLS_FLAGSTAT/STATS]
+        MULTIQC[nf-core MULTIQC]
+        TRESHTML[TRES_REPORT_HTML]
     end
 
     RNA2 --> REPORT
     RNA7 --> REPORT
+    RNA7 --> SAMTOOLS
+    RNA6 --> MULTIQC
     DNA2 --> REPORT
     DNA6 --> REPORT
     DNA7 --> REPORT
+    DNA5 --> SAMTOOLS
+    DNA6 --> SAMTOOLS
+    DNA7 --> SAMTOOLS
+    SAMTOOLS --> MULTIQC
+    SAMTOOLS --> TRESHTML
+    RNA6 --> TRESHTML
+    RNA2 --> TRESHTML
+    DNA2 --> TRESHTML
 ```
 
 Notes:
@@ -77,4 +91,6 @@ Notes:
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
 - `TAG_DNA_CELL_BARCODE` uses DNA `i1` as the ligation source: single reads use starts `15,53,91`; dual reads use starts `41,79,117`.
 - DNA alignment does not enforce a low-count cell-barcode threshold; the BAM-derived `CB>100 +` category in sequencing-efficiency plots shows that status.
+- nf-core samtools modules are sidecar QC readers only; they do not replace or alter the repo-owned alignment, duplicate marking, or filtering logic.
+- `TRES_REPORT_HTML` renders `tres_report/tres_report.html` and `tres_report_metrics.json` from existing TrES stats, STARsolo summaries, samtools outputs, and GATK duplicate metrics.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).
