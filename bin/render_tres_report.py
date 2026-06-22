@@ -127,19 +127,29 @@ def read_flagstat(path: Path):
 def read_duplicate_metrics(path: Path):
     header = None
     for line in path.read_text(errors="replace").splitlines():
-        if not line.strip() or line.startswith("##"):
+        if not line.strip() or line.startswith("#"):
             continue
         parts = line.rstrip("\n").split("\t")
         if header is None:
+            if "PERCENT_DUPLICATION" not in parts:
+                continue
             header = parts
             continue
         values = dict(zip(header, parts))
         percent_dup = parse_number(values.get("PERCENT_DUPLICATION", ""))
+        read_pairs = parse_number(values.get("READ_PAIRS_EXAMINED", ""))
+        read_pair_duplicates = parse_number(values.get("READ_PAIR_DUPLICATES", ""))
+        unpaired_reads = parse_number(values.get("UNPAIRED_READS_EXAMINED", ""))
+        unpaired_duplicates = parse_number(values.get("UNPAIRED_READ_DUPLICATES", ""))
         return {
             "file": path.name,
             "library": values.get("LIBRARY"),
             "percent_duplication": float(percent_dup) * 100.0 if percent_dup is not None else None,
             "unique_percent": (1.0 - float(percent_dup)) * 100.0 if percent_dup is not None else None,
+            "read_pairs_examined": int(read_pairs) if read_pairs is not None else None,
+            "read_pair_duplicates": int(read_pair_duplicates) if read_pair_duplicates is not None else None,
+            "unpaired_reads_examined": int(unpaired_reads) if unpaired_reads is not None else None,
+            "unpaired_read_duplicates": int(unpaired_duplicates) if unpaired_duplicates is not None else None,
         }
     return {"file": path.name}
 
@@ -243,6 +253,23 @@ def average(values):
     return mean(clean) if clean else None
 
 
+def weighted_dna_unique_percent(records):
+    duplicate_total = 0
+    examined_total = 0
+    for record in records:
+        read_pairs = record.get("read_pairs_examined")
+        read_pair_duplicates = record.get("read_pair_duplicates")
+        unpaired_reads = record.get("unpaired_reads_examined") or 0
+        unpaired_duplicates = record.get("unpaired_read_duplicates") or 0
+        if read_pairs is None or read_pair_duplicates is None:
+            continue
+        duplicate_total += int(read_pair_duplicates) + int(unpaired_duplicates)
+        examined_total += int(read_pairs) + int(unpaired_reads)
+    if examined_total:
+        return (1.0 - (duplicate_total / examined_total)) * 100.0
+    return average([item.get("unique_percent") for item in records])
+
+
 def cell_barcode_percent(cell_stats):
     if not cell_stats:
         return None
@@ -259,8 +286,9 @@ def cell_barcode_percent(cell_stats):
     return average(candidates)
 
 
-def build_metrics(collected):
+def build_metrics(collected, library_name="unknown library"):
     samples = collected["samples"]
+    library_name = library_name or "unknown library"
     rna_transcriptome = weighted_rna_percent(
         collected["rna_summaries"],
         "Reads Mapped to GeneFull: Unique GeneFull",
@@ -274,7 +302,7 @@ def build_metrics(collected):
         item for item in collected["flagstats"] if item.get("id", "").startswith("dna.") and ".aligned" in item.get("id", "")
     ]
     dna_mapped = average([item.get("mapped_percent") for item in dna_aligned_flagstats])
-    dna_unique = average([item.get("unique_percent") for item in collected["duplicate_metrics"]])
+    dna_unique = weighted_dna_unique_percent(collected["duplicate_metrics"])
 
     sequencing_rows = []
     for sample_id in sorted(samples):
@@ -285,9 +313,11 @@ def build_metrics(collected):
         if rna_sb:
             sequencing_rows.append(
                 {
+                    "library_name": library_name,
                     "sample_id": sample_id,
                     "modality": "RNA",
                     "reads": rna_sb.get("reads", {}).get("count"),
+                    "confidently_mapped": rna_genome,
                     "valid_sample_barcodes": rna_sb.get("bc_reads", {}).get("percent"),
                     "valid_cell_barcodes": cell_barcode_percent(rna.get("cell_barcode", [])),
                     "valid_umis": None,
@@ -300,9 +330,11 @@ def build_metrics(collected):
         if dna_sb:
             sequencing_rows.append(
                 {
+                    "library_name": library_name,
                     "sample_id": sample_id,
                     "modality": "DNA",
                     "reads": dna_sb.get("reads", {}).get("count"),
+                    "confidently_mapped": dna_mapped,
                     "valid_sample_barcodes": dna_sb.get("bc_reads", {}).get("percent"),
                     "valid_modality_barcodes": dna.get("modality_barcode", {}).get("bc_reads", {}).get("percent"),
                     "valid_cell_barcodes": cell_barcode_percent(dna.get("cell_barcode", [])),
@@ -311,15 +343,45 @@ def build_metrics(collected):
                 }
             )
 
+    mapping_quality = {
+        "rna_confidently_mapped_to_transcriptome_percent": rna_transcriptome,
+        "rna_confidently_mapped_to_genome_percent": rna_genome,
+        "dna_confidently_mapped_percent": dna_mapped,
+        "dna_unique_reads_percent": dna_unique,
+    }
+    main_statistics = [
+        {
+            "metric": "RNA confidently mapped to transcriptome",
+            "value": rna_transcriptome,
+            "value_type": "percent",
+            "subtitle": "STARsolo GeneFull unique reads",
+            "modality": "RNA",
+        },
+        {
+            "metric": "DNA unique reads",
+            "value": dna_unique,
+            "value_type": "percent",
+            "subtitle": "1 - GATK MarkDuplicates duplication rate",
+            "modality": "DNA",
+        },
+    ]
+    libraries = [
+        {
+            "library_name": library_name,
+            "mapping_quality": mapping_quality,
+            "main_statistics": main_statistics,
+            "sequencing_quality": sequencing_rows,
+        }
+    ]
+    export_rows = build_export_rows(libraries)
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "mapping_quality": {
-            "rna_confidently_mapped_to_transcriptome_percent": rna_transcriptome,
-            "rna_confidently_mapped_to_genome_percent": rna_genome,
-            "dna_confidently_mapped_percent": dna_mapped,
-            "dna_unique_reads_percent": dna_unique,
-        },
+        "library_name": library_name,
+        "libraries": libraries,
+        "mapping_quality": mapping_quality,
         "sequencing_quality": sequencing_rows,
+        "export_rows": export_rows,
         "inputs": {
             "file_count": collected["input_file_count"],
             "rna_summary_count": len(collected["rna_summaries"]),
@@ -331,9 +393,68 @@ def build_metrics(collected):
     }
 
 
-def metric_card(title, value, subtitle):
+def export_value(value, value_type=None):
+    if value_type == "percent":
+        return fmt_pct(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    if value is None:
+        return "n/a"
+    return str(value)
+
+
+def build_export_rows(libraries):
+    rows = []
+    for library in libraries:
+        library_name = library["library_name"]
+        for card in library["main_statistics"]:
+            rows.append(
+                {
+                    "section": "Main statistics",
+                    "library": library_name,
+                    "modality": card["modality"],
+                    "fastq_id": "",
+                    "metric": card["metric"],
+                    "value": export_value(card.get("value"), card.get("value_type")),
+                    "number_of_reads": "",
+                    "confidently_mapped": "",
+                    "valid_sample_barcodes": "",
+                    "valid_cell_barcodes": "",
+                    "valid_modality_barcodes": "",
+                    "umi": "",
+                    "details": card["subtitle"],
+                }
+            )
+        for row in library["sequencing_quality"]:
+            umi_text = "no UMI" if row["modality"] == "DNA" else f"observed {fmt_int(row.get('observed_umis'))}"
+            rows.append(
+                {
+                    "section": "Sequencing quality",
+                    "library": library_name,
+                    "modality": row["modality"],
+                    "fastq_id": row["sample_id"],
+                    "metric": "sample-level sequencing QC",
+                    "value": "",
+                    "number_of_reads": fmt_int(row.get("reads")),
+                    "confidently_mapped": fmt_pct(row.get("confidently_mapped")),
+                    "valid_sample_barcodes": fmt_pct(row.get("valid_sample_barcodes")),
+                    "valid_cell_barcodes": fmt_pct(row.get("valid_cell_barcodes")),
+                    "valid_modality_barcodes": fmt_pct(row.get("valid_modality_barcodes"))
+                    if row["modality"] == "DNA"
+                    else "n/a",
+                    "umi": umi_text,
+                    "details": "",
+                }
+            )
+    return rows
+
+
+def metric_card(title, value, subtitle, modality=None):
+    modality_class = (modality or "").lower()
     return f"""
-    <div class="metric-card">
+    <div class="metric-card {html.escape(modality_class)}">
       <div class="metric-title">{html.escape(title)}</div>
       <div class="metric-value">{fmt_pct(value)}</div>
       <div class="bar"><span style="width: {css_width(value)}%"></span></div>
@@ -342,10 +463,7 @@ def metric_card(title, value, subtitle):
     """
 
 
-def render_html(metrics):
-    mapping = metrics["mapping_quality"]
-    rows = metrics["sequencing_quality"]
-
+def sequencing_table(rows):
     row_html = []
     for row in rows:
         umi_text = "no UMI" if row["modality"] == "DNA" else f"observed {fmt_int(row.get('observed_umis'))}"
@@ -356,6 +474,7 @@ def render_html(metrics):
               <td><span class="pill {modality_class}">{html.escape(row['modality'])}</span></td>
               <td>{html.escape(row['sample_id'])}</td>
               <td class="num">{fmt_int(row.get('reads'))}</td>
+              <td class="num">{fmt_pct(row.get('confidently_mapped'))}</td>
               <td class="num">{fmt_pct(row.get('valid_sample_barcodes'))}</td>
               <td class="num">{fmt_pct(row.get('valid_cell_barcodes'))}</td>
               <td class="num">{fmt_pct(row.get('valid_modality_barcodes')) if row['modality'] == 'DNA' else 'n/a'}</td>
@@ -363,6 +482,65 @@ def render_html(metrics):
             </tr>
             """
         )
+
+    return f"""
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>Modality</th>
+            <th>Fastq ID</th>
+            <th class="num">Number of reads</th>
+            <th class="num">Confidently mapped</th>
+            <th class="num">Valid sample barcodes</th>
+            <th class="num">Valid cell barcodes</th>
+            <th class="num">Valid modality barcodes</th>
+            <th class="num">UMI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {''.join(row_html) if row_html else '<tr><td colspan="8">No sequencing-quality inputs were detected.</td></tr>'}
+        </tbody>
+      </table>
+    """
+
+
+def render_library(library):
+    cards = []
+    for card in library["main_statistics"]:
+        cards.append(
+            metric_card(
+                card["metric"],
+                card.get("value"),
+                card["subtitle"],
+                card.get("modality"),
+            )
+        )
+
+    return f"""
+    <section class="library-block">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Mapping Quality</h2>
+        </div>
+        <div class="grid">
+          {''.join(cards)}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Sequencing Quality</h2>
+        </div>
+        {sequencing_table(library['sequencing_quality'])}
+      </section>
+    </section>
+    """
+
+
+def render_html(metrics):
+    libraries = metrics.get("libraries") or []
+    library_label = metrics.get("library_name") or "unknown library"
+    export_rows_json = json.dumps(metrics.get("export_rows", []), ensure_ascii=False).replace("</", "<\\/")
 
     return f"""<!doctype html>
 <html lang="en">
@@ -380,6 +558,7 @@ def render_html(metrics):
       --rna: #1b7f6a;
       --dna: #ff3b30;
       --good: #246bfe;
+      --accent: #3d1c96;
     }}
     body {{
       margin: 0;
@@ -393,16 +572,50 @@ def render_html(metrics):
       margin: 0 auto;
     }}
     .hero {{
-      margin-bottom: 22px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
     }}
     h1 {{
       margin: 0 0 6px;
       font-size: 34px;
       letter-spacing: -0.03em;
     }}
+    .library-title {{
+      color: var(--accent);
+      margin-left: 12px;
+      white-space: nowrap;
+    }}
     .meta {{
       color: var(--muted);
       font-size: 14px;
+    }}
+    .actions {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }}
+    button {{
+      border: 1px solid #c9d4e3;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: 9px 14px;
+      box-shadow: 0 1px 4px rgba(16, 40, 74, 0.08);
+    }}
+    button.primary {{
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }}
+    .library-block {{
+      margin: 24px 0 34px;
     }}
     .panel {{
       background: var(--panel);
@@ -415,8 +628,6 @@ def render_html(metrics):
     .panel-header {{
       display: flex;
       align-items: baseline;
-      justify-content: space-between;
-      gap: 18px;
       padding: 20px 22px;
       border-bottom: 1px solid var(--line);
     }}
@@ -425,14 +636,9 @@ def render_html(metrics):
       font-size: 25px;
       letter-spacing: -0.02em;
     }}
-    .hint {{
-      color: var(--muted);
-      font-size: 14px;
-      text-align: right;
-    }}
     .grid {{
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 1px;
       background: var(--line);
     }}
@@ -440,7 +646,19 @@ def render_html(metrics):
       background: #fff;
       padding: 22px;
       min-height: 150px;
+      position: relative;
     }}
+    .metric-card.rna::before,
+    .metric-card.dna::before {{
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--rna);
+    }}
+    .metric-card.dna::before {{ background: var(--dna); }}
     .metric-title {{
       color: var(--muted);
       font-weight: 700;
@@ -469,6 +687,9 @@ def render_html(metrics):
       height: 100%;
       background: linear-gradient(90deg, var(--good), #62d2a2);
       border-radius: 99px;
+    }}
+    .detail-table {{
+      table-layout: fixed;
     }}
     table {{
       border-collapse: collapse;
@@ -501,16 +722,17 @@ def render_html(metrics):
     }}
     .pill.rna {{ background: var(--rna); }}
     .pill.dna {{ background: var(--dna); }}
-    .notes {{
-      padding: 18px 22px;
+    .empty {{
       color: var(--muted);
-      font-size: 14px;
+      padding: 22px;
     }}
     @media (max-width: 900px) {{
       body {{ padding: 14px; }}
       .grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       .panel-header {{ display: block; }}
-      .hint {{ text-align: left; margin-top: 8px; }}
+      .hero {{ display: block; }}
+      .actions {{ justify-content: flex-start; margin-top: 14px; }}
+      .library-title {{ display: block; margin-left: 0; }}
     }}
     @media (max-width: 620px) {{
       .grid {{ grid-template-columns: 1fr; }}
@@ -522,49 +744,87 @@ def render_html(metrics):
 <body>
   <main class="page">
     <section class="hero">
-      <h1>TrESFlow QC Report</h1>
-      <div class="meta">Generated {html.escape(metrics['generated_at'])}</div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Mapping Quality</h2>
-        <div class="hint">RNA uses STARsolo GeneFull/Genome summary metrics. DNA uses BAM-level samtools/GATK metrics.</div>
+      <div>
+        <h1>TrESFlow QC Report <span class="library-title">{html.escape(library_label)}</span></h1>
+        <div class="meta">Generated {html.escape(metrics['generated_at'])}</div>
       </div>
-      <div class="grid">
-        {metric_card("RNA confidently mapped to transcriptome", mapping.get("rna_confidently_mapped_to_transcriptome_percent"), "STARsolo GeneFull unique reads")}
-        {metric_card("RNA confidently mapped to genome", mapping.get("rna_confidently_mapped_to_genome_percent"), "STARsolo genome unique reads")}
-        {metric_card("DNA confidently mapped", mapping.get("dna_confidently_mapped_percent"), "samtools flagstat on aligned DNA BAMs")}
-        {metric_card("DNA unique reads", mapping.get("dna_unique_reads_percent"), "1 - GATK MarkDuplicates duplication rate")}
+      <div class="actions">
+        <button class="primary" type="button" onclick="downloadCsv()">Export CSV</button>
+        <button type="button" onclick="downloadExcel()">Export Excel</button>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <h2>Sequencing Quality</h2>
-        <div class="hint">DNA has no UMI column by design; RNA UMI is reported as observed extracted UMIs.</div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Modality</th>
-            <th>Fastq ID</th>
-            <th class="num">Number of reads</th>
-            <th class="num">Valid sample barcodes</th>
-            <th class="num">Valid cell barcodes</th>
-            <th class="num">Valid modality barcodes</th>
-            <th class="num">UMI</th>
-          </tr>
-        </thead>
-        <tbody>
-          {''.join(row_html) if row_html else '<tr><td colspan="7">No sequencing-quality inputs were detected.</td></tr>'}
-        </tbody>
-      </table>
-      <div class="notes">
-        This report is generated from existing TrESFlow artifacts and does not alter pipeline results. The companion JSON file contains the parsed metrics used here.
-      </div>
-    </section>
+    {''.join(render_library(library) for library in libraries) if libraries else '<div class="panel empty">No library metrics were detected.</div>'}
   </main>
+  <script id="export-data" type="application/json">{export_rows_json}</script>
+  <script>
+    const exportRows = JSON.parse(document.getElementById("export-data").textContent || "[]");
+
+    function exportHeaders(rows) {{
+      const preferred = [
+        "section",
+        "library",
+        "modality",
+        "fastq_id",
+        "metric",
+        "value",
+        "number_of_reads",
+        "confidently_mapped",
+        "valid_sample_barcodes",
+        "valid_cell_barcodes",
+        "valid_modality_barcodes",
+        "umi",
+        "details"
+      ];
+      const extra = Array.from(new Set(rows.flatMap(row => Object.keys(row)))).filter(key => !preferred.includes(key));
+      return preferred.concat(extra);
+    }}
+
+    function csvEscape(value) {{
+      const text = value === null || value === undefined ? "" : String(value);
+      return /[",\\n\\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+    }}
+
+    function downloadBlob(filename, content, type) {{
+      const options = Object.create(null);
+      options.type = type;
+      const blob = new Blob([content], options);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      link.remove();
+    }}
+
+    function downloadCsv() {{
+      const headers = exportHeaders(exportRows);
+      const lines = [headers.join(",")].concat(
+        exportRows.map(row => headers.map(header => csvEscape(row[header])).join(","))
+      );
+      downloadBlob("tresflow_qc_report.csv", lines.join("\\n") + "\\n", "text/csv;charset=utf-8");
+    }}
+
+    function htmlEscape(value) {{
+      return String(value === null || value === undefined ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }}
+
+    function downloadExcel() {{
+      const headers = exportHeaders(exportRows);
+      const headerHtml = headers.map(header => "<th>" + htmlEscape(header) + "</th>").join("");
+      const bodyHtml = exportRows.map(row =>
+        "<tr>" + headers.map(header => "<td>" + htmlEscape(row[header]) + "</td>").join("") + "</tr>"
+      ).join("");
+      const workbook = '<html><head><meta charset="utf-8"></head><body><table>' +
+        "<thead><tr>" + headerHtml + "</tr></thead><tbody>" + bodyHtml + "</tbody></table></body></html>";
+      downloadBlob("tresflow_qc_report.xls", workbook, "application/vnd.ms-excel;charset=utf-8");
+    }}
+  </script>
 </body>
 </html>
 """
@@ -575,10 +835,11 @@ def main():
     parser.add_argument("--input-dir", required=True, type=Path)
     parser.add_argument("--output-html", required=True, type=Path)
     parser.add_argument("--output-json", required=True, type=Path)
+    parser.add_argument("--library-name", default="unknown library")
     args = parser.parse_args()
 
     collected = collect_inputs(args.input_dir)
-    metrics = build_metrics(collected)
+    metrics = build_metrics(collected, args.library_name)
 
     args.output_json.write_text(json.dumps(metrics, indent=2, sort_keys=True), encoding="utf-8")
     args.output_html.write_text(render_html(metrics), encoding="utf-8")

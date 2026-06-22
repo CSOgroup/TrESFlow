@@ -156,6 +156,10 @@ The TrESFlow-specific end-of-run report writes:
 
 This custom report is separate from MultiQC. It summarizes TrES-specific RNA/DNA mapping and barcode metrics in a compact HTML page:
 
+- the samplesheet `library_name` in the report title and per-library section header
+- per-library main-statistic cards for RNA mapping and DNA mapped/unique-read summaries
+- a detailed per-library sequencing QC table for barcode, read-count, and UMI/no-UMI fields
+- browser-side `Export CSV` and `Export Excel` buttons for the displayed report metrics
 - RNA mapping to transcriptome and genome from STARsolo `Summary.csv`
 - DNA mapped-read and unique-read metrics from samtools/GATK outputs when DNA BAM QC is present
 - RNA/DNA sample-barcode and cell-barcode rates from TrES tagging stats

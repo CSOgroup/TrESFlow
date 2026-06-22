@@ -26,7 +26,8 @@ process TRES_REPORT_HTML {
     python3 "${projectDir}/bin/render_tres_report.py" \\
       --input-dir inputs \\
       --output-html tres_report.html \\
-      --output-json tres_report_metrics.json
+      --output-json tres_report_metrics.json \\
+      --library-name "${meta.library_name ?: 'unknown library'}"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

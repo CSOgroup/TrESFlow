@@ -184,7 +184,7 @@ Every run writes:
 - `${outdir}/pipeline_info/execution_trace.tsv`
 - `${outdir}/pipeline_info/flowchart.html`
 - `${outdir}/pipeline_info/runtime_contract.tsv`
-- `${outdir}/tres_report/tres_report.html`
+- `${outdir}/tres_report/tres_report.html` with per-library main statistics, detailed QC tables, and CSV/Excel export buttons
 - `${outdir}/tres_report/tres_report_metrics.json`
 - `${outdir}/multiqc/multiqc_report.html`
 

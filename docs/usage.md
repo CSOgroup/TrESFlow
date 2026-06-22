@@ -14,7 +14,7 @@ Sequencing-efficiency outputs are written to `TrES_Stats/` as UpSet PDFs only. S
 
 End-of-run reporting is written separately:
 
-- `tres_report/tres_report.html`: TrESFlow-specific RNA/DNA mapping and barcode summary
+- `tres_report/tres_report.html`: TrESFlow-specific per-library RNA/DNA mapping and barcode summary with CSV/Excel export buttons
 - `tres_report/tres_report_metrics.json`: machine-readable metrics used by the HTML report
 - `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 - `qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs

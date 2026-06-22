@@ -106,6 +106,7 @@ workflow TRESEQ {
     final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     final int maxCpus = params.max_cpus as int
+    final String libraryName = sampleRows ? (sampleRows[0].library_name as String) : 'unknown library'
 
     validateCoreResourceContract(rnaRows, dnaRows, maxCpus)
 
@@ -213,7 +214,7 @@ workflow TRESEQ {
 
     ch_tres_report_input = ch_report_source_files
         .collect()
-        .map { files -> tuple([id: 'tresflow'], files) }
+        .map { files -> tuple([id: 'tresflow', library_name: libraryName], files) }
 
     ch_multiqc_input = ch_report_source_files
         .collect()
