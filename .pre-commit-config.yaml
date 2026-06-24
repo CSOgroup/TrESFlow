@@ -1,3 +1,14 @@
+exclude: |
+  (?x)^(
+      \.nf-test/|
+      results/|
+      work/|
+      tmp/|
+      \.codex$|
+      \.codex/|
+      assets/testdata/.*\.(amb|ann|bwt|pac|sa)$
+  )
+
 repos:
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: "v3.1.0"

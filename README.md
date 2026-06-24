@@ -8,6 +8,7 @@ TrESFlow is a Nextflow DSL2 pipeline for the preprocessing of TrES-seq data from
 ## Install
 
 Install your conda/mamba/micromamba env as follows (conda-forge & bioconda channels):
+
 ```bash
 micromamba env create -n tres
 micromamba activate tres
@@ -16,12 +17,14 @@ micromamba install screen samtools bwa-mem2 star fastqc multiqc trim-galore deep
 ```
 
 Download the repo and cd in it:
+
 ```bash
 git clone git@github.com:CSOgroup/TrESFlow.git
 cd TrESFlow
 ```
 
 Install codon in your env:
+
 ```bash
 ./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix
 ```

@@ -126,7 +126,7 @@ EOF
           "${starIndexDir}" \\
           "." \\
           "${task.cpus}"
- 
+
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
           component: "local"

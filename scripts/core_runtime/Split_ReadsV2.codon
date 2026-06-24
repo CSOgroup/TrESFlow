@@ -354,7 +354,7 @@ def gid_from_sb_raw(sample: str, sb_raw: str, sb_to_gid: Dict[str, int]) -> int:
 	# defensive: if some inputs ever already have injected base removed
 	if sb_raw in sb_to_gid:
 		return sb_to_gid[sb_raw]
-	
+
 	key1 = normalize_sb_drop_first(sb_raw)
 	if key1 in sb_to_gid:
 		return sb_to_gid[key1]
