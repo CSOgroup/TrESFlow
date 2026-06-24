@@ -4,7 +4,6 @@ Core workflow only:
 
 - RNA through the repo-owned STARsolo, filtered-BAM, and coverage stages
 - DNA through repo-owned tagging/splitting/alignment, nf-core `gatk4/markduplicates`, repo-owned NoDup extraction, and nf-core `deeptools/bamcoverage`
-- Shared sequencing-efficiency UpSet PDF reporting from tag-record and alignment channels
 - nf-core FastQC/samtools sidecar QC, nf-core MultiQC, and a TrESFlow-specific HTML report at the end of the run
 
 ```mermaid
@@ -28,7 +27,6 @@ flowchart TD
     REF --> DNA2
     REF --> DNA5
     REF --> DNA8
-    DERIVE --> REPORT
     DERIVE --> RNA0
     DERIVE --> RNA4
     DERIVE --> DNA0
@@ -62,21 +60,15 @@ flowchart TD
     end
 
     subgraph Reporting[Shared Reporting]
-        REPORT[SEQUENCING_EFFICIENCY]
         FASTQC[nf-core FASTQC]
         SAMTOOLS[nf-core SAMTOOLS_FLAGSTAT/STATS/IDXSTATS/QUICKCHECK]
         MULTIQC[nf-core MULTIQC]
         TRESHTML[TRES_REPORT_HTML]
     end
 
-    RNA2 --> REPORT
-    RNA7 --> REPORT
     RNA0 --> FASTQC
     RNA7 --> SAMTOOLS
     RNA6 --> MULTIQC
-    DNA2 --> REPORT
-    DNA6 --> REPORT
-    DNA7 --> REPORT
     DNA0 --> FASTQC
     DNA5 --> SAMTOOLS
     DNA6 --> SAMTOOLS
@@ -94,7 +86,6 @@ Notes:
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
 - `TAG_DNA_CELL_BARCODE` uses DNA `i1` as the ligation source: single reads use starts `15,53,91`; dual reads use starts `41,79,117`.
-- DNA alignment does not enforce a low-count cell-barcode threshold; the BAM-derived `CB>100 +` category in sequencing-efficiency plots shows that status.
 - nf-core FastQC and samtools modules are sidecar QC readers only; they do not alter downstream TrESFlow outputs.
 - nf-core `gatk4/markduplicates` replaces the previous local GATK invocation but preserves `--BARCODE_TAG CB`, `--REMOVE_DUPLICATES false`, index creation, and the historical TrESFlow output names via a normalization adapter.
 - nf-core `deeptools/bamcoverage` replaces the previous direct `bamCoverage` call. A repo-owned precheck keeps the previous zero-mapped NoDup BAM behavior by publishing a warning artifact and skipping coverage when needed.

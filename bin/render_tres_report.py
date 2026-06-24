@@ -56,6 +56,19 @@ def fmt_pct(value):
     return f"{float(value):.1f}%"
 
 
+def pct(numerator, denominator):
+    if numerator is None or denominator in {None, 0}:
+        return None
+    return float(numerator) / float(denominator) * 100.0
+
+
+def fmt_count_pct(count, denominator):
+    percent = pct(count, denominator)
+    if percent is None:
+        return "n/a"
+    return f"{fmt_pct(percent)} ({fmt_int(count)})"
+
+
 def css_width(value):
     if value is None:
         return "0"
@@ -108,14 +121,30 @@ def read_flagstat(path: Path):
     metrics = {"file": path.name}
     for line in path.read_text(errors="replace").splitlines():
         total = re.match(r"^(\d+) \+ \d+ in total", line)
+        primary = re.match(r"^(\d+) \+ \d+ primary$", line)
         mapped = re.match(r"^(\d+) \+ \d+ mapped \(([^%]+)%", line)
+        primary_mapped = re.match(r"^(\d+) \+ \d+ primary mapped \(([^%]+)%", line)
+        paired = re.match(r"^(\d+) \+ \d+ paired in sequencing", line)
+        read1 = re.match(r"^(\d+) \+ \d+ read1", line)
+        read2 = re.match(r"^(\d+) \+ \d+ read2", line)
         properly = re.match(r"^(\d+) \+ \d+ properly paired \(([^%]+)%", line)
         duplicates = re.match(r"^(\d+) \+ \d+ duplicates", line)
         if total:
             metrics["total"] = int(total.group(1))
+        elif primary:
+            metrics["primary"] = int(primary.group(1))
         elif mapped:
             metrics["mapped"] = int(mapped.group(1))
             metrics["mapped_percent"] = float(mapped.group(2))
+        elif primary_mapped:
+            metrics["primary_mapped"] = int(primary_mapped.group(1))
+            metrics["primary_mapped_percent"] = float(primary_mapped.group(2))
+        elif paired:
+            metrics["paired_in_sequencing"] = int(paired.group(1))
+        elif read1:
+            metrics["read1"] = int(read1.group(1))
+        elif read2:
+            metrics["read2"] = int(read2.group(1))
         elif properly:
             metrics["properly_paired"] = int(properly.group(1))
             metrics["properly_paired_percent"] = float(properly.group(2))
@@ -286,23 +315,73 @@ def cell_barcode_percent(cell_stats):
     return average(candidates)
 
 
+def sample_for_split(split_id: str, sample_ids):
+    matches = [sample_id for sample_id in sample_ids if split_id == sample_id or split_id.startswith(f"{sample_id}_")]
+    return max(matches, key=len) if matches else split_id.split("_", 1)[0]
+
+
+def flagstat_read_units(record):
+    if record.get("read1") is not None:
+        return record.get("read1")
+    if record.get("paired_in_sequencing") is not None:
+        return int(record["paired_in_sequencing"] / 2)
+    return record.get("primary_mapped") or record.get("mapped") or record.get("total")
+
+
+def split_from_flagstat_id(flagstat_id: str):
+    split_id = re.sub(r"^(rna|dna)\.", "", flagstat_id)
+    split_id = re.sub(r"\.(filtered_cells|aligned|markeddup|nodup)$", "", split_id)
+    return split_id
+
+
+def add_sample_value(sample_metrics, sample_id, key, value):
+    if value is None:
+        return
+    sample_metrics[sample_id][key] = sample_metrics[sample_id].get(key, 0) + int(round(float(value)))
+
+
+def rna_mapping_counts(records, sample_ids, key):
+    counts = defaultdict(int)
+    for record in records:
+        split_id = record.get("split_id")
+        reads = record.get("Number of Reads")
+        fraction = record.get(key)
+        if not split_id or reads is None or fraction is None:
+            continue
+        sample_id = sample_for_split(split_id, sample_ids)
+        counts[sample_id] += int(round(float(reads) * float(fraction)))
+    return counts
+
+
+def flagstat_counts_by_sample(flagstats, sample_ids, modality, stage):
+    counts = defaultdict(dict)
+    needle = f".{stage}"
+    for record in flagstats:
+        flagstat_id = record.get("id", "")
+        if not flagstat_id.startswith(f"{modality}.") or needle not in flagstat_id:
+            continue
+        sample_id = sample_for_split(split_from_flagstat_id(flagstat_id), sample_ids)
+        add_sample_value(counts, sample_id, "reads", flagstat_read_units(record))
+    return {sample_id: values.get("reads") for sample_id, values in counts.items()}
+
+
 def build_metrics(collected, library_name="unknown library"):
     samples = collected["samples"]
     library_name = library_name or "unknown library"
-    rna_transcriptome = weighted_rna_percent(
+    sample_ids = sorted(samples)
+    rna_transcriptome_counts = rna_mapping_counts(
         collected["rna_summaries"],
+        sample_ids,
         "Reads Mapped to GeneFull: Unique GeneFull",
     )
-    rna_genome = weighted_rna_percent(
+    rna_genome_counts = rna_mapping_counts(
         collected["rna_summaries"],
+        sample_ids,
         "Reads Mapped to Genome: Unique",
     )
-
-    dna_aligned_flagstats = [
-        item for item in collected["flagstats"] if item.get("id", "").startswith("dna.") and ".aligned" in item.get("id", "")
-    ]
-    dna_mapped = average([item.get("mapped_percent") for item in dna_aligned_flagstats])
-    dna_unique = weighted_dna_unique_percent(collected["duplicate_metrics"])
+    rna_usable_counts = flagstat_counts_by_sample(collected["flagstats"], sample_ids, "rna", "filtered_cells")
+    dna_mapped_counts = flagstat_counts_by_sample(collected["flagstats"], sample_ids, "dna", "aligned")
+    dna_usable_counts = flagstat_counts_by_sample(collected["flagstats"], sample_ids, "dna", "nodup")
 
     sequencing_rows = []
     for sample_id in sorted(samples):
@@ -317,11 +396,12 @@ def build_metrics(collected, library_name="unknown library"):
                     "sample_id": sample_id,
                     "modality": "RNA",
                     "reads": rna_sb.get("reads", {}).get("count"),
-                    "confidently_mapped": rna_genome,
+                    "confidently_mapped": pct(rna_genome_counts.get(sample_id), rna_sb.get("reads", {}).get("count")),
+                    "confidently_mapped_reads": rna_genome_counts.get(sample_id),
                     "valid_sample_barcodes": rna_sb.get("bc_reads", {}).get("percent"),
                     "valid_cell_barcodes": cell_barcode_percent(rna.get("cell_barcode", [])),
-                    "valid_umis": None,
-                    "observed_umis": rna.get("umi_counts", {}).get("observed"),
+                    "valid_modality_barcodes": None,
+                    "usable_reads": rna_usable_counts.get(sample_id),
                 }
             )
 
@@ -334,34 +414,49 @@ def build_metrics(collected, library_name="unknown library"):
                     "sample_id": sample_id,
                     "modality": "DNA",
                     "reads": dna_sb.get("reads", {}).get("count"),
-                    "confidently_mapped": dna_mapped,
+                    "confidently_mapped": pct(dna_mapped_counts.get(sample_id), dna_sb.get("reads", {}).get("count")),
+                    "confidently_mapped_reads": dna_mapped_counts.get(sample_id),
                     "valid_sample_barcodes": dna_sb.get("bc_reads", {}).get("percent"),
                     "valid_modality_barcodes": dna.get("modality_barcode", {}).get("bc_reads", {}).get("percent"),
                     "valid_cell_barcodes": cell_barcode_percent(dna.get("cell_barcode", [])),
-                    "valid_umis": None,
-                    "observed_umis": None,
+                    "usable_reads": dna_usable_counts.get(sample_id),
                 }
             )
 
+    rna_raw_reads = sum(row.get("reads") or 0 for row in sequencing_rows if row["modality"] == "RNA")
+    dna_raw_reads = sum(row.get("reads") or 0 for row in sequencing_rows if row["modality"] == "DNA")
+    rna_transcriptome_count = sum(rna_transcriptome_counts.values())
+    rna_genome_count = sum(rna_genome_counts.values())
+    dna_mapped_count = sum(dna_mapped_counts.values())
+    dna_usable_count = sum(dna_usable_counts.values())
+
     mapping_quality = {
-        "rna_confidently_mapped_to_transcriptome_percent": rna_transcriptome,
-        "rna_confidently_mapped_to_genome_percent": rna_genome,
-        "dna_confidently_mapped_percent": dna_mapped,
-        "dna_unique_reads_percent": dna_unique,
+        "rna_confidently_mapped_to_transcriptome_reads": rna_transcriptome_count,
+        "rna_confidently_mapped_to_transcriptome_percent": pct(rna_transcriptome_count, rna_raw_reads),
+        "rna_confidently_mapped_to_genome_reads": rna_genome_count,
+        "rna_confidently_mapped_to_genome_percent": pct(rna_genome_count, rna_raw_reads),
+        "dna_confidently_mapped_reads": dna_mapped_count,
+        "dna_confidently_mapped_percent": pct(dna_mapped_count, dna_raw_reads),
+        "dna_unique_reads": dna_usable_count,
+        "dna_unique_reads_percent": pct(dna_usable_count, dna_raw_reads),
     }
     main_statistics = [
         {
             "metric": "RNA confidently mapped to transcriptome",
-            "value": rna_transcriptome,
+            "value": mapping_quality["rna_confidently_mapped_to_transcriptome_percent"],
+            "count": rna_transcriptome_count,
+            "denominator": rna_raw_reads,
             "value_type": "percent",
-            "subtitle": "STARsolo GeneFull unique reads",
+            "subtitle": "STARsolo GeneFull unique reads / raw RNA reads",
             "modality": "RNA",
         },
         {
             "metric": "DNA unique reads",
-            "value": dna_unique,
+            "value": mapping_quality["dna_unique_reads_percent"],
+            "count": dna_usable_count,
+            "denominator": dna_raw_reads,
             "value_type": "percent",
-            "subtitle": "1 - GATK MarkDuplicates duplication rate",
+            "subtitle": "Final NoDup BAM read pairs / raw DNA reads",
             "modality": "DNA",
         },
     ]
@@ -418,17 +513,18 @@ def build_export_rows(libraries):
                     "fastq_id": "",
                     "metric": card["metric"],
                     "value": export_value(card.get("value"), card.get("value_type")),
+                    "absolute_reads": fmt_int(card.get("count")),
+                    "raw_reads": fmt_int(card.get("denominator")),
                     "number_of_reads": "",
                     "confidently_mapped": "",
                     "valid_sample_barcodes": "",
                     "valid_cell_barcodes": "",
                     "valid_modality_barcodes": "",
-                    "umi": "",
+                    "usable_reads": "",
                     "details": card["subtitle"],
                 }
             )
         for row in library["sequencing_quality"]:
-            umi_text = "no UMI" if row["modality"] == "DNA" else f"observed {fmt_int(row.get('observed_umis'))}"
             rows.append(
                 {
                     "section": "Sequencing quality",
@@ -438,13 +534,13 @@ def build_export_rows(libraries):
                     "metric": "sample-level sequencing QC",
                     "value": "",
                     "number_of_reads": fmt_int(row.get("reads")),
-                    "confidently_mapped": fmt_pct(row.get("confidently_mapped")),
+                    "confidently_mapped": fmt_count_pct(row.get("confidently_mapped_reads"), row.get("reads")),
                     "valid_sample_barcodes": fmt_pct(row.get("valid_sample_barcodes")),
-                    "valid_cell_barcodes": fmt_pct(row.get("valid_cell_barcodes")),
                     "valid_modality_barcodes": fmt_pct(row.get("valid_modality_barcodes"))
                     if row["modality"] == "DNA"
                     else "n/a",
-                    "umi": umi_text,
+                    "valid_cell_barcodes": fmt_pct(row.get("valid_cell_barcodes")),
+                    "usable_reads": fmt_int(row.get("usable_reads")),
                     "details": "",
                 }
             )
@@ -453,10 +549,17 @@ def build_export_rows(libraries):
 
 def metric_card(title, value, subtitle, modality=None):
     modality_class = (modality or "").lower()
+    absolute_line = ""
+    if isinstance(value, dict):
+        count = value.get("count")
+        denominator = value.get("denominator")
+        value = value.get("percent")
+        absolute_line = f"<div class=\"metric-count\">{fmt_int(count)} / {fmt_int(denominator)} raw reads</div>"
     return f"""
     <div class="metric-card {html.escape(modality_class)}">
       <div class="metric-title">{html.escape(title)}</div>
       <div class="metric-value">{fmt_pct(value)}</div>
+      {absolute_line}
       <div class="bar"><span style="width: {css_width(value)}%"></span></div>
       <div class="metric-subtitle">{html.escape(subtitle)}</div>
     </div>
@@ -466,7 +569,6 @@ def metric_card(title, value, subtitle, modality=None):
 def sequencing_table(rows):
     row_html = []
     for row in rows:
-        umi_text = "no UMI" if row["modality"] == "DNA" else f"observed {fmt_int(row.get('observed_umis'))}"
         modality_class = "rna" if row["modality"] == "RNA" else "dna"
         row_html.append(
             f"""
@@ -474,11 +576,11 @@ def sequencing_table(rows):
               <td><span class="pill {modality_class}">{html.escape(row['modality'])}</span></td>
               <td>{html.escape(row['sample_id'])}</td>
               <td class="num">{fmt_int(row.get('reads'))}</td>
-              <td class="num">{fmt_pct(row.get('confidently_mapped'))}</td>
               <td class="num">{fmt_pct(row.get('valid_sample_barcodes'))}</td>
-              <td class="num">{fmt_pct(row.get('valid_cell_barcodes'))}</td>
               <td class="num">{fmt_pct(row.get('valid_modality_barcodes')) if row['modality'] == 'DNA' else 'n/a'}</td>
-              <td class="num">{html.escape(umi_text)}</td>
+              <td class="num">{fmt_pct(row.get('valid_cell_barcodes'))}</td>
+              <td class="num">{fmt_count_pct(row.get('confidently_mapped_reads'), row.get('reads'))}</td>
+              <td class="num">{fmt_int(row.get('usable_reads'))}</td>
             </tr>
             """
         )
@@ -490,11 +592,11 @@ def sequencing_table(rows):
             <th>Modality</th>
             <th>Fastq ID</th>
             <th class="num">Number of reads</th>
-            <th class="num">Confidently mapped</th>
             <th class="num">Valid sample barcodes</th>
-            <th class="num">Valid cell barcodes</th>
             <th class="num">Valid modality barcodes</th>
-            <th class="num">UMI</th>
+            <th class="num">Valid cell barcodes</th>
+            <th class="num">Confidently mapped to genome</th>
+            <th class="num">Usable reads</th>
           </tr>
         </thead>
         <tbody>
@@ -510,7 +612,11 @@ def render_library(library):
         cards.append(
             metric_card(
                 card["metric"],
-                card.get("value"),
+                {
+                    "percent": card.get("value"),
+                    "count": card.get("count"),
+                    "denominator": card.get("denominator"),
+                },
                 card["subtitle"],
                 card.get("modality"),
             )
@@ -670,6 +776,12 @@ def render_html(metrics):
       font-weight: 800;
       letter-spacing: -0.03em;
     }}
+    .metric-count {{
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 700;
+    }}
     .metric-subtitle {{
       margin-top: 10px;
       color: var(--muted);
@@ -768,12 +880,14 @@ def render_html(metrics):
         "fastq_id",
         "metric",
         "value",
+        "absolute_reads",
+        "raw_reads",
         "number_of_reads",
         "confidently_mapped",
         "valid_sample_barcodes",
-        "valid_cell_barcodes",
         "valid_modality_barcodes",
-        "umi",
+        "valid_cell_barcodes",
+        "usable_reads",
         "details"
       ];
       const extra = Array.from(new Set(rows.flatMap(row => Object.keys(row)))).filter(key => !preferred.includes(key));
