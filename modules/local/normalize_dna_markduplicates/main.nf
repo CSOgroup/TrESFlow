@@ -1,9 +1,9 @@
 /*
  * Normalize nf-core/gatk4/markduplicates outputs back to the TrESFlow DNA
- * filename contract used by downstream NoDup extraction and reporting.
+ * filename contract and remove noncanonical alignments after duplicate marking.
  */
 
-include { runtimeOutdir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process NORMALIZE_DNA_MARKDUPLICATES {
     tag "${splitName}"
@@ -13,7 +13,7 @@ process NORMALIZE_DNA_MARKDUPLICATES {
     publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.DuplicateMetrics.txt"
 
     input:
-    tuple val(splitName), val(meta), path(markedDupBam), path(markedDupBai), path(markedDupMetrics)
+    tuple val(splitName), val(meta), path(markedDupBam, stageAs: "input_markeddup.bam"), path(markedDupBai, stageAs: "input_markeddup.bam.bai"), path(markedDupMetrics, stageAs: "input.DuplicateMetrics.txt"), path(canonicalChromosomes, stageAs: "canonical_chromosomes.txt")
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_MarkedDup.bam"), emit: bam
@@ -22,22 +22,47 @@ process NORMALIZE_DNA_MARKDUPLICATES {
     path("versions.yml"), emit: versions
 
     script:
-    """
-    copy_if_needed() {
-      src="\$1"
-      dest="\$2"
-      if [[ "\$(readlink -f "\${src}")" != "\$(readlink -f "\${dest}" 2>/dev/null || true)" ]]; then
-        cp -L "\${src}" "\${dest}"
-      fi
+    def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
+
+    if( mode == 'mock' ) {
+        """
+        ${runtimeExports}
+
+        cp -L "${markedDupBam}" "${splitName}_MarkedDup.bam"
+        cp -L "${markedDupBai}" "${splitName}_MarkedDup.bam.bai"
+        cp -L "${markedDupMetrics}" "${splitName}.DuplicateMetrics.txt"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
+        """
     }
+    else {
+        """
+        ${runtimeExports}
 
-    copy_if_needed "${markedDupBam}" "${splitName}_MarkedDup.bam"
-    copy_if_needed "${markedDupBai}" "${splitName}_MarkedDup.bam.bai"
-    copy_if_needed "${markedDupMetrics}" "${splitName}.DuplicateMetrics.txt"
+        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+          "${markedDupBam}" \\
+          "${splitName}_MarkedDup.bam" \\
+          "${canonicalChromosomes}" \\
+          "${task.cpus}" \\
+          normal
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-      component: "local"
-    END_VERSIONS
-    """
+        "\$SAMTOOLS_BIN" index \\
+          --threads "${task.cpus}" \\
+          --bai \\
+          --output "${splitName}_MarkedDup.bam.bai" \\
+          "${splitName}_MarkedDup.bam"
+
+        cp -L "${markedDupMetrics}" "${splitName}.DuplicateMetrics.txt"
+
+        cat <<-END_VERSIONS > versions.yml
+        "${task.process}":
+          component: "local"
+        END_VERSIONS
+        """
+    }
 }

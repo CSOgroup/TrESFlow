@@ -120,6 +120,21 @@ samples:
 
 `references.dna_effective_genome_size` is required for DNA runs because `BAM_COVERAGE_DNA` passes it to `bamCoverage --effectiveGenomeSize`.
 
+For human references, TrESFlow derives canonical chromosome allowlists once
+from STAR's `chrNameLength.txt` and the bwa-mem2 `.ann` dictionary. It accepts a
+coherent UCSC convention (`chr1`-`chr22`, `chrX`, `chrY`, `chrM`) or Ensembl
+convention (`1`-`22`, `X`, `Y`, and exactly `MT` or `M`). It never renames
+contigs or combines conventions. Missing mitochondrial/X/Y anchors, mixed
+conventions, or disagreement between the DNA `.ann` dictionary and an explicit
+`dna_chrom_sizes` file are fatal configuration errors.
+
+The resulting `*_canonical_chromosomes.txt` and
+`*_canonical_chromosomes.chrom.sizes` files are recorded in
+`pipeline_info/derived_contract/`. RNA's canonical filtered BAM feeds QC,
+normal-compression publication, and stranded/unstranded coverage. DNA keeps
+duplicate marking unchanged, filters the normalized MarkedDup BAM afterward,
+and derives the final canonical NoDup BAM and BigWig from it.
+
 ### `samples.<sample_id>.groups`
 
 `groups` is the source of truth for biological sample-barcode grouping.

@@ -46,7 +46,6 @@ echo "Using chromosome sizes=${path_refCHROMSIZES}"
   --outWigType bedGraph \
   --outWigStrand Stranded \
   --outWigNorm RPM \
-  --outWigReferencesPrefix chr \
   --outFileNamePrefix "${outdir}/${sample_name}.stranded_"
 
 "${STAR_BIN}" \
@@ -57,7 +56,6 @@ echo "Using chromosome sizes=${path_refCHROMSIZES}"
   --outWigType bedGraph \
   --outWigStrand Unstranded \
   --outWigNorm RPM \
-  --outWigReferencesPrefix chr \
   --outFileNamePrefix "${outdir}/${sample_name}.unstranded_"
 
 for f in "${outdir}/${sample_name}.stranded_Signal.Unique.str"*.bg; do

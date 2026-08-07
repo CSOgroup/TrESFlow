@@ -19,6 +19,7 @@ The current core runtime set is:
 - `RNA_FILTERED_BAM.sh`
 - `RNA_COVERAGE.sh`
 - `AlignDNA.sh`
+- `FilterCanonicalBam.sh`
 - `utils.codon`
 
 Ownership rules:

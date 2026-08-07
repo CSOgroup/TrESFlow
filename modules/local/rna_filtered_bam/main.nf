@@ -2,11 +2,12 @@
  * Module: RNA_FILTERED_BAM
  * Runtime command:
  *   bash scripts/core_runtime/RNA_FILTERED_BAM.sh \
- *     <split_name> <solo_dir> <aligned.bam> <outdir> <threads>
+ *     <split_name> <solo_dir> <aligned.bam> <canonical_contigs> <outdir> <threads>
  *
  * Inputs:
  *   - STARsolo GeneFull directory from RNA_STARSOLO_ALIGN
  *   - STAR coordinate-sorted aligned BAM from RNA_STARSOLO_ALIGN
+ *   - canonical chromosome allowlist resolved once from the STAR index dictionary
  * Outputs:
  *   - low-compression filtered-cells RNA BAM for coverage and QC
  */
@@ -18,7 +19,7 @@ process RNA_FILTERED_BAM {
     label 'codon_wrapper'
 
     input:
-    tuple val(splitName), val(meta), path(soloDir), path(alignedBam)
+    tuple val(splitName), val(meta), path(soloDir), path(alignedBam), path(canonicalChromosomes)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.filtered_cells.internal.bam"), emit: filtered_bam
@@ -54,6 +55,7 @@ process RNA_FILTERED_BAM {
           "${splitName}" \\
           "${soloDir}" \\
           "${alignedBam}" \\
+          "${canonicalChromosomes}" \\
           "." \\
           "${task.cpus}"
 

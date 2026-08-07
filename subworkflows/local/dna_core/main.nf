@@ -25,6 +25,7 @@ include { TRIM_DNA_FASTQS }          from '../../../modules/local/trim_dna_fastq
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_DNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { ALIGN_DNA }                from '../../../modules/local/align_dna/main'
+include { FILTER_CANONICAL_DNA_ALIGNED_BAM } from '../../../modules/local/filter_canonical_dna_aligned_bam/main'
 include { GATK4_MARKDUPLICATES }     from '../../../modules/nf-core/gatk4/markduplicates/main'
 include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_dna_markduplicates/main'
 include { SPLIT_DUPLICATES_DNA }     from '../../../modules/local/split_duplicates_dna/main'
@@ -220,6 +221,23 @@ workflow DNA_CORE {
     ALIGN_DNA(ch_align_input)
     ch_versions = ch_versions.mix(ALIGN_DNA.out.versions)
 
+    // Preserve MarkDuplicates input exactly as before. A separate canonical
+    // copy supplies the aligned-BAM output and QC branch.
+    ch_canonical_aligned_input = ALIGN_DNA.out.bam
+        .join(ALIGN_DNA.out.bai)
+        .map { splitName, metaFromBam, alignedBam, metaFromBai, alignedBai ->
+            tuple(
+                splitName,
+                metaFromBam,
+                alignedBam,
+                alignedBai,
+                file(metaFromBam.canonical_chromosomes)
+            )
+        }
+
+    FILTER_CANONICAL_DNA_ALIGNED_BAM(ch_canonical_aligned_input)
+    ch_versions = ch_versions.mix(FILTER_CANONICAL_DNA_ALIGNED_BAM.out.versions)
+
     ch_gatk_markduplicates_input = ALIGN_DNA.out.bam.map { splitName, meta, alignedBam ->
         tuple(nfcoreDnaMeta(splitName, meta, 'markeddup'), alignedBam)
     }
@@ -232,19 +250,26 @@ workflow DNA_CORE {
         .join(GATK4_MARKDUPLICATES.out.bai)
         .join(GATK4_MARKDUPLICATES.out.metrics)
         .map { nfMeta, markedDupBam, markedDupBai, markedDupMetrics ->
+            def restoredMeta = restoreDnaMeta(nfMeta)
             tuple(
                 nfMeta.tres_split_name as String,
-                restoreDnaMeta(nfMeta),
+                restoredMeta,
                 markedDupBam,
                 markedDupBai,
-                markedDupMetrics
+                markedDupMetrics,
+                file(restoredMeta.canonical_chromosomes)
             )
         }
 
     NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input)
     ch_versions = ch_versions.mix(NORMALIZE_DNA_MARKDUPLICATES.out.versions)
 
-    SPLIT_DUPLICATES_DNA(NORMALIZE_DNA_MARKDUPLICATES.out.bam)
+    ch_split_duplicates_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
+        .map { splitName, meta, markedDupBam ->
+            tuple(splitName, meta, markedDupBam, file(meta.canonical_chromosomes))
+        }
+
+    SPLIT_DUPLICATES_DNA(ch_split_duplicates_input)
     ch_versions = ch_versions.mix(SPLIT_DUPLICATES_DNA.out.versions)
 
     ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
@@ -302,8 +327,8 @@ workflow DNA_CORE {
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
     split_fastqs    = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
-    aligned_bams    = ALIGN_DNA.out.bam
-    aligned_bais    = ALIGN_DNA.out.bai
+    aligned_bams    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bam
+    aligned_bais    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bai
     markeddup_bams = NORMALIZE_DNA_MARKDUPLICATES.out.bam
     markeddup_bais = NORMALIZE_DNA_MARKDUPLICATES.out.bai
     duplicate_metrics = NORMALIZE_DNA_MARKDUPLICATES.out.metrics

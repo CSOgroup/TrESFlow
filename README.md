@@ -99,6 +99,23 @@ Notes:
 - `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
 - `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
 
+### Canonical human chromosomes
+
+TrESFlow resolves one canonical-chromosome contract per active modality from
+the reference itself: RNA uses the STAR `chrNameLength.txt` dictionary and DNA
+uses the inferred bwa-mem2 prefix's `.ann` dictionary. UCSC names
+(`chr1`-`chr22`, `chrX`, `chrY`, `chrM`) and Ensembl names (`1`-`22`, `X`,
+`Y`, plus the reference's exact `MT` or `M`) are supported without renaming.
+Mixed or ambiguous conventions fail before alignment work starts.
+
+RNA filtered BAMs, their QC and publication branches, and both RNA coverage
+tracks contain canonical records only. DNA duplicate marking retains its
+existing input and definition; canonical filtering occurs immediately after
+duplicate marking, and the canonical NoDup BAM remains the input to DNA QC and
+`bamCoverage`. Alternative loci, patches, random/unplaced contigs, decoys, and
+EBV records are excluded. The resolved allowlists and canonical chromosome-size
+files are written under `pipeline_info/derived_contract/`.
+
 Committed examples:
 
 - smoke test: [`assets/samplesheet.example.yaml`](assets/samplesheet.example.yaml)

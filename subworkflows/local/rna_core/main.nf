@@ -153,7 +153,13 @@ workflow RNA_CORE {
     ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
         .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
         .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
-            tuple(splitName, metaFromSolo, soloDir, alignedBam)
+            tuple(
+                splitName,
+                metaFromSolo,
+                soloDir,
+                alignedBam,
+                file(metaFromSolo.canonical_chromosomes)
+            )
         }
 
     RNA_FILTERED_BAM(ch_filtered_bam_input)
@@ -171,7 +177,7 @@ workflow RNA_CORE {
                 meta,
                 filteredBam,
                 meta.rna_star_index_dir as String,
-                meta.rna_chrom_sizes as String
+                meta.canonical_chrom_sizes as String
             )
         }
 

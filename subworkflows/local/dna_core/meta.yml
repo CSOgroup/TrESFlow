@@ -15,6 +15,7 @@ components:
   - "split/dna/reads"
   - "compress/split/fastqs"
   - "align/dna"
+  - "filter/canonical/dna/aligned/bam"
   - "gatk4/markduplicates"
   - "normalize/dna/markduplicates"
   - "split/duplicates/dna"
@@ -46,7 +47,7 @@ output:
       description: "DNA cell-barcode count TSVs."
   - aligned_bams:
       type: file
-      description: "Aligned DNA BAM files."
+      description: "Canonical-chromosome aligned DNA BAM files used by output and QC branches."
   - aligned_bais:
       type: file
       description: "Aligned DNA BAM indexes."
@@ -55,7 +56,7 @@ output:
       description: "Properly paired mapped-read counts per barcode."
   - markeddup_bams:
       type: file
-      description: "Duplicate-marked DNA BAM files."
+      description: "Canonical-chromosome duplicate-marked DNA BAM files."
   - markeddup_bais:
       type: file
       description: "Duplicate-marked DNA BAM indexes."
@@ -64,13 +65,13 @@ output:
       description: "Duplicate metrics files."
   - nodup_bams:
       type: file
-      description: "Duplicate-filtered NoDup DNA BAM files."
+      description: "Canonical-chromosome duplicate-filtered NoDup DNA BAM files."
   - nodup_bais:
       type: file
       description: "Duplicate-filtered NoDup DNA BAM indexes."
   - coverage_bigwigs:
       type: file
-      description: "DNA coverage bigWig tracks."
+      description: "Canonical-chromosome DNA NoDup coverage bigWig tracks."
   - barcode_reports:
       type: file
       description: "Collected DNA barcode metric outputs from upstream tagging steps."

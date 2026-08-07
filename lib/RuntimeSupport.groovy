@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 class RuntimeSupport {
 
     private static final List<Map> STANDARD_RUNTIME_TOOLS = [
@@ -122,6 +124,71 @@ class RuntimeSupport {
         }
 
         return output
+    }
+
+    static Map writeCanonicalChromosomeContracts(
+        final Map runtimeParams,
+        final String rawProjectDir,
+        final String rawOutdir,
+        final Map references,
+        final Map modalities
+    ) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File resolver = new File(projectDirectory, 'bin/resolve_canonical_chromosomes.py')
+        final File outputDirectory = new File(
+            new File(rawOutdir).canonicalFile,
+            'pipeline_info/derived_contract'
+        )
+        final String pythonBin = runtimeToolPath(runtimeParams, 'python3')
+
+        validateConfiguredExecutable('canonical chromosome resolver', resolver.canonicalPath)
+        validateConfiguredExecutable('runtime python3', pythonBin)
+
+        final List<String> command = [
+            pythonBin,
+            resolver.canonicalPath,
+            '--output-dir',
+            outputDirectory.canonicalPath,
+        ]
+
+        if( modalities.rna as boolean ) {
+            command.addAll([
+                '--rna-chrom-sizes',
+                references.rna_chrom_sizes.toString(),
+            ])
+        }
+        if( modalities.dna as boolean ) {
+            command.addAll([
+                '--dna-bwa-ann',
+                "${references.dna_bwa_reference}.ann".toString(),
+            ])
+            final String dnaChromSizes = references.dna_chrom_sizes?.toString()?.trim()
+            if( dnaChromSizes ) {
+                command.addAll(['--dna-chrom-sizes', dnaChromSizes])
+            }
+        }
+
+        final Process process = new ProcessBuilder(command)
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+            .start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+        if( exitCode != 0 ) {
+            throw new IllegalArgumentException(
+                "Canonical chromosome resolution failed for the configured reference index: ${output}"
+            )
+        }
+
+        try {
+            return new JsonSlurper().parseText(output) as Map
+        }
+        catch( Exception error ) {
+            throw new IllegalStateException(
+                "Canonical chromosome resolver returned invalid output: ${output}",
+                error
+            )
+        }
     }
 
     static List<Map> standardRuntimeTools(final Map params) {

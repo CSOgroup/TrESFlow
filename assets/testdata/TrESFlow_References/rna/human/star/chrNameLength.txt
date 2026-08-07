@@ -1,1 +1,5 @@
-chrMock	12
+chr1	12
+chrX	10
+chrY	8
+chrM	6
+chrUn_KI270442v1	5

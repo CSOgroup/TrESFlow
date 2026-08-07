@@ -107,6 +107,26 @@ workflow {
         modalityConfig,
         sampleRows
     )
+    def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
+        runtimeParams,
+        projectDir.toString(),
+        resolvedOutdir,
+        referenceConfig,
+        modalityConfig
+    )
+    sampleRows.each { row ->
+        def chromosomeContract = canonicalChromosomeContracts[row.modality]
+        if( !chromosomeContract ) {
+            error "Missing canonical chromosome contract for modality '${row.modality}'"
+        }
+        row.canonical_chromosomes = chromosomeContract.allowlist
+        row.canonical_chrom_sizes = chromosomeContract.chrom_sizes
+        row.chromosome_naming = chromosomeContract.style
+    }
+    canonicalChromosomeContracts.each { modality, contract ->
+        log.info "Resolved ${modality.toUpperCase()} canonical chromosomes " +
+            "(${contract.style}): ${contract.contigs.join(', ')}"
+    }
     runtimeSupport.writeRuntimeContract(
         resolvedOutdir,
         runtimeSupport.configuredRuntimeTools(runtimeParams),

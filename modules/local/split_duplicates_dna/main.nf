@@ -21,7 +21,7 @@
  *   - The NoDup definition remains all records without flag 0x400.
  */
 
-include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process SPLIT_DUPLICATES_DNA {
     tag "${splitName}"
@@ -30,7 +30,7 @@ process SPLIT_DUPLICATES_DNA {
     publishDir { "${runtimeOutdir()}/dna_align" }, mode: 'copy', overwrite: true, pattern: "*_NoDup.bam*"
 
     input:
-    tuple val(splitName), val(meta), path(markedDupBam)
+    tuple val(splitName), val(meta), path(markedDupBam), path(canonicalChromosomes)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bam"), emit: bam
@@ -39,6 +39,7 @@ process SPLIT_DUPLICATES_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
@@ -65,13 +66,13 @@ process SPLIT_DUPLICATES_DNA {
 
         echo "Using SAMTOOLS_BIN=\$SAMTOOLS_BIN"
 
-        "\$SAMTOOLS_BIN" view \\
-          --threads "${task.cpus}" \\
-          --bam \\
-          --with-header \\
-          --exclude-flags 0x400 \\
-          --output "${splitName}_NoDup.bam" \\
-          "${markedDupBam}"
+        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+          "${markedDupBam}" \\
+          "${splitName}_NoDup.bam" \\
+          "${canonicalChromosomes}" \\
+          "${task.cpus}" \\
+          normal \\
+          --exclude-flags 0x400
 
         "\$SAMTOOLS_BIN" index \\
           --threads "${task.cpus}" \\

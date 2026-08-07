@@ -50,16 +50,16 @@ output:
       description: "RNA STARsolo output directories."
   - aligned_filtered_bams:
       type: file
-      description: "Normally compressed publication copies of RNA filtered BAM files."
+      description: "Normally compressed canonical-chromosome publication copies of RNA filtered BAM files."
   - internal_filtered_bams:
       type: file
-      description: "Low-compression RNA filtered BAMs used internally by coverage and QC."
+      description: "Low-compression canonical-chromosome RNA filtered BAMs used internally by coverage and QC."
   - aligned_stranded_bigwigs:
       type: file
-      description: "RNA stranded bigWig tracks."
+      description: "Canonical-chromosome RNA stranded bigWig tracks."
   - aligned_unstranded_bigwigs:
       type: file
-      description: "RNA unstranded bigWig tracks."
+      description: "Canonical-chromosome RNA unstranded bigWig tracks."
   - barcode_reports:
       type: file
       description: "Collected RNA barcode metric outputs from upstream tagging steps."

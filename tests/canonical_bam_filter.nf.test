@@ -1,0 +1,20 @@
+nextflow_pipeline {
+
+    name "Canonical chromosome BAM filtering"
+    script "tests/canonical_bam_filter.nf"
+    tag "canonical-chromosomes"
+
+    test("real samtools filtering keeps canonical UCSC and Ensembl records") {
+
+        when {
+            params {
+                repo_root = "$projectDir"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            assert workflow.success
+        }
+    }
+}
