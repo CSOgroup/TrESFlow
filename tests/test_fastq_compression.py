@@ -1,6 +1,6 @@
 import importlib.util
-import importlib
 import gzip
+import importlib
 import os
 import tempfile
 import unittest
@@ -116,7 +116,7 @@ class FastqCompressionTests(unittest.TestCase):
                     self.assertTrue(source.exists())
                     self.assertFalse(destination.exists())
 
-    def test_split_fastq_names_normalize_to_fastq_gz(self):
+    def test_split_fastq_names_normalize_without_changing_compression_state(self):
         cases = {
             "sample_Normal_R1.fq": "sample_Normal_R1.fastq",
             "sample_Normal_R2.fq.gz": "sample_Normal_R2.fastq.gz",
@@ -124,30 +124,17 @@ class FastqCompressionTests(unittest.TestCase):
             "sample_Normal_R2.fastq.gz": "sample_Normal_R2.fastq.gz",
         }
         for source, expected in cases.items():
-            self.assertEqual(SPLIT_RNA.normalize_split_fastq_name(source), expected)
-            self.assertEqual(SPLIT_DNA.normalize_split_fastq_name(source), expected)
+            self.assertEqual(UTILS.normalize_split_fastq_name(source), expected)
 
-    def test_final_compression_uses_pigz_thread_count(self):
-        for module in (SPLIT_RNA, SPLIT_DNA):
-            with self.subTest(module=module.__name__):
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    source = Path(tmpdir) / "sample_Normal_R1.fastq"
-                    source.write_text("@r1\nACGT\n+\n!!!!\n", encoding="utf-8")
-                    calls = []
-                    original_run = UTILS.subprocess.run
+    def test_split_publication_compression_is_a_separate_non_destructive_process(self):
+        module_text = (REPO_ROOT / "modules/local/compress_split_fastqs/main.nf").read_text(
+            encoding="utf-8"
+        )
 
-                    def fake_run(command, check):
-                        calls.append((command, check))
-                        Path(str(source) + ".gz").write_bytes(b"compressed")
-                        source.unlink()
-
-                    try:
-                        UTILS.subprocess.run = fake_run
-                        module.compress_fastq_with_pigz(source, 6, "/usr/bin/pigz")
-                    finally:
-                        UTILS.subprocess.run = original_run
-
-                    self.assertEqual(calls, [(["/usr/bin/pigz", "-p", "6", str(source)], True)])
+        self.assertIn('-c -p "${task.cpus}"', module_text)
+        self.assertIn('> "\\$(basename "\\$fastq").gz"', module_text)
+        self.assertNotIn('pigz -f', module_text)
+        self.assertIn('.fastq.gz', module_text)
 
     def test_canonical_cell_id_drops_modality_specific_sb_without_replacing_technical_cb(self):
         cell_barcode = "ACGTACGTTGCATGCAGATCGATC"

@@ -10,9 +10,9 @@
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged reads
- *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
+ *   - plain Split_ReadsV2 per-group RNA FASTQs for computation plus independently compressed publication copies and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
- *   - STARsolo outputs, filtered BAMs, and bigWigs from the decomposed RNA alignment path
+ *   - STARsolo outputs, low-compression internal filtered BAMs, normally compressed publication BAMs, and bigWigs
  *   - barcode count/stat files from all wrapped RNA steps
  */
 
@@ -23,9 +23,11 @@ include { TAG_RNA_UMI }            from '../../../modules/local/tag_rna_umi/main
 include { TAG_RNA_CELL_BARCODE }   from '../../../modules/local/tag_rna_cell_barcode/main'
 include { TRIM_RNA_FASTQS }        from '../../../modules/local/trim_rna_fastqs/main'
 include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
+include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
 include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_align/main'
 include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
+include { COMPRESS_RNA_FILTERED_BAM } from '../../../modules/local/compress_rna_filtered_bam/main'
 include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
 
 workflow RNA_CORE {
@@ -87,6 +89,16 @@ workflow RNA_CORE {
     SPLIT_RNA_READS(ch_split_input)
     ch_versions = ch_versions.mix(SPLIT_RNA_READS.out.versions)
 
+    // The plain split FASTQs branch independently: computation consumes them
+    // directly while publication compression runs concurrently.
+    ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
+        .map { sampleId, meta, splitR1s, splitR2s ->
+            tuple(sampleId, meta, 'rna', splitR1s, splitR2s)
+        }
+
+    COMPRESS_RNA_SPLIT_FASTQS(ch_compress_split_input)
+    ch_versions = ch_versions.mix(COMPRESS_RNA_SPLIT_FASTQS.out.versions)
+
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
             WorkflowSupport.pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
@@ -120,6 +132,11 @@ workflow RNA_CORE {
     RNA_FILTERED_BAM(ch_filtered_bam_input)
     ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
 
+    // Publish a normally compressed copy independently while coverage and QC
+    // consume the low-compression internal BAM.
+    COMPRESS_RNA_FILTERED_BAM(RNA_FILTERED_BAM.out.filtered_bam)
+    ch_versions = ch_versions.mix(COMPRESS_RNA_FILTERED_BAM.out.versions)
+
     ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
         .map { splitName, meta, filteredBam ->
             tuple(
@@ -141,20 +158,21 @@ workflow RNA_CORE {
     ch_barcode_report_files = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .flatMap { sampleId, counts, stats -> [counts, stats] }
         .mix(TAG_RNA_UMI.out.metrics.flatMap { sampleId, counts -> [counts] })
-        .mix(TAG_RNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
+        .mix(TAG_RNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, statsL1, statsL2, statsL3 ->
             [counts, statsL1, statsL2, statsL3]
         })
 
     emit:
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
-    split_fastqs     = SPLIT_RNA_READS.out.split_fastqs
+    split_fastqs     = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     usam_files       = FQ_TO_SAM.out.usam
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
     aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
     aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
-    aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+    internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+    aligned_filtered_bams = COMPRESS_RNA_FILTERED_BAM.out.bam
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports

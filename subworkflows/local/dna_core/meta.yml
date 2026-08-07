@@ -13,6 +13,7 @@ components:
   - "tag/dna/cell/barcode"
   - "trim/dna/fastqs"
   - "split/dna/reads"
+  - "compress/split/fastqs"
   - "align/dna"
   - "gatk4/markduplicates"
   - "normalize/dna/markduplicates"
@@ -33,16 +34,13 @@ output:
       description: "Trimmed DNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Per-group per-mark split DNA FASTQs."
+      description: "Gzip-compressed publication copies of per-group per-mark split DNA FASTQs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split DNA outputs."
   - sample_barcode_counts:
       type: file
       description: "DNA sample-barcode count TSVs."
-  - cell_barcode_tag_records:
-      type: file
-      description: "DNA cell-barcode tag record TSVs."
   - cell_barcode_counts:
       type: file
       description: "DNA cell-barcode count TSVs."
@@ -76,6 +74,9 @@ output:
   - barcode_reports:
       type: file
       description: "Collected DNA barcode metric outputs from upstream tagging steps."
+  - tres_tag_records:
+      type: file
+      description: "Final gzip-compressed DNA tag-record TSV."
   - versions:
       type: file
       description: "Aggregated module version manifests emitted by the DNA core."

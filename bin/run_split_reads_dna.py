@@ -10,14 +10,11 @@ from pathlib import Path
 
 from tresflow_fastq_utils import (
     canonicalize_fastq_comment,
-    compress_fastq_with_pigz,
-    compress_final_fastqs,
     fastq_iter,
     find_tag_value,
     load_sb_group_map,
     log_event,
     move_split_output,
-    normalize_split_fastq_name,
     parse_header,
     resolve_codon_bin,
     resolve_group,
@@ -186,8 +183,6 @@ def mock_split(args):
         header_path = args.output_dir / f"SAM_RG_Header_{args.sample}_{group_name}_{mark_name}.tsv"
         write_rg_header(header_path, args.sample, args.library_name, target_barcodes[(group_name, mark_name)])
 
-    compress_final_fastqs(args.output_dir, args.pigz_threads)
-
 
 def real_split(args):
     codon_bin = resolve_codon_bin()
@@ -218,10 +213,6 @@ def real_split(args):
         moved = 0
         fastq_moved = 0
         for pattern in (
-            f"{args.sample}_*_R1.fastq.gz",
-            f"{args.sample}_*_R2.fastq.gz",
-            f"{args.sample}_*_R1.fq.gz",
-            f"{args.sample}_*_R2.fq.gz",
             f"{args.sample}_*_R1.fastq",
             f"{args.sample}_*_R2.fastq",
             f"{args.sample}_*_R1.fq",
@@ -237,8 +228,6 @@ def real_split(args):
         if moved == 0 or fastq_moved == 0:
             raise RuntimeError(f"No DNA split outputs were produced for sample {args.sample}")
 
-        compress_final_fastqs(args.output_dir, args.pigz_threads)
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -251,7 +240,6 @@ def parse_args():
     parser.add_argument("--sample", required=True)
     parser.add_argument("--library-name", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--pigz-threads", required=True, type=int)
     return parser.parse_args()
 
 

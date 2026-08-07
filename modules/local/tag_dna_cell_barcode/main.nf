@@ -28,7 +28,7 @@ process TAG_DNA_CELL_BARCODE {
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1.fastq"), path("${sampleId}.dna_sample_barcode_modality_cell.R2.fastq"), emit: tagged
-    tuple val(sampleId), path("${sampleId}.dna_cell.counts.tsv"), path("${sampleId}.dna_tag_records.tsv"), path("${sampleId}.dna_cell.stats_L1.tsv"), path("${sampleId}.dna_cell.stats_L2.tsv"), path("${sampleId}.dna_cell.stats_L3.tsv"), emit: metrics
+    tuple val(sampleId), path("${sampleId}.dna_cell.counts.tsv"), path("${sampleId}.dna_cell.stats_L1.tsv"), path("${sampleId}.dna_cell.stats_L2.tsv"), path("${sampleId}.dna_cell.stats_L3.tsv"), emit: metrics
     path("${sampleId}.dna_tag_records.tsv.gz"), emit: tres_tag_records
     path("versions.yml"), emit: versions
 
@@ -66,7 +66,7 @@ process TAG_DNA_CELL_BARCODE {
       echo "Missing configured pigz executable for TrES_Stats tag record compression: \$PIGZ_BIN" >&2
       exit 1
     fi
-    "\$PIGZ_BIN" -c -p "${task.cpus}" "${sampleId}.dna_tag_records.tsv" > "${sampleId}.dna_tag_records.tsv.gz"
+    "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.dna_tag_records.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

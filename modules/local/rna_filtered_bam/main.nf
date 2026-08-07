@@ -8,7 +8,7 @@
  *   - STARsolo GeneFull directory from RNA_STARSOLO_ALIGN
  *   - STAR coordinate-sorted aligned BAM from RNA_STARSOLO_ALIGN
  * Outputs:
- *   - filtered-cells RNA BAM
+ *   - low-compression filtered-cells RNA BAM for coverage and QC
  */
 
 import RuntimeSupport
@@ -17,13 +17,11 @@ process RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true
-
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam)
 
     output:
-    tuple val(splitName), val(meta), path("${splitName}.filtered_cells.bam"), emit: filtered_bam
+    tuple val(splitName), val(meta), path("${splitName}.filtered_cells.internal.bam"), emit: filtered_bam
     path("versions.yml"), emit: versions
 
     script:
@@ -35,7 +33,7 @@ process RNA_FILTERED_BAM {
         """
         ${runtimeExports}
 
-        printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
+        printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.internal.bam"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

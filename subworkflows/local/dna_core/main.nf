@@ -10,7 +10,7 @@
  * Outputs:
  *   - DNA FASTQs tagged with SB, MO, then CB comments
  *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged DNA reads
- *   - Split_ReadsV2 per-group per-mark DNA FASTQs and SAM RG headers
+ *   - plain Split_ReadsV2 per-group per-mark DNA FASTQs for computation plus independently compressed publication copies and SAM RG headers
  *   - AlignDNA filtered BAMs and BAM indexes
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
  *   - duplicate-filtered NoDup BAMs and indexes
@@ -25,6 +25,7 @@ include { TAG_DNA_MODALITY_BARCODE } from '../../../modules/local/tag_dna_modali
 include { TAG_DNA_CELL_BARCODE }     from '../../../modules/local/tag_dna_cell_barcode/main'
 include { TRIM_DNA_FASTQS }          from '../../../modules/local/trim_dna_fastqs/main'
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
+include { COMPRESS_SPLIT_FASTQS as COMPRESS_DNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { ALIGN_DNA }                from '../../../modules/local/align_dna/main'
 include { GATK4_MARKDUPLICATES }     from '../../../modules/nf-core/gatk4/markduplicates/main'
 include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_dna_markduplicates/main'
@@ -124,6 +125,16 @@ workflow DNA_CORE {
 
     SPLIT_DNA_READS(ch_split_input)
     ch_versions = ch_versions.mix(SPLIT_DNA_READS.out.versions)
+
+    // The plain split FASTQs branch independently: alignment consumes them
+    // directly while publication compression runs concurrently.
+    ch_compress_split_input = SPLIT_DNA_READS.out.split_fastqs
+        .map { sampleId, meta, splitR1s, splitR2s ->
+            tuple(sampleId, meta, 'dna', splitR1s, splitR2s)
+        }
+
+    COMPRESS_DNA_SPLIT_FASTQS(ch_compress_split_input)
+    ch_versions = ch_versions.mix(COMPRESS_DNA_SPLIT_FASTQS.out.versions)
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
@@ -235,14 +246,14 @@ workflow DNA_CORE {
     ch_barcode_report_files = TAG_DNA_SAMPLE_BARCODE.out.metrics
         .flatMap { sampleId, counts, stats -> [counts, stats] }
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics.flatMap { sampleId, counts, stats -> [counts, stats] })
-        .mix(TAG_DNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, tagRecords, statsL1, statsL2, statsL3 ->
+        .mix(TAG_DNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, statsL1, statsL2, statsL3 ->
             [counts, statsL1, statsL2, statsL3]
         })
 
     emit:
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
-    split_fastqs    = SPLIT_DNA_READS.out.split_fastqs
+    split_fastqs    = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
     aligned_bams    = ALIGN_DNA.out.bam
     aligned_bais    = ALIGN_DNA.out.bai

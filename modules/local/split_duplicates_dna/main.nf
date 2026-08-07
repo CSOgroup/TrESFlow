@@ -2,9 +2,8 @@
  * Module: SPLIT_DUPLICATES_DNA
  * Upstream reference:
  *   samtools view --threads <threads> --bam --with-header \
- *     --require-flags 0x400 \
- *     --output <temp_dup.bam> \
- *     --unoutput <sample>_NoDup.bam \
+ *     --exclude-flags 0x400 \
+ *     --output <sample>_NoDup.bam \
  *     <sample>_MarkedDup.bam
  *
  *   samtools index --threads <threads> --bai \
@@ -18,8 +17,8 @@
  *   - NoDup BAM index
  *
  * Notes:
- *   - This wrapper preserves the launcher's post-MarkDuplicates duplicate split and NoDup indexing.
- *   - The launcher's temporary DUP.bam sideproduct is created inside the task work dir and removed before publish.
+ *   - No process consumes a duplicate-only BAM, so duplicates are discarded without encoding a temporary file.
+ *   - The NoDup definition remains all records without flag 0x400.
  */
 
 import RuntimeSupport
@@ -70,9 +69,8 @@ process SPLIT_DUPLICATES_DNA {
           --threads "${task.cpus}" \\
           --bam \\
           --with-header \\
-          --require-flags 0x400 \\
-          --output "${splitName}.DUP.bam" \\
-          --unoutput "${splitName}_NoDup.bam" \\
+          --exclude-flags 0x400 \\
+          --output "${splitName}_NoDup.bam" \\
           "${markedDupBam}"
 
         "\$SAMTOOLS_BIN" index \\
@@ -80,8 +78,6 @@ process SPLIT_DUPLICATES_DNA {
           --bai \\
           --output "${splitName}_NoDup.bam.bai" \\
           "${splitName}_NoDup.bam"
-
-        rm -f "${splitName}.DUP.bam"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

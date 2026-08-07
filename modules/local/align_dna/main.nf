@@ -4,7 +4,7 @@
  *   ./AlignDNA.sh <modality> <sample_name> <R1> <R2> <blacklist.bed> <SAM_RG_Header.tsv> <bwa_prefix> <effective_genome_size> <outdir>
  *
  * Inputs:
- *   - one split DNA FASTQ pair from Split_ReadsV2 dna mode
+ *   - one uncompressed split DNA FASTQ pair from Split_ReadsV2 dna mode
  *   - matching SAM RG header TSV from Split_ReadsV2 dna mode
  *   - bwa-mem2 index prefix inferred from references.dna_ref_dir
  *   - explicit blacklist BED path

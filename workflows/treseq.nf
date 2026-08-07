@@ -125,7 +125,7 @@ workflow TRESEQ {
 
     // nf-core sidecar QC modules. These do not alter the TrESFlow data path;
     // they only read existing BAMs and emit standardized QC text files.
-    ch_rna_bams_for_qc = RNA_CORE.out.aligned_filtered_bams.map { splitName, meta, bam ->
+    ch_rna_bams_for_qc = RNA_CORE.out.internal_filtered_bams.map { splitName, meta, bam ->
         tuple(qcMeta(meta, "rna.${splitName}.filtered_cells", 'rna', 'filtered_cells', splitName), bam, [])
     }
 

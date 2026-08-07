@@ -28,7 +28,7 @@ process TAG_RNA_CELL_BARCODE {
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
-    tuple val(sampleId), path("${sampleId}.cell.counts.tsv"), path("${sampleId}.tag_records.tsv"), path("${sampleId}.cell.stats_L1.tsv"), path("${sampleId}.cell.stats_L2.tsv"), path("${sampleId}.cell.stats_L3.tsv"), emit: metrics
+    tuple val(sampleId), path("${sampleId}.cell.counts.tsv"), path("${sampleId}.cell.stats_L1.tsv"), path("${sampleId}.cell.stats_L2.tsv"), path("${sampleId}.cell.stats_L3.tsv"), emit: metrics
     path("${sampleId}.rna_cell.*.tsv"), emit: tres_cell_stats
     path("${sampleId}.rna_tag_records.tsv.gz"), emit: tres_tag_records
     path("versions.yml"), emit: versions
@@ -55,7 +55,7 @@ process TAG_RNA_CELL_BARCODE {
       --output-r1 "${sampleId}.sample_barcode_umi_cell.R1.fastq" \\
       --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq" \\
       --output-counts "${sampleId}.cell.counts.tsv" \\
-      --output-tag-records "${sampleId}.tag_records.tsv" \\
+      --output-tag-records "${sampleId}.rna_tag_records.tsv" \\
       --output-stats "${sampleId}.cell.stats_L1.tsv" \\
       --output-stats "${sampleId}.cell.stats_L2.tsv" \\
       --output-stats "${sampleId}.cell.stats_L3.tsv"
@@ -69,7 +69,6 @@ process TAG_RNA_CELL_BARCODE {
       echo "Missing configured pigz executable for TrES_Stats tag record compression: \$PIGZ_BIN" >&2
       exit 1
     fi
-    cp "${sampleId}.tag_records.tsv" "${sampleId}.rna_tag_records.tsv"
     "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
 
     cat <<-END_VERSIONS > versions.yml

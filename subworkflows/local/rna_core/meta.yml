@@ -13,9 +13,11 @@ components:
   - "tag/rna/cell/barcode"
   - "trim/rna/fastqs"
   - "split/rna/reads"
+  - "compress/split/fastqs"
   - "fq/to/sam"
   - "rna/starsolo/align"
   - "rna/filtered/bam"
+  - "compress/rna/filtered/bam"
   - "rna/coverage"
 input:
   - ch_rna_samples:
@@ -30,7 +32,7 @@ output:
       description: "Trimmed RNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Per-group split RNA FASTQs."
+      description: "Gzip-compressed publication copies of per-group split RNA FASTQs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split RNA outputs."
@@ -48,7 +50,10 @@ output:
       description: "RNA STARsolo output directories."
   - aligned_filtered_bams:
       type: file
-      description: "RNA filtered BAM files."
+      description: "Normally compressed publication copies of RNA filtered BAM files."
+  - internal_filtered_bams:
+      type: file
+      description: "Low-compression RNA filtered BAMs used internally by coverage and QC."
   - aligned_stranded_bigwigs:
       type: file
       description: "RNA stranded bigWig tracks."
@@ -58,6 +63,9 @@ output:
   - barcode_reports:
       type: file
       description: "Collected RNA barcode metric outputs from upstream tagging steps."
+  - tres_tag_records:
+      type: file
+      description: "Final gzip-compressed RNA tag-record TSV."
   - versions:
       type: file
       description: "Aggregated module version manifests emitted by the RNA core."

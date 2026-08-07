@@ -31,14 +31,14 @@ class WorkflowSupport {
             final String name = path.getName()
             final String group = name
                 .replaceFirst("^${sampleId}_", '')
-                .replaceFirst('_R1\\.(?:fastq|fq)\\.gz$', '')
+                .replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')
             [(group): path]
         }
         final Map<String, Object> r2ByGroup = asPathList(splitR2s).collectEntries { path ->
             final String name = path.getName()
             final String group = name
                 .replaceFirst("^${sampleId}_", '')
-                .replaceFirst('_R2\\.(?:fastq|fq)\\.gz$', '')
+                .replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')
             [(group): path]
         }
 
@@ -60,10 +60,10 @@ class WorkflowSupport {
 
     static List<Map> pairDnaSplitFastqs(final Object splitR1s, final Object splitR2s) {
         final Map<String, Object> r1BySplit = asPathList(splitR1s).collectEntries { path ->
-            [(path.getName().replaceFirst('_R1\\.(?:fastq|fq)\\.gz$', '')): path]
+            [(path.getName().replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')): path]
         }
         final Map<String, Object> r2BySplit = asPathList(splitR2s).collectEntries { path ->
-            [(path.getName().replaceFirst('_R2\\.(?:fastq|fq)\\.gz$', '')): path]
+            [(path.getName().replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')): path]
         }
 
         final List<String> splitNames = (r1BySplit.keySet() + r2BySplit.keySet()).unique().sort()

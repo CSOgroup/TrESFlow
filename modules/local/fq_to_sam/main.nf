@@ -10,8 +10,8 @@
  *   - unmapped SAM carrying CR:Z:CB+UM plus preserved non-CB/non-UM tags
  *
  * Notes:
- *   - Upstream MAINLAUNCH.sh comments say the script must accept gzipped FASTQs.
- *     The checked-in FqToSAM.codon does accept `.gz` inputs directly, and this wrapper preserves that contract.
+ *   - The computational branch supplies plain split FASTQs, avoiding a decode before SAM conversion.
+ *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
 import RuntimeSupport

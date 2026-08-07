@@ -10,7 +10,7 @@
  *   - DNA modality map TSV keyed by sample, group, mark, and modality barcode
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
- *   - per-group per-mark DNA FASTQ pairs named as final pigz-compressed split outputs
+ *   - uncompressed per-group per-mark DNA FASTQ pairs for downstream computation
  *   - per-group per-mark SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  */
 
@@ -20,13 +20,11 @@ process SPLIT_DNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_split_fastqs", mode: 'copy', overwrite: true, pattern: "${sampleId}_*_R[12].fastq.gz"
-
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(moMap), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq.gz"), path("${sampleId}_*_R2.fastq.gz"), emit: split_fastqs
+    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq"), path("${sampleId}_*_R2.fastq"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
     path("versions.yml"), emit: versions
 
@@ -47,8 +45,7 @@ process SPLIT_DNA_READS {
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
-      --output-dir "." \\
-      --pigz-threads "${task.cpus}"
+      --output-dir "."
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

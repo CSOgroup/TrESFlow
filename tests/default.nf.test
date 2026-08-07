@@ -20,11 +20,17 @@ nextflow_pipeline {
             def alignDir = new File(outputDir, "rna_align")
             def statsDir = new File(outputDir, "TrES_Stats")
             def pipelineInfoDir = new File(outputDir, "pipeline_info")
+            def publishedR1 = new File(splitDir, "${sampleId}_Normal_R1.fastq.gz")
+            def publishedR1Text = new java.util.zip.GZIPInputStream(
+                new FileInputStream(publishedR1)
+            ).getText("UTF-8")
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert publishedR1.exists() },
+                { assert publishedR1Text.startsWith("@") },
                 { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
                 { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
@@ -228,6 +234,7 @@ nextflow_pipeline {
                 { assert !new File(alignDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
                 { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
+                { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert tagRecords.contains("CB:Z:AAAACGTACGTTGCATGCAGATCGATC") },
                 { assert tagRecords.contains("L1:Z:ACGTACGT") },
                 { assert tagRecords.contains("L2:Z:TGCATGCA") },

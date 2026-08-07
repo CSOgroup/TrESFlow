@@ -17,7 +17,7 @@ threads="${5}"
 SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
 
 BARCODES="${solo_dir}/filtered/barcodes.tsv"
-OUTBAM="${outdir}/${sample_name}.filtered_cells.bam"
+OUTBAM="${outdir}/${sample_name}.filtered_cells.internal.bam"
 
 if [[ ! -s "${BARCODES}" ]]; then
     echo "ERROR: Filtered STARsolo barcodes missing or empty: ${BARCODES}" >&2
@@ -31,7 +31,7 @@ fi
 
 echo "Using SAMTOOLS_BIN=${SAMTOOLS_BIN}"
 
-"${SAMTOOLS_BIN}" view --threads "${threads}" --with-header --exclude-flags 0x100 --require-flags 0x1,0x2 --tag-file RG:"${BARCODES}" --output "${OUTBAM}" "${INBAM}"
+"${SAMTOOLS_BIN}" view --threads "${threads}" --uncompressed --with-header --exclude-flags 0x100 --require-flags 0x1,0x2 --tag-file RG:"${BARCODES}" --output "${OUTBAM}" "${INBAM}"
 "${SAMTOOLS_BIN}" index --threads "${threads}" "${INBAM}"
 
 rm "${outdir}/${sample_name}.Aligned.sortedByCoord.out.bam"*

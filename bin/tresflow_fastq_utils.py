@@ -3,7 +3,6 @@
 import gzip
 import os
 import shutil
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -119,20 +118,6 @@ def resolve_codon_bin() -> str:
     return resolved
 
 
-def resolve_pigz_bin() -> str:
-    configured = os.environ.get("PIGZ_BIN")
-    if configured:
-        pigz_bin = Path(configured)
-        if not pigz_bin.exists() or not os.access(pigz_bin, os.X_OK):
-            raise RuntimeError(f"Configured PIGZ_BIN is missing or not executable: {pigz_bin}")
-        return str(pigz_bin)
-
-    resolved = shutil.which("pigz")
-    if resolved is None:
-        raise RuntimeError("pigz executable not found in PATH; final split FASTQ compression requires pigz")
-    return resolved
-
-
 def find_existing_output(base_dir: Path, candidate_names, label: str) -> Path:
     for candidate_name in candidate_names:
         candidate = base_dir / candidate_name
@@ -185,26 +170,6 @@ def move_split_output(source: Path, output_dir: Path) -> Path:
     shutil.move(source, destination)
     log_event("Finished split output move", destination, elapsed=time.monotonic() - start)
     return destination
-
-
-def compress_fastq_with_pigz(source: Path, threads: int, pigz_bin: str):
-    destination = Path(str(source) + ".gz")
-    if destination.exists():
-        raise RuntimeError(f"Refusing to overwrite existing compressed split FASTQ: {destination}")
-
-    start = time.monotonic()
-    log_event("Starting final pigz compression", source)
-    subprocess.run([pigz_bin, "-p", str(threads), str(source)], check=True)
-    log_event("Finished final pigz compression", destination, elapsed=time.monotonic() - start)
-
-
-def compress_final_fastqs(output_dir: Path, threads: int):
-    if threads < 1:
-        raise RuntimeError(f"Invalid pigz thread count: {threads}")
-
-    pigz_bin = resolve_pigz_bin()
-    for source in sorted(output_dir.glob("*_R1.fastq")) + sorted(output_dir.glob("*_R2.fastq")):
-        compress_fastq_with_pigz(source, threads, pigz_bin)
 
 
 def percent(count: int, total: int) -> str:

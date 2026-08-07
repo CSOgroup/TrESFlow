@@ -96,6 +96,7 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --soloCellFilter EmptyDrops_CR 15000 0.99 30 20000 90000 50 0.01 20000 0.05 10000 \
   --soloCellReadStats Standard \
   --outSAMtype BAM SortedByCoordinate \
+  --outBAMcompression 0 \
   --outSAMattributes NH HI nM AS CB UB GX GN NM MD jM jI MC  \
   --outSAMunmapped None \
   --soloOutFileNames "Solo.out" "features.tsv" "barcodes.tsv" "matrix.mtx" \
