@@ -17,7 +17,7 @@
  *   - uncompressed trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  */
 
-import RuntimeSupport
+include { runtimeShellExports } from '../runtime_support/main'
 
 process TRIM_DNA_FASTQS {
     tag "${sampleId}"
@@ -32,7 +32,7 @@ process TRIM_DNA_FASTQS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

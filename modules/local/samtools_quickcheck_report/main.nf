@@ -2,11 +2,13 @@
  * Convert nf-core/samtools/quickcheck exit codes into a small report artifact.
  */
 
+include { runtimeOutdir } from '../runtime_support/main'
+
 process SAMTOOLS_QUICKCHECK_REPORT {
     tag "${meta.id}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/qc/samtools", mode: params.publish_dir_mode, overwrite: true, pattern: "*.quickcheck.tsv"
+    publishDir { "${runtimeOutdir()}/qc/samtools" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.quickcheck.tsv"
 
     input:
     tuple val(meta), path(bam), val(exitCode)

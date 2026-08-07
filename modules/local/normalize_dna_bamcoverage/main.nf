@@ -3,11 +3,13 @@
  * historical <split>_NoDup.bw output contract.
  */
 
+include { runtimeOutdir } from '../runtime_support/main'
+
 process NORMALIZE_DNA_BAMCOVERAGE {
     tag "${splitName}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: params.publish_dir_mode, overwrite: true, pattern: "${splitName}_NoDup.bw"
+    publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*_NoDup.bw"
 
     input:
     tuple val(splitName), val(meta), path(bigwig)

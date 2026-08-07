@@ -7,11 +7,13 @@
  * in one stable end-of-run page.
  */
 
+include { runtimeOutdir } from '../runtime_support/main'
+
 process TRES_REPORT_HTML {
     tag "${meta.id}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/tres_report", mode: 'copy', overwrite: true, pattern: "tres_report*"
+    publishDir { "${runtimeOutdir()}/tres_report" }, mode: 'copy', overwrite: true, pattern: "tres_report*"
 
     input:
     tuple val(meta), path(reportInputs, stageAs: "inputs/?/*")

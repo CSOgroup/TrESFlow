@@ -14,14 +14,14 @@
  *   - per-barcode counts, tag records, and ligation stats
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process TAG_RNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_cell.*.tsv"
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_tag_records.tsv.gz"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_cell.*.tsv"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_tag_records.tsv.gz"
 
     input:
     tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
@@ -35,8 +35,8 @@ process TAG_RNA_CELL_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

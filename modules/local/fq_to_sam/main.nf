@@ -14,7 +14,7 @@
  *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process FQ_TO_SAM {
     tag "${splitName}"
@@ -29,8 +29,8 @@ process FQ_TO_SAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

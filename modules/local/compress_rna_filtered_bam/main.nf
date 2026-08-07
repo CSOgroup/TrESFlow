@@ -4,13 +4,13 @@
  * an independent branch.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process COMPRESS_RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true, pattern: "${splitName}.filtered_cells.bam"
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.filtered_cells.bam"
 
     input:
     tuple val(splitName), val(meta), path(internalBam)
@@ -21,7 +21,7 @@ process COMPRESS_RNA_FILTERED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """

@@ -42,6 +42,17 @@ NXF_OFFLINE=true nextflow run . \
 
 The pipeline reads runtime and reference locations from the samplesheet. Runtime and reference CLI overrides are rejected.
 
+TrESFlow supports both Nextflow parser v1 and parser v2 from one source tree
+(Nextflow 24.10 or later; parser v2 is the default from Nextflow 26.04).
+Paths supplied on the command line or in launch-time config are based on the
+launch directory. Therefore relative `--samplesheet`, `--outdir`, and explicit
+`--core_scripts_dir` values behave the same whether the pipeline is invoked as
+`.` or by an absolute path from another directory. The default output directory
+is `<launch-directory>/results`. Repository-owned wrappers, assets, modules,
+and the default `scripts/core_runtime` remain based on the pipeline project
+directory. Relative paths written inside a samplesheet continue to resolve
+from that samplesheet's directory.
+
 ## Samplesheet Contract
 
 The supported YAML structure is:

@@ -21,7 +21,7 @@
  *     as transient inputs to the split stage.
  */
 
-import RuntimeSupport
+include { runtimeShellExports } from '../runtime_support/main'
 
 process TRIM_RNA_FASTQS {
     tag "${sampleId}"
@@ -36,7 +36,7 @@ process TRIM_RNA_FASTQS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

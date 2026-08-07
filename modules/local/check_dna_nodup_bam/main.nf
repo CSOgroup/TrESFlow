@@ -6,13 +6,13 @@
  * this module preserves that behavior before routing non-empty BAMs to nf-core.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process CHECK_DNA_NODUP_BAM {
     tag "${splitName}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/pipeline_info/warnings", mode: params.publish_dir_mode, overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
+    publishDir { "${runtimeOutdir()}/pipeline_info/warnings" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
 
     input:
     tuple val(splitName), val(meta), path(noDupBam, stageAs: "input_NoDup.bam"), path(noDupBai, stageAs: "input_NoDup.bam.bai"), val(effectiveGenomeSize)
@@ -24,7 +24,7 @@ process CHECK_DNA_NODUP_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
     def sampleId = meta.id as String
     def suffix = splitName.replaceFirst("^${sampleId}_", '')
     def tokens = suffix.tokenize('_')

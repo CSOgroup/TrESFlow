@@ -5,6 +5,9 @@
 
 TrESFlow is a Nextflow DSL2 pipeline for the preprocessing of TrES-seq data from FASTQs to cell by feature matrices.
 
+The same source tree supports Nextflow's parser v1 and parser v2. Nextflow
+24.10 or later is required; parser v2 is the default in Nextflow 26.04.
+
 ## Install
 
 Install your conda/mamba/micromamba env as follows (conda-forge & bioconda channels):
@@ -209,3 +212,12 @@ NXF_OFFLINE=true nextflow run . \
   --outdir /path/to/TrESFlow_results \
   --max_cpus 32
 ```
+
+Relative command-line and launch-config paths, including `--samplesheet`,
+`--outdir`, and an explicit `--core_scripts_dir`, are resolved from the
+directory where Nextflow is launched. Omitting `--outdir` writes to
+`<launch-directory>/results`. Relative paths inside the samplesheet remain
+relative to the samplesheet itself. Bundled scripts, modules, assets, and the
+default `scripts/core_runtime` directory remain relative to the pipeline
+repository, so invoking `main.nf` by absolute path from another directory is
+supported.

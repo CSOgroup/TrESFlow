@@ -22,12 +22,12 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. A relative path is resolved from the Nextflow launch directory."
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
-                    "description": "Output directory for published pipeline results and pipeline_info artifacts.",
+                    "description": "Output directory for published pipeline results and pipeline_info artifacts. Relative paths are resolved from the Nextflow launch directory; the default is <launch-directory>/results.",
                     "fa_icon": "fas fa-folder-open"
                 }
             }
@@ -39,7 +39,7 @@
             "properties": {
                 "core_scripts_dir": {
                     "type": "string",
-                    "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules."
+                    "description": "Optional override for the TrES core runtime scripts. A relative override is resolved from the Nextflow launch directory; when omitted, the repository-owned scripts/core_runtime directory is used."
                 },
                 "max_cpus": {
                     "type": "integer",

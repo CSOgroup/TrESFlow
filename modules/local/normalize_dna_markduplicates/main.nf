@@ -3,12 +3,14 @@
  * filename contract used by downstream NoDup extraction and reporting.
  */
 
+include { runtimeOutdir } from '../runtime_support/main'
+
 process NORMALIZE_DNA_MARKDUPLICATES {
     tag "${splitName}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: params.publish_dir_mode, overwrite: true, pattern: "${splitName}_MarkedDup.bam*"
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: params.publish_dir_mode, overwrite: true, pattern: "${splitName}.DuplicateMetrics.txt"
+    publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*_MarkedDup.bam*"
+    publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.DuplicateMetrics.txt"
 
     input:
     tuple val(splitName), val(meta), path(markedDupBam), path(markedDupBai), path(markedDupMetrics)

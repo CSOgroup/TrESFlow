@@ -16,8 +16,6 @@
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
 
-import WorkflowSupport
-
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
 include { TRES_REPORT_HTML } from '../modules/local/tres_report_html/main'
@@ -29,7 +27,7 @@ include { SAMTOOLS_QUICKCHECK } from '../modules/nf-core/samtools/quickcheck/mai
 include { SAMTOOLS_QUICKCHECK_REPORT } from '../modules/local/samtools_quickcheck_report/main'
 include { MULTIQC } from '../modules/nf-core/multiqc/main'
 
-def toRnaCoreInput(final Map row) {
+def toRnaCoreInput(row) {
     tuple(
         row.id,
         row,
@@ -41,7 +39,7 @@ def toRnaCoreInput(final Map row) {
     )
 }
 
-def toDnaCoreInput(final Map row) {
+def toDnaCoreInput(row) {
     tuple(
         row.id,
         row,
@@ -58,12 +56,12 @@ def toDnaCoreInput(final Map row) {
 
 def samplesheetParseOptions() {
     return [
-        outdir                    : params.outdir ?: "${projectDir}/results",
+        outdir                    : params.outdir,
         barcode_defaults          : params.barcode_defaults,
     ]
 }
 
-def qcMeta(final Map meta, final String id, final String modality, final String stage, final String splitName) {
+def qcMeta(meta, id, modality, stage, splitName) {
     return meta + [
         id              : id,
         tres_modality   : modality,
@@ -72,8 +70,8 @@ def qcMeta(final Map meta, final String id, final String modality, final String 
     ]
 }
 
-def toFastqcInput(final Map row) {
-    final List reads = row.modality == 'dna'
+def toFastqcInput(row) {
+    def reads = row.modality == 'dna'
         ? [row.i1, row.i2, row.r1, row.r2]
         : [row.i1, row.r1, row.r2]
 
@@ -83,7 +81,7 @@ def toFastqcInput(final Map row) {
     )
 }
 
-def validateCoreResourceContract(final List<Map> rnaRows, final List<Map> dnaRows, final int maxCpus) {
+def validateCoreResourceContract(rnaRows, dnaRows, maxCpus) {
     if( maxCpus < 1 ) {
         error "Invalid --max_cpus '${maxCpus}'. Value must be >= 1"
     }
@@ -95,10 +93,10 @@ workflow TRESEQ {
 
     main:
     // Parse the single supported YAML contract into modality-specific work rows.
-    final List<Map> rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
-    final List<Map> dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
-    final int maxCpus = params.max_cpus as int
-    final String libraryName = sampleRows ? (sampleRows[0].library_name as String) : 'unknown library'
+    def rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
+    def dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
+    def maxCpus = params.max_cpus as int
+    def libraryName = sampleRows ? (sampleRows[0].library_name as String) : 'unknown library'
 
     validateCoreResourceContract(rnaRows, dnaRows, maxCpus)
 

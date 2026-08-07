@@ -18,8 +18,6 @@
  *   - barcode count/stat files from all wrapped DNA tagging steps
  */
 
-import WorkflowSupport
-
 include { TAG_DNA_SAMPLE_BARCODE }   from '../../../modules/local/tag_dna_sb/main'
 include { TAG_DNA_MODALITY_BARCODE } from '../../../modules/local/tag_dna_modality/main'
 include { TAG_DNA_CELL_BARCODE }     from '../../../modules/local/tag_dna_cell_barcode/main'
@@ -34,19 +32,68 @@ include { CHECK_DNA_NODUP_BAM }      from '../../../modules/local/check_dna_nodu
 include { DEEPTOOLS_BAMCOVERAGE }    from '../../../modules/nf-core/deeptools/bamcoverage/main'
 include { NORMALIZE_DNA_BAMCOVERAGE } from '../../../modules/local/normalize_dna_bamcoverage/main'
 
-def selectDnaIndexRead(final Map meta, final Object i1, final Object i2, final String fieldName) {
+def asDnaPathList(value) {
+    return value instanceof List ? value : [value]
+}
+
+def pairDnaSplitFastqs(splitR1s, splitR2s) {
+    def r1BySplit = asDnaPathList(splitR1s).collectEntries { path ->
+        [(path.getName().replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')): path]
+    }
+    def r2BySplit = asDnaPathList(splitR2s).collectEntries { path ->
+        [(path.getName().replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')): path]
+    }
+
+    def splitNames = (r1BySplit.keySet() + r2BySplit.keySet()).unique().sort()
+    splitNames.collect { splitName ->
+        if( !r1BySplit.containsKey(splitName) || !r2BySplit.containsKey(splitName) ) {
+            throw new IllegalStateException("Missing split FASTQ mate for DNA split '${splitName}'")
+        }
+        [splitName: splitName, r1: r1BySplit[splitName], r2: r2BySplit[splitName]]
+    }
+}
+
+def collectDnaRgHeaders(rgHeaders) {
+    asDnaPathList(rgHeaders).collect { rgHeader ->
+        [
+            splitName: rgHeader.getName()
+                .replaceFirst('^SAM_RG_Header_', '')
+                .replaceFirst('\\.tsv$', ''),
+            rgHeader : rgHeader,
+        ]
+    }
+}
+
+def parseDnaSplitName(sampleId, splitName) {
+    def suffix = splitName.replaceFirst("^${sampleId}_", '')
+    def tokens = suffix.tokenize('_')
+    if( tokens.size() < 2 ) {
+        throw new IllegalStateException(
+            "Unable to derive DNA group and modality from split output '${splitName}'"
+        )
+    }
+
+    def group = tokens[0]
+    [
+        group      : group,
+        modality   : tokens[1..-1].join('_'),
+        sampleGroup: "${sampleId}_${group}",
+    ]
+}
+
+def selectDnaIndexRead(meta, i1, i2, fieldName) {
     return meta[fieldName] == 'i1' ? i1 : i2
 }
 
-def selectDnaLigationRead(final Map meta, final Object i1, final Object i2) {
+def selectDnaLigationRead(meta, i1, i2) {
     return i1
 }
 
-def dnaLigationStartPositions(final Map meta) {
+def dnaLigationStartPositions(meta) {
     return meta.dna_tagmentation == 'dual' ? '41,79,117' : '15,53,91'
 }
 
-def nfcoreDnaMeta(final String splitName, final Map meta, final String stage) {
+def nfcoreDnaMeta(splitName, meta, stage) {
     return meta + [
         id             : splitName,
         tres_sample_id : meta.id,
@@ -55,7 +102,7 @@ def nfcoreDnaMeta(final String splitName, final Map meta, final String stage) {
     ]
 }
 
-def restoreDnaMeta(final Map meta) {
+def restoreDnaMeta(meta) {
     return meta + [id: meta.tres_sample_id ?: meta.id]
 }
 
@@ -138,14 +185,14 @@ workflow DNA_CORE {
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            WorkflowSupport.pairDnaSplitFastqs(splitR1s, splitR2s).collect { split ->
+            pairDnaSplitFastqs(splitR1s, splitR2s).collect { split ->
                 tuple(split.splitName, sampleId, meta, split.r1, split.r2)
             }
         }
 
     ch_align_rg = SPLIT_DNA_READS.out.rg_headers
         .flatMap { sampleId, meta, rgHeaders ->
-            WorkflowSupport.collectDnaRgHeaders(rgHeaders).collect { rg ->
+            collectDnaRgHeaders(rgHeaders).collect { rg ->
                 tuple(rg.splitName, sampleId, meta, rg.rgHeader)
             }
         }
@@ -153,7 +200,7 @@ workflow DNA_CORE {
     ch_align_input = ch_align_fastqs
         .join(ch_align_rg)
         .map { splitName, sampleId, metaFromFastq, splitR1, splitR2, sampleIdFromRg, metaFromRg, rgHeader ->
-            def splitMeta = WorkflowSupport.parseDnaSplitName(sampleId, splitName)
+            def splitMeta = parseDnaSplitName(sampleId, splitName)
 
             tuple(
                 splitName,

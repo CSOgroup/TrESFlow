@@ -11,13 +11,13 @@
  *   - stranded and unstranded RNA bigWig tracks
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process RNA_COVERAGE {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(filteredBam), val(starIndexDir), val(chromSizes)
@@ -29,8 +29,8 @@ process RNA_COVERAGE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """

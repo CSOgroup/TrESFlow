@@ -18,7 +18,7 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
@@ -37,8 +37,8 @@ process ALIGN_DNA {
     def alignThreads = task.cpus as int
     def viewThreads = alignThreads
     def sortThreads = alignThreads
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """

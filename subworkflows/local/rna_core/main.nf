@@ -16,8 +16,6 @@
  *   - barcode count/stat files from all wrapped RNA steps
  */
 
-import WorkflowSupport
-
 include { TAG_RNA_SAMPLE_BARCODE } from '../../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../../modules/local/tag_rna_umi/main'
 include { TAG_RNA_CELL_BARCODE }   from '../../../modules/local/tag_rna_cell_barcode/main'
@@ -29,6 +27,35 @@ include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_ali
 include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
 include { COMPRESS_RNA_FILTERED_BAM } from '../../../modules/local/compress_rna_filtered_bam/main'
 include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
+
+def asRnaPathList(value) {
+    return value instanceof List ? value : [value]
+}
+
+def pairRnaSplitFastqs(sampleId, splitR1s, splitR2s) {
+    def r1ByGroup = asRnaPathList(splitR1s).collectEntries { path ->
+        def group = path.getName()
+            .replaceFirst("^${sampleId}_", '')
+            .replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')
+        [(group): path]
+    }
+    def r2ByGroup = asRnaPathList(splitR2s).collectEntries { path ->
+        def group = path.getName()
+            .replaceFirst("^${sampleId}_", '')
+            .replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')
+        [(group): path]
+    }
+
+    def groups = (r1ByGroup.keySet() + r2ByGroup.keySet()).unique().sort()
+    groups.collect { group ->
+        if( !r1ByGroup.containsKey(group) || !r2ByGroup.containsKey(group) ) {
+            throw new IllegalStateException(
+                "Missing split FASTQ mate for sample '${sampleId}' group '${group}'"
+            )
+        }
+        [splitName: "${sampleId}_${group}", r1: r1ByGroup[group], r2: r2ByGroup[group]]
+    }
+}
 
 workflow RNA_CORE {
     take:
@@ -101,7 +128,7 @@ workflow RNA_CORE {
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
-            WorkflowSupport.pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
+            pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
                 tuple(split.splitName, meta, split.r1, split.r2)
             }
         }

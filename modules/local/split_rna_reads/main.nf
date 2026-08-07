@@ -18,7 +18,7 @@
  *     raw SB match first, then drop-first fallback.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process SPLIT_RNA_READS {
     tag "${sampleId}"
@@ -34,8 +34,8 @@ process SPLIT_RNA_READS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

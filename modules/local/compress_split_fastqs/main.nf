@@ -4,13 +4,13 @@
  * pigz -c preserves them for FQ_TO_SAM or ALIGN_DNA.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process COMPRESS_SPLIT_FASTQS {
     tag "${modality}.${sampleId}"
     label 'process_single'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/${modality}_split_fastqs", mode: 'copy', overwrite: true, pattern: "${sampleId}_*_R[12].fastq.gz"
+    publishDir { "${runtimeOutdir()}/${modality}_split_fastqs" }, mode: 'copy', overwrite: true, pattern: "*_R[12].fastq.gz"
 
     input:
     tuple val(sampleId), val(meta), val(modality), path(splitR1s), path(splitR2s)
@@ -20,7 +20,7 @@ process COMPRESS_SPLIT_FASTQS {
     path("versions.yml"), emit: versions
 
     script:
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
     def fastqs = (splitR1s instanceof List ? splitR1s : [splitR1s]) + (splitR2s instanceof List ? splitR2s : [splitR2s])
     def fastqArgs = fastqs.collect { fastq -> "\"${fastq}\"" }.join(' ')
 

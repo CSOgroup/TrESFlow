@@ -11,7 +11,7 @@
  *   - low-compression filtered-cells RNA BAM for coverage and QC
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process RNA_FILTERED_BAM {
     tag "${splitName}"
@@ -26,8 +26,8 @@ process RNA_FILTERED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """

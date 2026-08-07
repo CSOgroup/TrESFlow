@@ -63,19 +63,65 @@ class RuntimeSupport {
         return runtimeEnvPrefix(params)
     }
 
-    static String resolveProjectPath(final String rawProjectDir, final Object rawPath) {
-        final String projectDir = rawProjectDir?.toString()?.trim()
+    static String resolvePath(final String rawBaseDir, final Object rawPath) {
+        final String baseDir = rawBaseDir?.toString()?.trim()
         final String path = rawPath?.toString()?.trim()
         if( !path ) {
             return path
         }
 
         final File candidate = new File(path)
-        if( candidate.isAbsolute() || !projectDir ) {
-            return candidate.path
+        if( candidate.isAbsolute() || !baseDir ) {
+            return candidate.canonicalPath
         }
 
-        return new File(projectDir, path).canonicalPath
+        return new File(baseDir, path).canonicalPath
+    }
+
+    static String resolveLaunchPath(final String rawLaunchDir, final Object rawPath) {
+        return resolvePath(rawLaunchDir, rawPath)
+    }
+
+    static String resolveProjectPath(final String rawProjectDir, final Object rawPath) {
+        return resolvePath(rawProjectDir, rawPath)
+    }
+
+    static String runCodonSeqPreflight(final Map runtimeParams, final String rawProjectDir) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File preflight = new File(projectDirectory, 'bin/check_codon_seq_host.sh')
+        final String codonBin = runtimeToolPath(runtimeParams, 'codon')
+        final String codonHome = runtimeCodonHome(runtimeParams)
+
+        if( !preflight.exists() ) {
+            throw new IllegalStateException(
+                "Global pinned Codon/Seq preflight failed. Missing required preflight script: ${preflight}"
+            )
+        }
+
+        final ProcessBuilder processBuilder = new ProcessBuilder('bash', preflight.toString())
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+
+        final Map<String, String> env = processBuilder.environment()
+        if( codonBin ) {
+            env.put('CODON_BIN', codonBin)
+        }
+        if( codonHome ) {
+            env.put('CODON_HOME', codonHome)
+        }
+
+        final Process process = processBuilder.start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+
+        if( exitCode != 0 ) {
+            final String detail = output ? "\n${output}" : ''
+            throw new IllegalStateException(
+                "Global pinned Codon/Seq preflight failed. Every pipeline run requires codon 0.16.3 and Seq 0.11.3.${detail}"
+            )
+        }
+
+        return output
     }
 
     static List<Map> standardRuntimeTools(final Map params) {
