@@ -5,6 +5,16 @@ from typing import Dict, Set, List, Tuple
 
 CANONICAL_CELL_TAG = "XI"
 
+
+def open_fastq(path: str):
+	# Trim Galore intermediates are normally uncompressed, while this script also
+	# remains compatible with legacy gzip-compressed inputs.
+	if path.endswith(".gz"):
+		return bio.FASTQ(path, gzip=True, validate=False, copy=True)
+	else:
+		return bio.FASTQ(path, gzip=False, validate=False, copy=True)
+
+
 # -----------------------------
 # Normalize SB: by design SB in comment includes injected base as FIRST base.
 # Key is "all bases after the first one".
@@ -381,8 +391,8 @@ def MakeRecordNameList_DNA(
 
 	sys.stdout.write("Initialization\n")
 
-	R1_gen = bio.FASTQ(R1_path, gzip=True, validate=False, copy=True)
-	R2_gen = bio.FASTQ(R2_path, gzip=True, validate=False, copy=True)
+	R1_gen = open_fastq(R1_path)
+	R2_gen = open_fastq(R2_path)
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
@@ -577,8 +587,8 @@ def MakeRecordNameList_RNA(
 
 	sys.stdout.write("Initialization\n")
 
-	R1_gen = bio.FASTQ(R1_path, gzip=True, validate=False, copy=True)
-	R2_gen = bio.FASTQ(R2_path, gzip=True, validate=False, copy=True)
+	R1_gen = open_fastq(R1_path)
+	R2_gen = open_fastq(R2_path)
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
@@ -701,9 +711,9 @@ def MakeRecordNameList_RNA(
 def main():
 	# Unified interface (unchanged):
 	# DNA:
-	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <R1.fq.gz> <R2.fq.gz> [sb_group_map.tsv]
+	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <R1.fq[.gz]> <R2.fq[.gz]> [sb_group_map.tsv]
 	# RNA:
-	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> rna - <R1.fq.gz> <R2.fq.gz> [sb_group_map.tsv]
+	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> rna - <R1.fq[.gz]> <R2.fq[.gz]> [sb_group_map.tsv]
 	if len(sys.argv) != 8 and len(sys.argv) != 9:
 		sys.stderr.write(
 			"Wrong call, exiting...\n"

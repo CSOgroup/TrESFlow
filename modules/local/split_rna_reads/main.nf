@@ -2,11 +2,11 @@
  * Module: SPLIT_RNA_READS
  * Upstream reference:
  *   codon run -plugin seq -release Split_ReadsV2.codon \
- *     <Sample> <OutFolder> <LibName> rna - <trimmed_R1.fq.gz> <trimmed_R2.fq.gz> <sb_group_map.tsv>
+ *     <Sample> <OutFolder> <LibName> rna - <trimmed_R1.fq> <trimmed_R2.fq> <sb_group_map.tsv>
  *
  * Inputs:
  *   - sample metadata
- *   - trim_galore RNA FASTQs from the CB-tagged reads
+ *   - uncompressed trim_galore RNA FASTQs from the CB-tagged reads
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
  *   - per-group RNA FASTQ pairs named as final pigz-compressed split outputs

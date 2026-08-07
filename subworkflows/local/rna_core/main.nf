@@ -9,7 +9,7 @@
  *   - exact RNA STAR index directory from references.rna_ref_dir and derived chromosome sizes carried through sample metadata
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
- *   - trim_galore paired-end FASTQs from the CB-tagged reads
+ *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged reads
  *   - Split_ReadsV2 per-group RNA FASTQs and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
  *   - STARsolo outputs, filtered BAMs, and bigWigs from the decomposed RNA alignment path

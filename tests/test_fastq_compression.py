@@ -1,9 +1,13 @@
 import importlib.util
 import importlib
+import gzip
+import os
 import tempfile
 import unittest
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,10 +27,74 @@ RUN_TAG_LIG3 = load_module("run_tag_lig3", "bin/run_tag_lig3.py")
 SPLIT_RNA = load_module("run_split_reads_rna", "bin/run_split_reads_rna.py")
 SPLIT_DNA = load_module("run_split_reads_dna", "bin/run_split_reads_dna.py")
 FQ_TO_SAM = load_module("run_fq_to_sam", "bin/run_fq_to_sam.py")
+RUN_TRIM_GALORE = load_module("run_trim_galore", "bin/run_trim_galore.py")
 UTILS = importlib.import_module("tresflow_fastq_utils")
 
 
 class FastqCompressionTests(unittest.TestCase):
+    def test_mock_trim_galore_outputs_uncompressed_fastqs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            r1 = tmp_path / "source_R1.fastq.gz"
+            r2 = tmp_path / "source_R2.fastq.gz"
+            output_r1 = tmp_path / "trimmed_R1.fq"
+            output_r2 = tmp_path / "trimmed_R2.fq"
+            record = b"@r1\nACGT\n+\n!!!!\n"
+
+            for source in (r1, r2):
+                with gzip.open(source, "wb") as handle:
+                    handle.write(record)
+
+            RUN_TRIM_GALORE.mock_trim(
+                SimpleNamespace(r1=r1, r2=r2, output_r1=output_r1, output_r2=output_r2)
+            )
+
+            self.assertEqual(output_r1.read_bytes(), record)
+            self.assertEqual(output_r2.read_bytes(), record)
+            self.assertNotEqual(output_r1.read_bytes()[:2], b"\x1f\x8b")
+            self.assertNotEqual(output_r2.read_bytes()[:2], b"\x1f\x8b")
+
+    def test_real_trim_galore_explicitly_disables_gzip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            trim_galore = tmp_path / "trim_galore"
+            trim_galore.write_text("#!/bin/sh\n", encoding="utf-8")
+            trim_galore.chmod(0o755)
+            r1 = tmp_path / "source_R1.fastq.gz"
+            r2 = tmp_path / "source_R2.fastq.gz"
+            output_r1 = tmp_path / "trimmed_R1.fq"
+            output_r2 = tmp_path / "trimmed_R2.fq"
+            calls = []
+
+            def fake_run(command, check):
+                calls.append((command, check))
+                output_dir = Path(command[command.index("--output_dir") + 1])
+                (output_dir / "source_R1_val_1.fq").write_bytes(b"r1")
+                (output_dir / "source_R2_val_2.fq").write_bytes(b"r2")
+
+            args = SimpleNamespace(
+                r1=r1,
+                r2=r2,
+                output_r1=output_r1,
+                output_r2=output_r2,
+                trim_galore_bin=trim_galore,
+                quality=10,
+                cores=2,
+                length=20,
+            )
+
+            with mock.patch.dict(os.environ, {"TMPDIR": str(tmp_path)}), mock.patch.object(
+                RUN_TRIM_GALORE.subprocess, "run", side_effect=fake_run
+            ):
+                RUN_TRIM_GALORE.real_trim(args)
+
+            command, check = calls[0]
+            self.assertTrue(check)
+            self.assertIn("--dont_gzip", command)
+            self.assertNotIn("--gzip", command)
+            self.assertEqual(output_r1.read_bytes(), b"r1")
+            self.assertEqual(output_r2.read_bytes(), b"r2")
+
     def test_tag_wrappers_fail_on_compression_mismatch(self):
         for module in (RUN_TAG, RUN_TAG_UMI, RUN_TAG_LIG3):
             with self.subTest(module=module.__name__):

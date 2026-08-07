@@ -9,7 +9,7 @@
  *   - DNA alignment resources carried through sample metadata
  * Outputs:
  *   - DNA FASTQs tagged with SB, MO, then CB comments
- *   - trim_galore paired-end FASTQs from the CB-tagged DNA reads
+ *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged DNA reads
  *   - Split_ReadsV2 per-group per-mark DNA FASTQs and SAM RG headers
  *   - AlignDNA filtered BAMs and BAM indexes
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics

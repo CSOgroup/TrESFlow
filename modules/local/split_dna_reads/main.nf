@@ -2,11 +2,11 @@
  * Module: SPLIT_DNA_READS
  * Upstream reference:
  *   codon run -plugin seq -release Split_ReadsV2.codon \
- *     <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <trimmed_R1.fq.gz> <trimmed_R2.fq.gz> <sb_group_map.tsv>
+ *     <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <trimmed_R1.fq> <trimmed_R2.fq> <sb_group_map.tsv>
  *
  * Inputs:
  *   - sample metadata
- *   - trim_galore DNA FASTQs from the CB-tagged reads
+ *   - uncompressed trim_galore DNA FASTQs from the CB-tagged reads
  *   - DNA modality map TSV keyed by sample, group, mark, and modality barcode
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
