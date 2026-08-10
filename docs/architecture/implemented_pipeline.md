@@ -39,7 +39,7 @@ flowchart TD
         RNA2[TAG_RNA_CELL_BARCODE]
         RNA3[TRIM_RNA_FASTQS]
         RNA4[SPLIT_RNA_READS]
-        RNA4P[COMPRESS_RNA_SPLIT_FASTQS\npublished .fastq.gz]
+        RNA4P[COMPRESS_RNA_SPLIT_FASTQS\noptional published .fastq.gz]
         RNA5[FQ_TO_SAM]
         RNA6[RNA_STARSOLO_ALIGN]
         RNA7[RNA_FILTERED_BAM\ncanonical low-compression internal BAM]
@@ -56,7 +56,7 @@ flowchart TD
         DNA2[TAG_DNA_CELL_BARCODE]
         DNA3[TRIM_DNA_FASTQS]
         DNA4[SPLIT_DNA_READS]
-        DNA4P[COMPRESS_DNA_SPLIT_FASTQS\npublished .fastq.gz]
+        DNA4P[COMPRESS_DNA_SPLIT_FASTQS\noptional published .fastq.gz]
         DNA5[ALIGN_DNA]
         DNA5C[FILTER_CANONICAL_DNA_ALIGNED_BAM\nQC/output copy]
         DNA6[nf-core GATK4_MARKDUPLICATES\n+ canonical filename normalization]
@@ -94,7 +94,7 @@ Notes:
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
 - `TAG_DNA_CELL_BARCODE` uses DNA `i1` as the ligation source: single reads use starts `15,53,91`; dual reads use starts `41,79,117`.
-- Each Codon split task emits only plain FASTQs. Its output fans out directly to computation (`FQ_TO_SAM` or `ALIGN_DNA`) and independently to a `pigz -c` publication task, so neither branch waits for the other.
+- Each Codon split task emits plain FASTQs directly to computation (`FQ_TO_SAM` or `ALIGN_DNA`). With `--publish_split_fastqs`, an independent `pigz -c` branch publishes gzip copies; by default that publication-only task is skipped.
 - RNA coverage and samtools QC consume the low-compression internal filtered BAM. A separate branch creates the normally compressed BAM published under `rna_align/`.
 - Canonical chromosome contracts are resolved once from the STAR and bwa-mem2 dictionaries. No contigs are renamed, and mixed UCSC/Ensembl conventions fail before task execution.
 - GATK duplicate marking consumes the same unfiltered aligned BAM as before. Canonical filtering happens afterward; `SPLIT_DUPLICATES_DNA` retains canonical records without flag `0x400` and emits only the NoDup BAM/index. All DNA signal-generation paths consume that NoDup pair.
@@ -102,5 +102,5 @@ Notes:
 - nf-core FastQC and samtools modules are sidecar QC readers only; they do not alter downstream TrESFlow outputs.
 - nf-core `gatk4/markduplicates` replaces the previous local GATK invocation but preserves `--BARCODE_TAG CB`, `--REMOVE_DUPLICATES false`, index creation, and the historical TrESFlow output names via a normalization adapter.
 - nf-core `deeptools/bamcoverage` replaces the previous direct `bamCoverage` call. A repo-owned precheck keeps the previous zero-mapped NoDup BAM behavior by publishing a warning artifact and skipping coverage when needed.
-- `TRES_REPORT_HTML` renders `tres_report/tres_report.html` and `tres_report_metrics.json` from existing TrES stats, STARsolo summaries, samtools outputs, and GATK duplicate metrics.
+- `TRES_REPORT_HTML` renders `TrES_Stats/tres_report.html` and `TrES_Stats/tres_report_metrics.json` from existing TrES stats, STARsolo summaries, samtools outputs, and GATK duplicate metrics. FastQC and samtools QC publish under `TrES_Stats/qc/`, with MultiQC nested at `TrES_Stats/qc/multiqc/`.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).

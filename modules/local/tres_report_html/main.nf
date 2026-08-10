@@ -13,7 +13,7 @@ process TRES_REPORT_HTML {
     tag "${meta.id}"
     label 'process_single'
 
-    publishDir { "${runtimeOutdir()}/tres_report" }, mode: 'copy', overwrite: true, pattern: "tres_report*"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "tres_report*"
 
     input:
     tuple val(meta), path(reportInputs, stageAs: "inputs/?/*")

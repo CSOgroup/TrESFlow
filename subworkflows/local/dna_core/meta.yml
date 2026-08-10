@@ -35,7 +35,7 @@ output:
       description: "Trimmed DNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Gzip-compressed publication copies of per-group per-mark split DNA FASTQs."
+      description: "Optional gzip-compressed publication copies of per-group per-mark split DNA FASTQs, emitted only with --publish_split_fastqs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split DNA outputs."

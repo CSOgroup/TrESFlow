@@ -32,7 +32,7 @@ output:
       description: "Trimmed RNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Gzip-compressed publication copies of per-group split RNA FASTQs."
+      description: "Optional gzip-compressed publication copies of per-group split RNA FASTQs, emitted only with --publish_split_fastqs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split RNA outputs."

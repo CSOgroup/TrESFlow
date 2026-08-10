@@ -130,28 +130,22 @@ Committed examples:
 
 RNA publishes:
 
-- `rna_split_fastqs/`
+- `rna_split_fastqs/` only with `--publish_split_fastqs`
 - `rna_align/`
 - `TrES_Stats/`
-- `qc/samtools/`
-- `multiqc/`
-- `tres_report/`
 - `pipeline_info/`
 
 DNA publishes:
 
-- `dna_split_fastqs/`
+- `dna_split_fastqs/` only with `--publish_split_fastqs`
 - `dna_align/`
 - `TrES_Stats/`
-- `qc/samtools/`
-- `multiqc/`
-- `tres_report/`
 - `pipeline_info/`
 
 The pipeline also writes two end-of-run HTML reports:
 
-- `tres_report/tres_report.html`: compact TrESFlow-specific RNA/DNA mapping and barcode summary
-- `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
+- `TrES_Stats/tres_report.html`: compact TrESFlow-specific RNA/DNA mapping and barcode summary
+- `TrES_Stats/qc/multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 
 ## Runtime Contract
 
@@ -184,6 +178,7 @@ Default local CPU budget:
 
 - `--max_cpus 64`
 - `--cleanup_work true`, which removes successful task work directories after a successful run.
+- `--publish_split_fastqs false`; enable it to publish gzip-compressed RNA and DNA split FASTQ copies.
 - `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
 - `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
 - `RNA_COVERAGE` and `BAM_COVERAGE_DNA` default to `--coverage_cpus 8`.
@@ -203,21 +198,21 @@ Every run writes:
 - `${outdir}/pipeline_info/execution_trace.tsv`
 - `${outdir}/pipeline_info/flowchart.html`
 - `${outdir}/pipeline_info/runtime_contract.tsv`
-- `${outdir}/tres_report/tres_report.html` with per-library main statistics, detailed QC tables, and CSV/Excel export buttons
-- `${outdir}/tres_report/tres_report_metrics.json`
-- `${outdir}/multiqc/multiqc_report.html`
+- `${outdir}/TrES_Stats/tres_report.html` with per-library main statistics, detailed QC tables, and CSV/Excel export buttons
+- `${outdir}/TrES_Stats/tres_report_metrics.json`
+- `${outdir}/TrES_Stats/qc/multiqc/multiqc_report.html`
 
 Runs with real BAM outputs also write nf-core samtools sidecar QC under:
 
-- `${outdir}/qc/samtools/*.flagstat`
-- `${outdir}/qc/samtools/*.stats`
-- `${outdir}/qc/samtools/*.idxstats`
-- `${outdir}/qc/samtools/*.quickcheck.tsv`
+- `${outdir}/TrES_Stats/qc/samtools/*.flagstat`
+- `${outdir}/TrES_Stats/qc/samtools/*.stats`
+- `${outdir}/TrES_Stats/qc/samtools/*.idxstats`
+- `${outdir}/TrES_Stats/qc/samtools/*.quickcheck.tsv`
 
 Raw FASTQ QC from nf-core FastQC is written under:
 
-- `${outdir}/qc/fastqc/*_fastqc.html`
-- `${outdir}/qc/fastqc/*_fastqc.zip`
+- `${outdir}/TrES_Stats/qc/fastqc/*_fastqc.html`
+- `${outdir}/TrES_Stats/qc/fastqc/*_fastqc.zip`
 
 The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_runtime/). `upstream/source_scripts/` is kept only as provenance for the vendored core code.
 

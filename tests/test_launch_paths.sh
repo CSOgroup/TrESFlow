@@ -52,7 +52,13 @@ grep -F "timeline.file = '${launch_dir}/results/pipeline_info/execution_timeline
         --cleanup_work false
 )
 
-test -s "${launch_dir}/relative-results/rna_split_fastqs/test_rna_Normal_R1.fastq.gz"
+test ! -e "${launch_dir}/relative-results/rna_split_fastqs"
+test -s "${launch_dir}/relative-results/TrES_Stats/tres_report.html"
+test -s "${launch_dir}/relative-results/TrES_Stats/tres_report_metrics.json"
+test -s "${launch_dir}/relative-results/TrES_Stats/qc/multiqc/multiqc_report.html"
+test ! -e "${launch_dir}/relative-results/tres_report"
+test ! -e "${launch_dir}/relative-results/qc"
+test ! -e "${launch_dir}/relative-results/multiqc"
 test -s "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv"
 grep -F $'runtime_tmpdir\t'"${launch_dir}/relative-results" \
     "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv" > /dev/null

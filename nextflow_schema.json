@@ -29,6 +29,11 @@
                     "format": "directory-path",
                     "description": "Output directory for published pipeline results and pipeline_info artifacts. Relative paths are resolved from the Nextflow launch directory; the default is <launch-directory>/results.",
                     "fa_icon": "fas fa-folder-open"
+                },
+                "publish_split_fastqs": {
+                    "type": "boolean",
+                    "description": "Publish gzip-compressed RNA and DNA split FASTQ copies under rna_split_fastqs/ and dna_split_fastqs/. Internal uncompressed split FASTQs are always retained long enough for downstream computation.",
+                    "default": false
                 }
             }
         },

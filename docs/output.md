@@ -9,37 +9,39 @@ The exact directories present depend on whether the YAML samplesheet contains `r
 
 RNA-related outputs:
 
-- `rna_split_fastqs/`
+- `rna_split_fastqs/` when `--publish_split_fastqs` is enabled
 - `rna_align/`
 - `TrES_Stats/`
 
 DNA-related outputs:
 
-- `dna_split_fastqs/`
+- `dna_split_fastqs/` when `--publish_split_fastqs` is enabled
 - `dna_align/`
 - `TrES_Stats/`
 
 Shared reporting outputs:
 
 - `pipeline_info/`
-- `qc/fastqc/`
-- `qc/samtools/`
-- `multiqc/`
-- `tres_report/`
+- `TrES_Stats/tres_report.html`
+- `TrES_Stats/tres_report_metrics.json`
+- `TrES_Stats/qc/fastqc/`
+- `TrES_Stats/qc/samtools/`
+- `TrES_Stats/qc/multiqc/`
 
 ## RNA outputs
 
-### `rna_split_fastqs/`
+### Optional `rna_split_fastqs/`
 
 Per-group RNA FASTQs from the split stage:
 
 - `<sample>_<group>_R1.fastq.gz`
 - `<sample>_<group>_R2.fastq.gz`
 
-`SPLIT_RNA_READS` writes plain FASTQs for `FQ_TO_SAM`. A separate `pigz -c`
-branch creates the files above without making alignment wait for publication
-compression. Plain computational FASTQs and SAM read-group headers are not
-published.
+`SPLIT_RNA_READS` always writes plain FASTQs for `FQ_TO_SAM`. When
+`--publish_split_fastqs` is enabled, a separate `pigz -c` branch creates the
+files above without making alignment wait for publication compression. By
+default the compression task does not run and this directory is absent. Plain
+computational FASTQs and SAM read-group headers are never published.
 
 ### `rna_align/`
 
@@ -58,16 +60,18 @@ internal BAM.
 
 ## DNA outputs
 
-### `dna_split_fastqs/`
+### Optional `dna_split_fastqs/`
 
 Per-group and per-mark DNA split FASTQs:
 
 - `<sample>_<group>_<mark>_R1.fastq.gz`
 - `<sample>_<group>_<mark>_R2.fastq.gz`
 
-`SPLIT_DNA_READS` writes plain FASTQs for `ALIGN_DNA`. A separate `pigz -c`
-branch creates the files above in parallel with alignment. Plain computational
-FASTQs and SAM read-group headers are not published.
+`SPLIT_DNA_READS` always writes plain FASTQs for `ALIGN_DNA`. When
+`--publish_split_fastqs` is enabled, a separate `pigz -c` branch creates the
+files above in parallel with alignment. By default the compression task does
+not run and this directory is absent. Plain computational FASTQs and SAM
+read-group headers are never published.
 
 ### `dna_align/`
 
@@ -109,14 +113,14 @@ Tag-record tables are emitted only as final gzip artifacts; no complete uncompre
 
 ## QC and HTML reports
 
-### `qc/fastqc/`
+### `TrES_Stats/qc/fastqc/`
 
 nf-core `fastqc` writes raw FASTQ QC files:
 
 - `*_fastqc.html`
 - `*_fastqc.zip`
 
-### `qc/samtools/`
+### `TrES_Stats/qc/samtools/`
 
 When real BAMs are produced, nf-core samtools sidecar modules write standardized BAM QC files:
 
@@ -129,7 +133,7 @@ These modules read existing RNA filtered BAMs and DNA aligned / marked-duplicate
 
 In `-profile test`, the samtools sidecars are disabled because the smoke profile intentionally uses lightweight mock BAM text files.
 
-### `multiqc/`
+### `TrES_Stats/qc/multiqc/`
 
 nf-core `multiqc` writes:
 
@@ -138,9 +142,9 @@ nf-core `multiqc` writes:
 
 MultiQC aggregates supported logs and QC text files, including FastQC, STAR logs, samtools outputs, and GATK duplicate metrics when present.
 
-### `tres_report/`
+### TrESFlow report files in `TrES_Stats/`
 
-The TrESFlow-specific end-of-run report writes:
+The TrESFlow-specific end-of-run report writes directly into `TrES_Stats/`:
 
 - `tres_report.html`
 - `tres_report_metrics.json`
@@ -188,8 +192,9 @@ with files such as:
 
 The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or coverage side products in the published results.
 
-- published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
-- published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
+- with `--publish_split_fastqs`, published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
+- with `--publish_split_fastqs`, published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
+- split FASTQ publication defaults to disabled, so neither directory nor its publication-only compression work is created unless requested
 - earlier tag, trim, RNA uSAM, STAR aligned BAM, tag-record, and non-published coverage side products are transient task outputs
 - split FASTQs are uncompressed only on internal computational channels; the published copies remain gzip-compressed
 - RNA coverage and QC consume a low-compression internal filtered BAM while `rna_align/*.filtered_cells.bam` is independently encoded for publication

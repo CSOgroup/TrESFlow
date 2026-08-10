@@ -10,13 +10,13 @@ The pipeline runs two independent modality branches from that YAML, then builds 
 - `rna`: sample-barcode tagging, UMI tagging, cell-barcode tagging, trimming, split by SB groups, `FqToSAM`, STARsolo, filtered BAM, bigWigs
 - `dna`: sample-barcode tagging, modality tagging, cell-barcode tagging, trimming, split by SB groups and DNA marks, alignment, duplicate marking, NoDup BAM, bigWig
 
-End-of-run reporting is written separately:
+End-of-run reporting is collected under `TrES_Stats`:
 
-- `tres_report/tres_report.html`: TrESFlow-specific per-library RNA/DNA mapping and barcode summary with CSV/Excel export buttons
-- `tres_report/tres_report_metrics.json`: machine-readable metrics used by the HTML report
-- `multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
-- `qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs
-- `qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: nf-core samtools sidecar QC for real BAM outputs
+- `TrES_Stats/tres_report.html`: TrESFlow-specific per-library RNA/DNA mapping and barcode summary with CSV/Excel export buttons
+- `TrES_Stats/tres_report_metrics.json`: machine-readable metrics used by the HTML report
+- `TrES_Stats/qc/multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
+- `TrES_Stats/qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs
+- `TrES_Stats/qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: nf-core samtools sidecar QC for real BAM outputs
 
 The samtools sidecars are disabled in `-profile test` because the smoke profile uses mock BAM text files rather than valid BAMs.
 
@@ -192,6 +192,7 @@ The main public parameters are:
 
 - `--samplesheet`
 - `--outdir`
+- `--publish_split_fastqs`
 - `--max_cpus`
 - `--cleanup_work`
 - `--rna_starsolo_cpus`
@@ -202,6 +203,12 @@ The main public parameters are:
 - `--tagging_memory`
 
 Deprecated runtime/reference CLI parameters now fail with a hard error.
+
+`--publish_split_fastqs` defaults to `false`. Internal plain split FASTQs still
+feed RNA and DNA computation, but the publication-only `pigz` tasks and the
+top-level `rna_split_fastqs/` and `dna_split_fastqs/` directories are omitted.
+Set `--publish_split_fastqs` to publish both modalities' split FASTQs, when
+present, in their existing gzip-compressed directories and filenames.
 
 For local execution, `--max_cpus` is the global executor cap and all bundled per-process CPU reservations are capped by it. The default reservations favor concurrency across independent samples, groups, and DNA marks:
 

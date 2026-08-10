@@ -10,7 +10,7 @@
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, then CB comments
  *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged reads
- *   - plain Split_ReadsV2 per-group RNA FASTQs for computation plus independently compressed publication copies and SAM RG headers
+ *   - plain Split_ReadsV2 per-group RNA FASTQs for computation plus optional independently compressed publication copies and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
  *   - STARsolo outputs, low-compression internal filtered BAMs, normally compressed publication BAMs, and bigWigs
  *   - barcode count/stat files from all wrapped RNA steps
@@ -116,8 +116,9 @@ workflow RNA_CORE {
     SPLIT_RNA_READS(ch_split_input)
     ch_versions = ch_versions.mix(SPLIT_RNA_READS.out.versions)
 
-    // The plain split FASTQs branch independently: computation consumes them
-    // directly while publication compression runs concurrently.
+    // The plain split FASTQs branch independently: computation always consumes
+    // them directly. The compression process runs only when split publication
+    // is enabled.
     ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
         .map { sampleId, meta, splitR1s, splitR2s ->
             tuple(sampleId, meta, 'rna', splitR1s, splitR2s)

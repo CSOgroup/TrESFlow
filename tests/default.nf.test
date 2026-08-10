@@ -20,22 +20,15 @@ nextflow_pipeline {
             def alignDir = new File(outputDir, "rna_align")
             def statsDir = new File(outputDir, "TrES_Stats")
             def pipelineInfoDir = new File(outputDir, "pipeline_info")
+            def qcDir = new File(statsDir, "qc")
             def canonicalChromosomes = new File(
                 pipelineInfoDir,
                 "derived_contract/rna_canonical_chromosomes.txt"
             )
-            def publishedR1 = new File(splitDir, "${sampleId}_Normal_R1.fastq.gz")
-            def publishedR1Text = new java.util.zip.GZIPInputStream(
-                new FileInputStream(publishedR1)
-            ).getText("UTF-8")
 
             assertAll(
                 { assert workflow.success },
-                { assert publishedR1.exists() },
-                { assert publishedR1Text.startsWith("@") },
-                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
-                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
-                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
+                { assert !splitDir.exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_sample_barcode.counts.tsv").exists() },
@@ -50,7 +43,43 @@ nextflow_pipeline {
                 { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
+                { assert new File(statsDir, "tres_report.html").exists() },
+                { assert new File(statsDir, "tres_report_metrics.json").exists() },
+                { assert new File(qcDir, "fastqc/rna.test_rna.raw_1_fastqc.html").exists() },
+                { assert new File(qcDir, "multiqc/multiqc_report.html").exists() },
+                { assert !new File(outputDir, "tres_report").exists() },
+                { assert !new File(outputDir, "qc").exists() },
+                { assert !new File(outputDir, "multiqc").exists() },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
+            )
+        }
+    }
+
+    test("publish_split_fastqs true publishes RNA gzip copies") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                publish_split_fastqs = true
+            }
+        }
+
+        then {
+            def sampleId = "test_rna"
+            def splitDir = new File(outputDir, "rna_split_fastqs")
+            def publishedR1 = new File(splitDir, "${sampleId}_Normal_R1.fastq.gz")
+            def publishedR1Text = new java.util.zip.GZIPInputStream(
+                new FileInputStream(publishedR1)
+            ).getText("UTF-8")
+
+            assertAll(
+                { assert workflow.success },
+                { assert publishedR1.exists() },
+                { assert publishedR1Text.startsWith("@") },
+                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
+                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
+                { assert !new File(outputDir, "dna_split_fastqs").exists() }
             )
         }
     }
@@ -89,7 +118,7 @@ nextflow_pipeline {
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert !splitDir.exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() }
             )
         }
@@ -233,7 +262,7 @@ nextflow_pipeline {
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert !splitDir.exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam.bai").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
@@ -261,6 +290,7 @@ nextflow_pipeline {
             params {
                 samplesheet = "$projectDir/tests/samplesheets/single_with_i2.yaml"
                 outdir = "$outputDir"
+                publish_split_fastqs = true
             }
         }
 
@@ -277,6 +307,8 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert new File(splitDir, "${splitName}_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz").exists() },
                 { assert tagRecords.contains("SB:Z:CGTA") },

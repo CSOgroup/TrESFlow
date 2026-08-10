@@ -10,7 +10,7 @@
  * Outputs:
  *   - DNA FASTQs tagged with SB, MO, then CB comments
  *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged DNA reads
- *   - plain Split_ReadsV2 per-group per-mark DNA FASTQs for computation plus independently compressed publication copies and SAM RG headers
+ *   - plain Split_ReadsV2 per-group per-mark DNA FASTQs for computation plus optional independently compressed publication copies and SAM RG headers
  *   - AlignDNA filtered BAMs and BAM indexes
  *   - GATK duplicate-marked BAMs, BAM indexes, and duplicate metrics
  *   - duplicate-filtered NoDup BAMs and indexes
@@ -174,8 +174,9 @@ workflow DNA_CORE {
     SPLIT_DNA_READS(ch_split_input)
     ch_versions = ch_versions.mix(SPLIT_DNA_READS.out.versions)
 
-    // The plain split FASTQs branch independently: alignment consumes them
-    // directly while publication compression runs concurrently.
+    // The plain split FASTQs branch independently: alignment always consumes
+    // them directly. The compression process runs only when split publication
+    // is enabled.
     ch_compress_split_input = SPLIT_DNA_READS.out.split_fastqs
         .map { sampleId, meta, splitR1s, splitR2s ->
             tuple(sampleId, meta, 'dna', splitR1s, splitR2s)

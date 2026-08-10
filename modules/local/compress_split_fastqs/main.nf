@@ -1,7 +1,8 @@
 /*
- * Compress final split FASTQ copies for publication without delaying their
- * uncompressed computational branch. The input FASTQs are staged read-only;
- * pigz -c preserves them for FQ_TO_SAM or ALIGN_DNA.
+ * When --publish_split_fastqs is enabled, compress final split FASTQ copies
+ * for publication without delaying their uncompressed computational branch.
+ * The input FASTQs are staged read-only; pigz -c preserves them for FQ_TO_SAM
+ * or ALIGN_DNA. No task runs when publication is disabled.
  */
 
 include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
@@ -18,6 +19,9 @@ process COMPRESS_SPLIT_FASTQS {
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq.gz"), path("${sampleId}_*_R2.fastq.gz"), emit: compressed_fastqs
     path("versions.yml"), emit: versions
+
+    when:
+    params.publish_split_fastqs
 
     script:
     def runtimeExports = runtimeShellExports(meta)
