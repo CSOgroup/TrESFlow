@@ -53,9 +53,9 @@ process SPLIT_RNA_READS {
       --library-name "${meta.library_name}" \\
       --output-dir "."
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-      component: "local"
-    END_VERSIONS
+    printf '%s\\n' \\
+      '"${task.process}":' \\
+      '  component: "local"' \\
+      > versions.yml
     """
 }

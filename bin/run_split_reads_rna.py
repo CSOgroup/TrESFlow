@@ -44,8 +44,13 @@ def mock_split(args):
         )
         group_barcodes[group_name] = set()
 
+    processed = 0
+    accepted = 0
+    group_counts = OrderedDict((group_name, 0) for group_name in group_names)
+
     try:
         for r1_rec, r2_rec in zip(fastq_iter(args.r1), fastq_iter(args.r2)):
+            processed += 1
             r1_name, r1_comment = parse_header(r1_rec[0])
             r2_name, r2_comment = parse_header(r2_rec[0])
             if r1_name != r2_name:
@@ -53,6 +58,7 @@ def mock_split(args):
 
             if "NoMatch" in r1_comment:
                 continue
+            accepted += 1
 
             cb = find_tag_value(r1_comment, "CB")
             sb = find_tag_value(r1_comment, "SB")
@@ -60,6 +66,7 @@ def mock_split(args):
                 raise ValueError(f"Missing CB or SB tag in FASTQ comment for {r1_name}")
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
+            group_counts[group_name] += 1
             r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment)
             r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment)
             canonical_cb = find_tag_value(r1_comment, "CB")
@@ -75,6 +82,15 @@ def mock_split(args):
     for group_name in group_names:
         header_path = args.output_dir / f"SAM_RG_Header_{args.sample}_{group_name}.tsv"
         write_rg_header(header_path, args.sample, args.library_name, group_barcodes[group_name])
+
+    metrics_path = args.output_dir / f"{args.sample}.rna_read_retention.tsv"
+    with metrics_path.open("wt", encoding="utf-8") as handle:
+        handle.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
+        handle.write(f"{args.sample}\trna\t__all__\t__all__\ttrimmed_input_pairs\t{processed}\tread_pairs\n")
+        handle.write(f"{args.sample}\trna\t__all__\t__all__\tjoint_barcode_accepted_pairs\t{accepted}\tread_pairs\n")
+        for group_name, count in group_counts.items():
+            handle.write(f"{args.sample}\trna\t{group_name}\t__all__\trouted_group_pairs\t{count}\tread_pairs\n")
+            handle.write(f"{args.sample}\trna\t{group_name}\tRNA\trouted_branch_pairs\t{count}\tread_pairs\n")
 
 
 def real_split(args):
@@ -103,6 +119,13 @@ def real_split(args):
         subprocess.run(cmd, check=True)
         log_event("Finished Codon Split_ReadsV2.codon RNA", args.r1, args.r2, elapsed=time.monotonic() - codon_start)
 
+        retention_name = f"{args.sample}.rna_read_retention.tsv"
+        retention_source = tmp_path / retention_name
+        if not retention_source.is_file():
+            raise FileNotFoundError(
+                f"Codon completed without producing required RNA retention metrics: {retention_source}"
+            )
+
         moved = 0
         fastq_moved = 0
         for pattern in (
@@ -120,6 +143,12 @@ def real_split(args):
 
         if moved == 0 or fastq_moved == 0:
             raise RuntimeError(f"No RNA split outputs were produced for sample {args.sample}")
+
+        retention_destination = move_split_output(retention_source, args.output_dir)
+        if retention_destination != args.output_dir / retention_name:
+            raise RuntimeError(
+                f"RNA retention metrics were moved to an unexpected path: {retention_destination}"
+            )
 
 
 def parse_args():

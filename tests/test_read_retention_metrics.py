@@ -257,6 +257,88 @@ class ReadRetentionMetricTests(unittest.TestCase):
     def test_real_codon_dna_split_emits_retention_metrics(self):
         self.run_real_codon_split("dna")
 
+    def run_real_wrapper_split(self, mode):
+        codon = shutil.which("codon")
+        if not codon:
+            self.skipTest("codon is not installed")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            temp_root = root / "runtime_tmp"
+            output = root / "nextflow_workdir"
+            temp_root.mkdir()
+            output.mkdir()
+
+            comments = [
+                "CB:Z:AAAACGT\tSB:Z:AAA\tUM:Z:TTTT\tMO:Z:MARKA",
+                "CB:Z:NoMatch\tSB:Z:AAA\tUM:Z:TTTT\tMO:Z:MARKA",
+            ]
+            r1 = root / "r1.fastq"
+            r2 = root / "r2.fastq"
+            write_fastq(r1, comments)
+            write_fastq(r2, comments)
+            sb_map = root / "sb.tsv"
+            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            mo_map = root / "mo.tsv"
+            mo_map.write_text("sample\tgroup1\tH3K27ac\tMARKA\n", encoding="utf-8")
+
+            wrapper = REPO_ROOT / f"bin/run_split_reads_{mode}.py"
+            command = [
+                sys.executable,
+                str(wrapper),
+                "--mode",
+                "real",
+                "--script",
+                str(REPO_ROOT / "scripts/core_runtime/Split_ReadsV2.codon"),
+                "--r1",
+                str(r1),
+                "--r2",
+                str(r2),
+            ]
+            if mode == "dna":
+                command.extend(["--mo-map", str(mo_map)])
+            command.extend(
+                [
+                    "--sb-group-map",
+                    str(sb_map),
+                    "--sample",
+                    "sample",
+                    "--library-name",
+                    "library",
+                    "--output-dir",
+                    str(output),
+                ]
+            )
+
+            env = os.environ.copy()
+            env["CODON_BIN"] = codon
+            env["TMPDIR"] = str(temp_root)
+            result = subprocess.run(
+                command,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            metrics = output / f"sample.{mode}_read_retention.tsv"
+            self.assertTrue(metrics.is_file())
+            values = {row["metric"]: int(row["pairs"]) for row in read_metrics(metrics)}
+            self.assertEqual(values["trimmed_input_pairs"], 2)
+            self.assertEqual(values["joint_barcode_accepted_pairs"], 1)
+            self.assertIn(f"Finished split output move | {metrics}", result.stderr)
+            self.assertEqual(list(temp_root.iterdir()), [])
+
+            self.assertTrue(list(output.glob("sample_*_R1.fastq")))
+            self.assertTrue(list(output.glob("sample_*_R2.fastq")))
+            self.assertTrue(list(output.glob("SAM_RG_Header_sample_*.tsv")))
+
+    def test_real_rna_wrapper_preserves_retention_metrics_before_temp_cleanup(self):
+        self.run_real_wrapper_split("rna")
+
+    def test_real_dna_wrapper_preserves_retention_metrics_before_temp_cleanup(self):
+        self.run_real_wrapper_split("dna")
+
     def test_mock_rna_split_reports_trimmed_joint_and_routed_counts(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
