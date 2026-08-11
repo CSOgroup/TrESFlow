@@ -33,6 +33,7 @@ BWA_MEM2_BIN="${BWA_MEM2_BIN:-bwa-mem2}"
 SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
 
 PathOutputBam=${outdir}/${sample_name}_${modality}.bam
+PathOutputMetrics=${outdir}/${sample_name}_${modality}.dna_alignment_retention.tsv
 
 RGID="${sample_name}_${modality}"
 
@@ -61,6 +62,27 @@ echo "Removing blacklist-overlapping reads..."
 echo "Filtering properly paired mapped reads and sorting..."
 "${SAMTOOLS_BIN}" view --threads ${view_threads} --uncompressed --with-header --require-flags 0x2 ${RGID}_TEMP_outBLRegions.bam \
   | "${SAMTOOLS_BIN}" sort -@ ${sort_threads} -m ${sort_mem} -o ${PathOutputBam} -
+
+# Count one primary R1 record as the representative for each input read pair.
+# These counters inspect intermediates that already exist in this task and do
+# not alter the alignment/filtering path.
+bwa_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x900 "${RGID}_TEMP.bam")
+post_blacklist_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x900 "${RGID}_TEMP_outBLRegions.bam")
+post_blacklist_mapped_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x904 "${RGID}_TEMP_outBLRegions.bam")
+proper_pair_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x42 --exclude-flags 0x900 "${PathOutputBam}")
+
+if (( post_blacklist_primary_pairs > bwa_primary_pairs || post_blacklist_mapped_primary_pairs > post_blacklist_primary_pairs || proper_pair_primary_pairs > post_blacklist_mapped_primary_pairs )); then
+  echo "ERROR: Non-nested DNA retention counts for ${sample_name}_${modality}: BWA=${bwa_primary_pairs}, post-blacklist=${post_blacklist_primary_pairs}, post-blacklist-mapped=${post_blacklist_mapped_primary_pairs}, proper-pair=${proper_pair_primary_pairs}" >&2
+  exit 1
+fi
+
+{
+  printf 'split_id\tmetric\tpairs\tunit\n'
+  printf '%s\tbwa_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${bwa_primary_pairs}"
+  printf '%s\tpost_blacklist_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${post_blacklist_primary_pairs}"
+  printf '%s\tpost_blacklist_mapped_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${post_blacklist_mapped_primary_pairs}"
+  printf '%s\tproper_pair_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${proper_pair_primary_pairs}"
+} > "${PathOutputMetrics}"
 
 # Index the BAM
 "${SAMTOOLS_BIN}" index --threads ${threads} --bai --output ${PathOutputBam}.bai ${PathOutputBam}

@@ -328,6 +328,8 @@ workflow DNA_CORE {
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
     split_fastqs    = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
+    split_retention_metrics = SPLIT_DNA_READS.out.retention_metrics
+    alignment_retention_metrics = ALIGN_DNA.out.retention_metrics
     aligned_bams    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bam
     aligned_bais    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bai
     markeddup_bams = NORMALIZE_DNA_MARKDUPLICATES.out.bam

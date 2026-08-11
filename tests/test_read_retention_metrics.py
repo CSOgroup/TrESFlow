@@ -1,0 +1,383 @@
+import csv
+import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "bin"))
+
+
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, REPO_ROOT / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+SPLIT_RNA = load_module("retention_split_rna", "bin/run_split_reads_rna.py")
+SPLIT_DNA = load_module("retention_split_dna", "bin/run_split_reads_dna.py")
+
+
+def write_fastq(path, comments):
+    with path.open("w", encoding="utf-8") as handle:
+        for index, comment in enumerate(comments, start=1):
+            handle.write(f"@read{index} {comment}\nACGTACGTACGTACGTACGT\n+\nIIIIIIIIIIIIIIIIIIII\n")
+
+
+def read_metrics(path):
+    with path.open(encoding="utf-8") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
+class ReadRetentionMetricTests(unittest.TestCase):
+    def test_rna_filter_reports_the_existing_nested_predicates(self):
+        samtools = shutil.which("samtools")
+        if not samtools:
+            self.skipTest("samtools is not installed")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sample = "rna_group"
+            source_sam = root / "source.sam"
+            sequence = "ACGTACGTACGTACGTACGT"
+            quality = "IIIIIIIIIIIIIIIIIIII"
+            source_sam.write_text(
+                "@HD\tVN:1.6\tSO:unsorted\n"
+                "@SQ\tSN:chr1\tLN:1000\n"
+                "@SQ\tSN:chrUn\tLN:1000\n"
+                "@RG\tID:cell1\tSM:test\n"
+                "@RG\tID:other\tSM:test\n"
+                f"keep\t99\tchr1\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tRG:Z:cell1\n"
+                f"keep\t147\tchr1\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tRG:Z:cell1\n"
+                f"other_cell\t99\tchr1\t201\t60\t20M\t=\t251\t70\t{sequence}\t{quality}\tRG:Z:other\n"
+                f"other_cell\t147\tchr1\t251\t60\t20M\t=\t201\t-70\t{sequence}\t{quality}\tRG:Z:other\n"
+                f"not_paired\t64\tchr1\t301\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tRG:Z:cell1\n"
+                f"not_paired\t128\tchr1\t351\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tRG:Z:cell1\n"
+                f"noncanonical\t99\tchrUn\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tRG:Z:cell1\n"
+                f"noncanonical\t147\tchrUn\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tRG:Z:cell1\n",
+                encoding="utf-8",
+            )
+            aligned_bam = root / f"{sample}.Aligned.sortedByCoord.out.bam"
+            subprocess.run(
+                [samtools, "sort", "-o", str(aligned_bam), str(source_sam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run([samtools, "index", str(aligned_bam)], check=True)
+            solo = root / "solo" / "filtered"
+            solo.mkdir(parents=True)
+            (solo / "barcodes.tsv").write_text("cell1\n", encoding="utf-8")
+            canonical = root / "canonical.txt"
+            canonical.write_text("chr1\n", encoding="utf-8")
+            env = os.environ.copy()
+            env["SAMTOOLS_BIN"] = samtools
+            env["PYTHON3_BIN"] = sys.executable
+            subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "scripts/core_runtime/RNA_FILTERED_BAM.sh"),
+                    sample,
+                    str(root / "solo"),
+                    str(aligned_bam),
+                    str(canonical),
+                    str(root),
+                    "1",
+                ],
+                cwd=root,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            values = {
+                row["metric"]: int(row["pairs"])
+                for row in read_metrics(root / f"{sample}.rna_filter_retention.tsv")
+            }
+            self.assertEqual(
+                values,
+                {
+                    "star_mapped_primary_pairs": 4,
+                    "paired_filter_pairs": 3,
+                    "canonical_pairs": 2,
+                    "called_cell_pairs": 1,
+                },
+            )
+            filtered_bam = root / f"{sample}.filtered_cells.internal.bam"
+            subprocess.run([samtools, "quickcheck", str(filtered_bam)], check=True)
+            final_count = subprocess.run(
+                [samtools, "view", "--count", "--require-flags", "0x40", str(filtered_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(final_count.stdout.strip(), "1")
+
+    def test_align_dna_reports_bwa_blacklist_and_proper_pair_populations(self):
+        samtools = shutil.which("samtools")
+        if not samtools:
+            self.skipTest("samtools is not installed")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_sam = root / "source.sam"
+            source_sam.write_text(
+                "@HD\tVN:1.6\tSO:unsorted\n"
+                "@SQ\tSN:chr1\tLN:1000\n"
+                "proper\t99\tchr1\t101\t60\t20M\t=\t151\t70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n"
+                "proper\t147\tchr1\t151\t60\t20M\t=\t101\t-70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n"
+                "improper\t65\tchr1\t301\t60\t20M\t=\t351\t70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n"
+                "improper\t129\tchr1\t351\t60\t20M\t=\t301\t-70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n"
+                "blacklisted\t99\tchr1\t501\t60\t20M\t=\t551\t70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n"
+                "blacklisted\t147\tchr1\t551\t60\t20M\t=\t501\t-70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n",
+                encoding="utf-8",
+            )
+            fake_bwa = root / "fake-bwa-mem2"
+            fake_bwa.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "output=''\n"
+                "while [[ $# -gt 0 ]]; do\n"
+                "  if [[ $1 == -o ]]; then output=$2; shift 2; else shift; fi\n"
+                "done\n"
+                "cp \"$FAKE_BWA_SAM\" \"$output\"\n",
+                encoding="utf-8",
+            )
+            fake_bwa.chmod(0o755)
+            blacklist = root / "blacklist.bed"
+            blacklist.write_text("chr1\t490\t600\n", encoding="utf-8")
+            rg_header = root / "rg.tsv"
+            rg_header.write_text(
+                "@RG\tID:sample_H3K27ac\tSM:sample\tLB:test\tPL:ILLUMINA\n",
+                encoding="utf-8",
+            )
+            env = os.environ.copy()
+            env.update(
+                {
+                    "BWA_MEM2_BIN": str(fake_bwa),
+                    "FAKE_BWA_SAM": str(source_sam),
+                    "SAMTOOLS_BIN": samtools,
+                    "ALIGN_DNA_THREADS": "1",
+                    "ALIGN_DNA_VIEW_THREADS": "1",
+                    "ALIGN_DNA_SORT_THREADS": "1",
+                    "ALIGN_DNA_SORT_MEM": "16M",
+                }
+            )
+            subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "scripts/core_runtime/AlignDNA.sh"),
+                    "H3K27ac",
+                    "sample",
+                    str(root / "unused_R1.fastq"),
+                    str(root / "unused_R2.fastq"),
+                    str(blacklist),
+                    str(rg_header),
+                    str(root / "unused_reference"),
+                    "1000",
+                    str(root),
+                ],
+                cwd=root,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            values = {
+                row["metric"]: int(row["pairs"])
+                for row in read_metrics(root / "sample_H3K27ac.dna_alignment_retention.tsv")
+            }
+            self.assertEqual(
+                values,
+                {
+                    "bwa_primary_pairs": 3,
+                    "post_blacklist_primary_pairs": 2,
+                    "post_blacklist_mapped_primary_pairs": 2,
+                    "proper_pair_primary_pairs": 1,
+                },
+            )
+            final_count = subprocess.run(
+                [samtools, "view", "--count", "--require-flags", "0x40", root / "sample_H3K27ac.bam"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(final_count.stdout.strip(), "1")
+
+    def run_real_codon_split(self, mode):
+        codon = shutil.which("codon")
+        if not codon:
+            self.skipTest("codon is not installed")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            comments = [
+                "CB:Z:AAAACGT\tSB:Z:AAA\tUM:Z:TTTT\tMO:Z:MARKA",
+                "CB:Z:NoMatch\tSB:Z:AAA\tUM:Z:TTTT\tMO:Z:MARKA",
+            ]
+            r1 = root / "r1.fastq"
+            r2 = root / "r2.fastq"
+            write_fastq(r1, comments)
+            write_fastq(r2, comments)
+            sb_map = root / "sb.tsv"
+            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            mo_map = root / "mo.tsv"
+            mo_map.write_text("sample\tgroup1\tH3K27ac\tMARKA\n", encoding="utf-8")
+            output = root / "output"
+            output.mkdir()
+            command = [
+                codon,
+                "run",
+                "-plugin",
+                "seq",
+                "-release",
+                str(REPO_ROOT / "scripts/core_runtime/Split_ReadsV2.codon"),
+                "sample",
+                str(output),
+                "library",
+                mode,
+                str(mo_map) if mode == "dna" else "-",
+                str(r1),
+                str(r2),
+                str(sb_map),
+            ]
+            subprocess.run(command, check=True, capture_output=True, text=True)
+            metrics = output / f"sample.{mode}_read_retention.tsv"
+            values = {row["metric"]: int(row["pairs"]) for row in read_metrics(metrics)}
+            self.assertEqual(values["trimmed_input_pairs"], 2)
+            self.assertEqual(values["joint_barcode_accepted_pairs"], 1)
+
+    def test_real_codon_rna_split_emits_retention_metrics(self):
+        self.run_real_codon_split("rna")
+
+    def test_real_codon_dna_split_emits_retention_metrics(self):
+        self.run_real_codon_split("dna")
+
+    def test_mock_rna_split_reports_trimmed_joint_and_routed_counts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            comments = [
+                "CB:Z:AAAACGT\tSB:Z:AAAA\tUM:Z:TTTT",
+                "CB:Z:NoMatch\tSB:Z:AAAA\tUM:Z:TTTT",
+                "CB:Z:CCCCACGT\tSB:Z:CCCC\tUM:Z:TTTT",
+            ]
+            r1 = root / "r1.fastq"
+            r2 = root / "r2.fastq"
+            write_fastq(r1, comments)
+            write_fastq(r2, comments)
+            sb_map = root / "sb.tsv"
+            sb_map.write_text("sample\tgroup1\tAAAA\nsample\tgroup2\tCCCC\n", encoding="utf-8")
+
+            SPLIT_RNA.mock_split(
+                SimpleNamespace(
+                    r1=r1,
+                    r2=r2,
+                    sb_group_map=sb_map,
+                    sample="sample",
+                    library_name="library",
+                    output_dir=root,
+                )
+            )
+
+            rows = read_metrics(root / "sample.rna_read_retention.tsv")
+            values = {(row["metric"], row["group"]): int(row["pairs"]) for row in rows}
+            self.assertEqual(values[("trimmed_input_pairs", "__all__")], 3)
+            self.assertEqual(values[("joint_barcode_accepted_pairs", "__all__")], 2)
+            self.assertEqual(values[("routed_group_pairs", "group1")], 1)
+            self.assertEqual(values[("routed_group_pairs", "group2")], 1)
+
+    def test_mock_dna_split_reports_mark_branch_counts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            comments = [
+                "CB:Z:AAAACGT\tSB:Z:AAA\tMO:Z:MARKA",
+                "CB:Z:AAAACGT\tSB:Z:AAA\tMO:Z:MARKB",
+                "CB:Z:NoMatch\tSB:Z:AAA\tMO:Z:MARKA",
+            ]
+            r1 = root / "r1.fastq"
+            r2 = root / "r2.fastq"
+            write_fastq(r1, comments)
+            write_fastq(r2, comments)
+            sb_map = root / "sb.tsv"
+            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            mo_map = root / "mo.tsv"
+            mo_map.write_text(
+                "sample\tgroup1\tH3K27ac\tMARKA\n"
+                "sample\tgroup1\tH3K27me3\tMARKB\n",
+                encoding="utf-8",
+            )
+
+            SPLIT_DNA.mock_split(
+                SimpleNamespace(
+                    r1=r1,
+                    r2=r2,
+                    sb_group_map=sb_map,
+                    mo_map=mo_map,
+                    sample="sample",
+                    library_name="library",
+                    output_dir=root,
+                )
+            )
+
+            rows = read_metrics(root / "sample.dna_read_retention.tsv")
+            branch = {
+                row["branch"]: int(row["pairs"])
+                for row in rows
+                if row["metric"] == "routed_branch_pairs"
+            }
+            self.assertEqual(branch, {"H3K27ac": 1, "H3K27me3": 1})
+
+    def test_rna_bam_predicate_audit_is_strictly_nested(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            canonical = root / "canonical.txt"
+            canonical.write_text("chr1\n", encoding="utf-8")
+            cells = root / "barcodes.tsv"
+            cells.write_text("cell1\n", encoding="utf-8")
+            output = root / "metrics.tsv"
+            sam = "\n".join(
+                [
+                    "p1\t99\tchr1\t1\t60\t20M\t=\t100\t0\tACGT\tIIII\tRG:Z:cell1",
+                    "p2\t65\tchr1\t2\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:other",
+                    "p3\t65\tchrUn\t3\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
+                    "p4\t64\tchr1\t4\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
+                    "p5\t69\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
+                ]
+            ) + "\n"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts/core_runtime/SummarizeRnaRetention.py"),
+                    "--split-id",
+                    "sample_group",
+                    "--canonical-contigs",
+                    str(canonical),
+                    "--called-barcodes",
+                    str(cells),
+                    "--output",
+                    str(output),
+                ],
+                input=sam,
+                text=True,
+                check=True,
+            )
+
+            values = {row["metric"]: int(row["pairs"]) for row in read_metrics(output)}
+            self.assertEqual(
+                values,
+                {
+                    "star_mapped_primary_pairs": 4,
+                    "paired_filter_pairs": 3,
+                    "canonical_pairs": 2,
+                    "called_cell_pairs": 1,
+                },
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

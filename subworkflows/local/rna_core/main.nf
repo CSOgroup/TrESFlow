@@ -201,11 +201,13 @@ workflow RNA_CORE {
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
     split_fastqs     = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
+    split_retention_metrics = SPLIT_RNA_READS.out.retention_metrics
     usam_files       = FQ_TO_SAM.out.usam
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
     aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
     aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
     internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+    filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
     aligned_filtered_bams = COMPRESS_RNA_FILTERED_BAM.out.bam
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw

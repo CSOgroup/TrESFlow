@@ -340,6 +340,28 @@ def write_fastq_record(fh, name: str, comment: str, seq_s: str, qual_s: str) -> 
 	fh.write("\n")
 
 
+def write_split_retention_metrics(
+		path: str,
+		sample: str,
+		modality: str,
+		trimmed_pairs: int,
+		barcode_accepted_pairs: int,
+		group_names: List[str],
+		group_counts: List[int],
+		branch_names: List[str],
+		branch_groups: List[str],
+		branch_counts: List[int]
+	) -> None:
+	with open(path, "w") as fh:
+		fh.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
+		fh.write(sample + "\t" + modality + "\t__all__\t__all__\ttrimmed_input_pairs\t" + str(trimmed_pairs) + "\tread_pairs\n")
+		fh.write(sample + "\t" + modality + "\t__all__\t__all__\tjoint_barcode_accepted_pairs\t" + str(barcode_accepted_pairs) + "\tread_pairs\n")
+		for i in range(len(group_names)):
+			fh.write(sample + "\t" + modality + "\t" + group_names[i] + "\t__all__\trouted_group_pairs\t" + str(group_counts[i]) + "\tread_pairs\n")
+		for i in range(len(branch_names)):
+			fh.write(sample + "\t" + modality + "\t" + branch_groups[i] + "\t" + branch_names[i] + "\trouted_branch_pairs\t" + str(branch_counts[i]) + "\tread_pairs\n")
+
+
 def find_mark_for_mo(mo: str, gid: int, mo_list: List[str], mo_gid: List[int], mo_mark_idx: List[int]) -> int:
 	mo_n = len(mo_list)
 
@@ -471,6 +493,13 @@ def MakeRecordNameList_DNA(
 	sys.stdout.write("Read Splitting\n")
 
 	processed = 0
+	barcode_accepted = 0
+	group_counts: List[int] = []
+	branch_counts: List[int] = []
+	for _ in range(n_groups):
+		group_counts.append(0)
+	for _ in range(total_slots):
+		branch_counts.append(0)
 	next_report = 20000
 
 	for rec1 in R1_gen:
@@ -487,6 +516,7 @@ def MakeRecordNameList_DNA(
 		comment = rec1.comment
 		if comment.find("NoMatch") >= 0:
 			continue
+		barcode_accepted += 1
 
 		cb, mo, sb_raw = get_cb_mo_sb(comment)
 		if (not cb) or (not mo) or (not sb_raw):
@@ -496,6 +526,7 @@ def MakeRecordNameList_DNA(
 		gid = 0
 		if use_sb:
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
+		group_counts[gid] += 1
 
 		midx = find_mark_for_mo(mo, gid, mo_list, mo_gid, mo_mark_idx)
 		if midx < 0:
@@ -528,6 +559,7 @@ def MakeRecordNameList_DNA(
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
 		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
 		bc_sets[slot].add(canonical_cb)
+		branch_counts[slot] += 1
 
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))
@@ -566,6 +598,31 @@ def MakeRecordNameList_DNA(
 	unknown_r2.close()
 	if unknown_mode == 2:
 		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_bcs)
+
+	metric_group_names: List[str] = idx_to_group if use_sb else [sample]
+	metric_branch_names: List[str] = []
+	metric_branch_groups: List[str] = []
+	metric_branch_counts: List[int] = []
+	for i in range(total_slots):
+		if used[i] != 1:
+			continue
+		gid3 = i // n_marks
+		midx3 = i - gid3 * n_marks
+		metric_branch_names.append(idx_to_mark[midx3])
+		metric_branch_groups.append(metric_group_names[gid3])
+		metric_branch_counts.append(branch_counts[i])
+	write_split_retention_metrics(
+		out_folder + "/" + sample + ".dna_read_retention.tsv",
+		sample,
+		"dna",
+		processed,
+		barcode_accepted,
+		metric_group_names,
+		group_counts,
+		metric_branch_names,
+		metric_branch_groups,
+		metric_branch_counts
+	)
 
 	sys.stdout.write("DONE\n")
 	return 0
@@ -636,6 +693,10 @@ def MakeRecordNameList_RNA(
 	sys.stdout.write("Read Splitting\n")
 
 	processed = 0
+	barcode_accepted = 0
+	group_counts: List[int] = []
+	for _ in range(n_groups):
+		group_counts.append(0)
 	next_report = 20000
 
 	for rec1 in R1_gen:
@@ -652,6 +713,7 @@ def MakeRecordNameList_RNA(
 		comment = rec1.comment
 		if comment.find("NoMatch") >= 0:
 			continue
+		barcode_accepted += 1
 
 		cb, sb_raw = get_cb_sb(comment)
 		if (not cb) or (not sb_raw):
@@ -662,6 +724,7 @@ def MakeRecordNameList_RNA(
 		if use_sb:
 			# This is the critical part: no fallback to TP3_A on mismatch.
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
+		group_counts[gid] += 1
 
 		group_name = idx_to_group[gid] if use_sb else sample
 		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
@@ -703,6 +766,23 @@ def MakeRecordNameList_RNA(
 	unknown_r2.close()
 	if unknown_mode == 2:
 		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_bcs)
+
+	metric_group_names: List[str] = idx_to_group if use_sb else [sample]
+	metric_branch_names: List[str] = []
+	for _ in range(n_groups):
+		metric_branch_names.append("RNA")
+	write_split_retention_metrics(
+		out_folder + "/" + sample + ".rna_read_retention.tsv",
+		sample,
+		"rna",
+		processed,
+		barcode_accepted,
+		metric_group_names,
+		group_counts,
+		metric_branch_names,
+		metric_group_names,
+		group_counts
+	)
 
 	sys.stdout.write("DONE\n")
 	return 0

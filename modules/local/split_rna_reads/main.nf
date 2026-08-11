@@ -18,11 +18,13 @@
  *     raw SB match first, then drop-first fallback.
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
+
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_read_retention.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
@@ -30,6 +32,7 @@ process SPLIT_RNA_READS {
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq"), path("${sampleId}_*_R2.fastq"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
+    tuple val(sampleId), val(meta), path("${sampleId}.rna_read_retention.tsv"), emit: retention_metrics
     path("versions.yml"), emit: versions
 
     script:

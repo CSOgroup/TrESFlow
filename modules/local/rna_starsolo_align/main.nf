@@ -40,6 +40,7 @@ process RNA_STARSOLO_ALIGN {
         """
         ${runtimeExports}
 
+        input_pairs="\$(awk '\$1 !~ /^@/ { n++ } END { print int(n / 2) }' "${usam}")"
         mkdir -p "${splitName}.Solo.outGeneFull/filtered"
 
         cat > "${splitName}.Solo.outGeneFull/filtered/barcodes.tsv" <<'EOF'
@@ -56,17 +57,17 @@ EOF
 1 1 1
 EOF
 
-        printf 'mock aligned bam for %s\n' "${splitName}" > "${splitName}.Aligned.sortedByCoord.out.bam"
-        cat > "${splitName}.Log.final.out" <<'EOF'
+        printf 'mock aligned bam for %s %s pairs\n' "${splitName}" "\${input_pairs}" > "${splitName}.Aligned.sortedByCoord.out.bam"
+        cat > "${splitName}.Log.final.out" <<EOF
                              Started job on |	mock
                              Started mapping on |	mock
                                     Finished on |	mock
        Mapping speed, Million of reads per hour |	1.00
-                          Number of input reads |	1000
+                          Number of input reads |	\${input_pairs}
                       Average input read length |	100
                                     UNIQUE READS:
-                   Uniquely mapped reads number |	900
-                        Uniquely mapped reads % |	90.00%
+                   Uniquely mapped reads number |	\${input_pairs}
+                        Uniquely mapped reads % |	100.00%
                           Average mapped length |	100.00
                        Number of splices: Total |	0
             Number of splices: Annotated (sjdb) |	0
@@ -80,27 +81,27 @@ EOF
                         Insertion rate per base |	0.00%
                        Insertion average length |	0.00
                              MULTI-MAPPING READS:
-        Number of reads mapped to multiple loci |	50
-             % of reads mapped to multiple loci |	5.00%
+        Number of reads mapped to multiple loci |	0
+             % of reads mapped to multiple loci |	0.00%
         Number of reads mapped to too many loci |	0
              % of reads mapped to too many loci |	0.00%
                                   UNMAPPED READS:
   Number of reads unmapped: too many mismatches |	0
        % of reads unmapped: too many mismatches |	0.00%
-            Number of reads unmapped: too short |	50
-                 % of reads unmapped: too short |	5.00%
+            Number of reads unmapped: too short |	0
+                 % of reads unmapped: too short |	0.00%
                 Number of reads unmapped: other |	0
                      % of reads unmapped: other |	0.00%
                                   CHIMERIC READS:
                        Number of chimeric reads |	0
                             % of chimeric reads |	0.00%
 EOF
-        cat > "${splitName}.Solo.outGeneFull/Summary.csv" <<'EOF'
-Number of Reads,1000
-Reads Mapped to Genome: Unique+Multiple,0.95
-Reads Mapped to Genome: Unique,0.90
-Reads Mapped to GeneFull: Unique+Multiple GeneFull,0.85
-Reads Mapped to GeneFull: Unique GeneFull,0.80
+        cat > "${splitName}.Solo.outGeneFull/Summary.csv" <<EOF
+Number of Reads,\${input_pairs}
+Reads Mapped to Genome: Unique+Multiple,1.00
+Reads Mapped to Genome: Unique,1.00
+Reads Mapped to GeneFull: Unique+Multiple GeneFull,1.00
+Reads Mapped to GeneFull: Unique GeneFull,1.00
 Estimated Number of Cells,1
 UMIs in Cells,100
 EOF

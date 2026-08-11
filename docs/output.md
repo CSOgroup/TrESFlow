@@ -111,6 +111,32 @@ Tagging summaries are published with modality-specific names:
 
 Tag-record tables are emitted only as final gzip artifacts; no complete uncompressed tag-record copy is retained.
 
+### Read-retention counters in `TrES_Stats/`
+
+The pipeline publishes small TSV counters for reconstructing nested read-pair
+populations without rereading the large FASTQ and transient BAM files:
+
+- `<sample>.rna_read_retention.tsv`
+- `<sample>_<group>.rna_filter_retention.tsv`
+- `<sample>.dna_read_retention.tsv`
+- `<sample>_<group>_<mark>.dna_alignment_retention.tsv`
+
+The RNA and DNA split tables are written by the same Codon loop that emits the
+computational FASTQs. They report pairs present after paired trimming, pairs
+accepted by the complete joint barcode condition (`Split_ReadsV2` rejects any
+record whose accumulated tag comment contains `NoMatch`), and exact group/mark
+routing counts. The barcode statistics listed above remain useful marginal
+diagnostics, but are not conditional retention stages.
+
+The DNA alignment table reports nested primary-R1 pair representatives after
+BWA, blacklist removal, mapped-record selection, and the existing proper-pair
+filter. The RNA filter table reports nested primary-R1 pair representatives
+after STAR mapping, the existing paired-flag filter, canonical-chromosome
+selection, and called-cell selection. One primary R1 record is the stable
+representative for one input pair, preventing secondary or supplementary
+alignments from being counted as additional fragments. These files are metrics
+only and do not alter the FASTQ or BAM data path.
+
 ## QC and HTML reports
 
 ### `TrES_Stats/qc/fastqc/`

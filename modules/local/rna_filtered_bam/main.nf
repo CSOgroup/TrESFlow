@@ -12,17 +12,20 @@
  *   - low-compression filtered-cells RNA BAM for coverage and QC
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process RNA_FILTERED_BAM {
     tag "${splitName}"
     label 'codon_wrapper'
+
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_filter_retention.tsv"
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam), path(canonicalChromosomes)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.filtered_cells.internal.bam"), emit: filtered_bam
+    tuple val(splitName), val(meta), path("${splitName}.rna_filter_retention.tsv"), emit: retention_metrics
     path("versions.yml"), emit: versions
 
     script:
@@ -35,6 +38,14 @@ process RNA_FILTERED_BAM {
         ${runtimeExports}
 
         printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.internal.bam"
+        pair_count="\$(awk 'NR == 1 { print \$(NF - 1) }' "${alignedBam}")"
+        cat > "${splitName}.rna_filter_retention.tsv" <<EOF
+split_id	metric	pairs	unit
+${splitName}	star_mapped_primary_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	paired_filter_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	canonical_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	called_cell_pairs	\${pair_count}	primary_read1_pair_representatives
+EOF
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
