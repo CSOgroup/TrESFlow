@@ -20,7 +20,7 @@ PYTHON3_BIN="${PYTHON3_BIN:-python3}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 BARCODES="${solo_dir}/filtered/barcodes.tsv"
-OUTBAM="${outdir}/${sample_name}.filtered_cells.internal.bam"
+OUTBAM="${outdir}/${sample_name}.filtered_cells.bam"
 RETENTION_METRICS="${outdir}/${sample_name}.rna_filter_retention.tsv"
 
 if [[ ! -s "${BARCODES}" ]]; then

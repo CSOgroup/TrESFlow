@@ -63,10 +63,10 @@ output:
           description: |
             Groovy Map containing sample information
             e.g. [ id:'test', single_end:false ]
-      - "*.bigWig":
+      - "*.bw":
           type: file
           description: BigWig file
-          pattern: "*.bigWig"
+          pattern: "*.bw"
           ontologies: []
   bedgraph:
     - - meta:

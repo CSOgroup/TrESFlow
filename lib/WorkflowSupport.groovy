@@ -261,7 +261,7 @@ class WorkflowSupport {
         if( !effSizeRaw ) {
             throw new IllegalArgumentException(
                 "Missing required DNA effective genome size: references.dna_effective_genome_size. " +
-                "This is used by BAM_COVERAGE_DNA for bamCoverage --effectiveGenomeSize."
+                "This is used by DEEPTOOLS_BAMCOVERAGE for bamCoverage --effectiveGenomeSize."
             )
         }
 

@@ -109,7 +109,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
                     "called_cell_pairs": 1,
                 },
             )
-            filtered_bam = root / f"{sample}.filtered_cells.internal.bam"
+            filtered_bam = root / f"{sample}.filtered_cells.bam"
             subprocess.run([samtools, "quickcheck", str(filtered_bam)], check=True)
             final_count = subprocess.run(
                 [samtools, "view", "--count", "--require-flags", "0x40", str(filtered_bam)],

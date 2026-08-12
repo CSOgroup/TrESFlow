@@ -12,7 +12,7 @@
  *   - uncompressed trim_galore paired-end FASTQs from the CB-tagged reads
  *   - plain Split_ReadsV2 per-group RNA FASTQs for computation plus optional independently compressed publication copies and SAM RG headers
  *   - FqToSAM unmapped SAM files from each split RNA FASTQ pair
- *   - STARsolo outputs, low-compression internal filtered BAMs, normally compressed publication BAMs, and bigWigs
+ *   - STARsolo outputs, low-compression published filtered BAMs, and bigWigs
  *   - barcode count/stat files from all wrapped RNA steps
  */
 
@@ -25,7 +25,6 @@ include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../mo
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
 include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_align/main'
 include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
-include { COMPRESS_RNA_FILTERED_BAM } from '../../../modules/local/compress_rna_filtered_bam/main'
 include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
 
 def asRnaPathList(value) {
@@ -119,13 +118,17 @@ workflow RNA_CORE {
     // The plain split FASTQs branch independently: computation always consumes
     // them directly. The compression process runs only when split publication
     // is enabled.
-    ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
-        .map { sampleId, meta, splitR1s, splitR2s ->
-            tuple(sampleId, meta, 'rna', splitR1s, splitR2s)
-        }
+    ch_published_split_fastqs = channel.empty()
+    if( params.publish_split_fastqs ) {
+        ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
+            .map { sampleId, meta, splitR1s, splitR2s ->
+                tuple(sampleId, meta, 'rna', splitR1s, splitR2s)
+            }
 
-    COMPRESS_RNA_SPLIT_FASTQS(ch_compress_split_input)
-    ch_versions = ch_versions.mix(COMPRESS_RNA_SPLIT_FASTQS.out.versions)
+        COMPRESS_RNA_SPLIT_FASTQS(ch_compress_split_input)
+        ch_versions = ch_versions.mix(COMPRESS_RNA_SPLIT_FASTQS.out.versions)
+        ch_published_split_fastqs = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
+    }
 
     ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
@@ -166,11 +169,6 @@ workflow RNA_CORE {
     RNA_FILTERED_BAM(ch_filtered_bam_input)
     ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
 
-    // Publish a normally compressed copy independently while coverage and QC
-    // consume the low-compression internal BAM.
-    COMPRESS_RNA_FILTERED_BAM(RNA_FILTERED_BAM.out.filtered_bam)
-    ch_versions = ch_versions.mix(COMPRESS_RNA_FILTERED_BAM.out.versions)
-
     ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
         .map { splitName, meta, filteredBam ->
             tuple(
@@ -199,7 +197,7 @@ workflow RNA_CORE {
     emit:
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
-    split_fastqs     = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
+    split_fastqs     = ch_published_split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_RNA_READS.out.retention_metrics
     usam_files       = FQ_TO_SAM.out.usam
@@ -208,7 +206,7 @@ workflow RNA_CORE {
     aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
     internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
     filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
-    aligned_filtered_bams = COMPRESS_RNA_FILTERED_BAM.out.bam
+    aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
     aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
     aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     barcode_reports  = ch_barcode_reports

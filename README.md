@@ -181,7 +181,7 @@ Default local CPU budget:
 - `--publish_split_fastqs false`; enable it to publish gzip-compressed RNA and DNA split FASTQ copies.
 - `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
 - `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
-- `RNA_COVERAGE` and `BAM_COVERAGE_DNA` default to `--coverage_cpus 8`.
+- `RNA_COVERAGE` and `DEEPTOOLS_BAMCOVERAGE` default to `--coverage_cpus 8`.
 - `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps default to `--helper_cpus 4`.
 - tagging processes default to `--tagging_cpus 4` and `--tagging_memory '32 GB'`.
 - `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
@@ -202,7 +202,7 @@ Every run writes:
 - `${outdir}/TrES_Stats/tres_report_metrics.json`
 - `${outdir}/TrES_Stats/qc/multiqc/multiqc_report.html`
 
-Runs with real BAM outputs also write nf-core samtools sidecar QC under:
+Runs with real BAM outputs also write combined Samtools sidecar QC under:
 
 - `${outdir}/TrES_Stats/qc/samtools/*.flagstat`
 - `${outdir}/TrES_Stats/qc/samtools/*.stats`

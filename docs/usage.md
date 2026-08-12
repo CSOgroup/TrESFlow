@@ -16,7 +16,7 @@ End-of-run reporting is collected under `TrES_Stats`:
 - `TrES_Stats/tres_report_metrics.json`: machine-readable metrics used by the HTML report
 - `TrES_Stats/qc/multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 - `TrES_Stats/qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs
-- `TrES_Stats/qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: nf-core samtools sidecar QC for real BAM outputs
+- `TrES_Stats/qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: combined Samtools sidecar QC for real BAM outputs
 
 The samtools sidecars are disabled in `-profile test` because the smoke profile uses mock BAM text files rather than valid BAMs.
 
@@ -118,7 +118,7 @@ samples:
 
 `references.dna_ref_dir` points to the directory containing exactly one complete bwa-mem2 sidecar set. The inferred prefix is used for `bwa-mem2 mem`.
 
-`references.dna_effective_genome_size` is required for DNA runs because `BAM_COVERAGE_DNA` passes it to `bamCoverage --effectiveGenomeSize`.
+`references.dna_effective_genome_size` is required for DNA runs because `DEEPTOOLS_BAMCOVERAGE` passes it to `bamCoverage --effectiveGenomeSize`.
 
 For human references, TrESFlow derives canonical chromosome allowlists once
 from STAR's `chrNameLength.txt` and the bwa-mem2 `.ann` dictionary. It accepts a

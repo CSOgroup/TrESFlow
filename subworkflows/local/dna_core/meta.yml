@@ -19,9 +19,7 @@ components:
   - "gatk4/markduplicates"
   - "normalize/dna/markduplicates"
   - "split/duplicates/dna"
-  - "check/dna/nodup/bam"
   - "deeptools/bamcoverage"
-  - "normalize/dna/bamcoverage"
 input:
   - ch_dna_samples:
       type: tuple
@@ -71,7 +69,10 @@ output:
       description: "Duplicate-filtered NoDup DNA BAM indexes."
   - coverage_bigwigs:
       type: file
-      description: "Canonical-chromosome DNA NoDup coverage bigWig tracks."
+      description: "Canonical-chromosome DNA NoDup coverage bigWig tracks written directly as <split>_NoDup.bw."
+  - coverage_warnings:
+      type: file
+      description: "Zero-mapped NoDup BAM warning TSVs emitted by SPLIT_DUPLICATES_DNA when bamCoverage is skipped."
   - barcode_reports:
       type: file
       description: "Collected DNA barcode metric outputs from upstream tagging steps."

@@ -17,7 +17,6 @@ components:
   - "fq/to/sam"
   - "rna/starsolo/align"
   - "rna/filtered/bam"
-  - "compress/rna/filtered/bam"
   - "rna/coverage"
 input:
   - ch_rna_samples:
@@ -50,10 +49,10 @@ output:
       description: "RNA STARsolo output directories."
   - aligned_filtered_bams:
       type: file
-      description: "Normally compressed canonical-chromosome publication copies of RNA filtered BAM files."
+      description: "Published low-compression canonical-chromosome RNA filtered BAM files."
   - internal_filtered_bams:
       type: file
-      description: "Low-compression canonical-chromosome RNA filtered BAMs used internally by coverage and QC."
+      description: "The same low-compression canonical-chromosome RNA filtered BAMs used by coverage and QC."
   - aligned_stranded_bigwigs:
       type: file
       description: "Canonical-chromosome RNA stranded bigWig tracks."

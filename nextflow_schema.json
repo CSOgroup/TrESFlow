@@ -83,7 +83,7 @@
                 },
                 "coverage_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for RNA_COVERAGE and BAM_COVERAGE_DNA. The value is capped by --max_cpus.",
+                    "description": "Default local CPU reservation for RNA_COVERAGE and DEEPTOOLS_BAMCOVERAGE. The value is capped by --max_cpus.",
                     "default": 8
                 },
                 "publish_dir_mode": {

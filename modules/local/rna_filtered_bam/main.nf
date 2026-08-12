@@ -9,7 +9,7 @@
  *   - STAR coordinate-sorted aligned BAM from RNA_STARSOLO_ALIGN
  *   - canonical chromosome allowlist resolved once from the STAR index dictionary
  * Outputs:
- *   - low-compression filtered-cells RNA BAM for coverage and QC
+ *   - low-compression filtered-cells RNA BAM for publication, coverage, and QC
  */
 
 include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
@@ -19,12 +19,13 @@ process RNA_FILTERED_BAM {
     label 'codon_wrapper'
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_filter_retention.tsv"
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.filtered_cells.bam"
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam), path(canonicalChromosomes)
 
     output:
-    tuple val(splitName), val(meta), path("${splitName}.filtered_cells.internal.bam"), emit: filtered_bam
+    tuple val(splitName), val(meta), path("${splitName}.filtered_cells.bam"), emit: filtered_bam
     tuple val(splitName), val(meta), path("${splitName}.rna_filter_retention.tsv"), emit: retention_metrics
     path("versions.yml"), emit: versions
 
@@ -37,7 +38,7 @@ process RNA_FILTERED_BAM {
         """
         ${runtimeExports}
 
-        printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.internal.bam"
+        printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
         pair_count="\$(awk 'NR == 1 { print \$(NF - 1) }' "${alignedBam}")"
         cat > "${splitName}.rna_filter_retention.tsv" <<EOF
 split_id	metric	pairs	unit

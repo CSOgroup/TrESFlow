@@ -7,7 +7,7 @@
                         "id": "test",
                         "single_end": false
                     },
-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
+                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
                 ]
             ],
             {
@@ -41,7 +41,7 @@
                         "id": "test",
                         "single_end": false
                     },
-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
+                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
                 ]
             ],
             {
@@ -76,7 +76,7 @@
                             "id": "test",
                             "single_end": false
                         },
-                        "test.bigWig:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test.bw:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "1": [
@@ -105,7 +105,7 @@
                             "id": "test",
                             "single_end": false
                         },
-                        "test.bigWig:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test.bw:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "versions_deeptools": [
@@ -138,7 +138,7 @@
                         "id": "test",
                         "single_end": false
                     },
-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
+                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
                 ]
             ],
             {

@@ -29,9 +29,7 @@ include { FILTER_CANONICAL_DNA_ALIGNED_BAM } from '../../../modules/local/filter
 include { GATK4_MARKDUPLICATES }     from '../../../modules/nf-core/gatk4/markduplicates/main'
 include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_dna_markduplicates/main'
 include { SPLIT_DUPLICATES_DNA }     from '../../../modules/local/split_duplicates_dna/main'
-include { CHECK_DNA_NODUP_BAM }      from '../../../modules/local/check_dna_nodup_bam/main'
 include { DEEPTOOLS_BAMCOVERAGE }    from '../../../modules/nf-core/deeptools/bamcoverage/main'
-include { NORMALIZE_DNA_BAMCOVERAGE } from '../../../modules/local/normalize_dna_bamcoverage/main'
 
 def asDnaPathList(value) {
     return value instanceof List ? value : [value]
@@ -107,6 +105,16 @@ def restoreDnaMeta(meta) {
     return meta + [id: meta.tres_sample_id ?: meta.id]
 }
 
+def hasMappedDnaReads(mappedReadsFile) {
+    def value = mappedReadsFile.text.trim()
+    if( !(value ==~ /[0-9]+/) ) {
+        throw new IllegalStateException(
+            "Invalid NoDup mapped-read count '${value}' in ${mappedReadsFile}"
+        )
+    }
+    return value.toLong() > 0
+}
+
 workflow DNA_CORE {
     take:
     ch_dna_samples
@@ -177,13 +185,17 @@ workflow DNA_CORE {
     // The plain split FASTQs branch independently: alignment always consumes
     // them directly. The compression process runs only when split publication
     // is enabled.
-    ch_compress_split_input = SPLIT_DNA_READS.out.split_fastqs
-        .map { sampleId, meta, splitR1s, splitR2s ->
-            tuple(sampleId, meta, 'dna', splitR1s, splitR2s)
-        }
+    ch_published_split_fastqs = channel.empty()
+    if( params.publish_split_fastqs ) {
+        ch_compress_split_input = SPLIT_DNA_READS.out.split_fastqs
+            .map { sampleId, meta, splitR1s, splitR2s ->
+                tuple(sampleId, meta, 'dna', splitR1s, splitR2s)
+            }
 
-    COMPRESS_DNA_SPLIT_FASTQS(ch_compress_split_input)
-    ch_versions = ch_versions.mix(COMPRESS_DNA_SPLIT_FASTQS.out.versions)
+        COMPRESS_DNA_SPLIT_FASTQS(ch_compress_split_input)
+        ch_versions = ch_versions.mix(COMPRESS_DNA_SPLIT_FASTQS.out.versions)
+        ch_published_split_fastqs = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
+    }
 
     ch_align_fastqs = SPLIT_DNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
@@ -267,7 +279,12 @@ workflow DNA_CORE {
 
     ch_split_duplicates_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
         .map { splitName, meta, markedDupBam ->
-            tuple(splitName, meta, markedDupBam, file(meta.canonical_chromosomes))
+            tuple(
+                splitName,
+                meta,
+                markedDupBam,
+                (meta.dna_effective_genome_size as String)
+            )
         }
 
     SPLIT_DUPLICATES_DNA(ch_split_duplicates_input)
@@ -275,25 +292,23 @@ workflow DNA_CORE {
 
     ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
         .join(SPLIT_DUPLICATES_DNA.out.bai)
-        .map { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai ->
+        .join(SPLIT_DUPLICATES_DNA.out.mapped_reads)
+        .filter { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
+            hasMappedDnaReads(mappedReadsFile)
+        }
+        .map { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
+            def coverageMeta = metaFromBam + [
+                dna_effective_genome_size: effectiveGenomeSize,
+            ]
             tuple(
-                splitName,
-                metaFromBam,
+                nfcoreDnaMeta(splitName, coverageMeta, 'nodup_coverage'),
                 noDupBam,
-                noDupBai,
-                (metaFromBam.dna_effective_genome_size as String)
+                noDupBai
             )
         }
 
-    CHECK_DNA_NODUP_BAM(ch_nodup_for_coverage)
-    ch_versions = ch_versions.mix(CHECK_DNA_NODUP_BAM.out.versions)
-
-    ch_deeptools_bamcoverage_input = CHECK_DNA_NODUP_BAM.out.ready.map { splitName, meta, noDupBam, noDupBai, effectiveGenomeSize ->
-        tuple(nfcoreDnaMeta(splitName, meta, 'nodup_coverage'), noDupBam, noDupBai)
-    }
-
     DEEPTOOLS_BAMCOVERAGE(
-        ch_deeptools_bamcoverage_input,
+        ch_nodup_for_coverage,
         [],
         [],
         tuple([id: 'no_blacklist'], [])
@@ -301,16 +316,13 @@ workflow DNA_CORE {
     ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_deeptools)
     ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_samtools)
 
-    ch_normalize_bamcoverage_input = DEEPTOOLS_BAMCOVERAGE.out.bigwig.map { nfMeta, bigwig ->
+    ch_coverage_bigwigs = DEEPTOOLS_BAMCOVERAGE.out.bigwig.map { nfMeta, bigwig ->
         tuple(
             nfMeta.tres_split_name as String,
             restoreDnaMeta(nfMeta),
             bigwig
         )
     }
-
-    NORMALIZE_DNA_BAMCOVERAGE(ch_normalize_bamcoverage_input)
-    ch_versions = ch_versions.mix(NORMALIZE_DNA_BAMCOVERAGE.out.versions)
 
     ch_barcode_reports = TAG_DNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_DNA_MODALITY_BARCODE.out.metrics)
@@ -326,7 +338,7 @@ workflow DNA_CORE {
     emit:
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
-    split_fastqs    = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
+    split_fastqs    = ch_published_split_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_DNA_READS.out.retention_metrics
     alignment_retention_metrics = ALIGN_DNA.out.retention_metrics
@@ -337,8 +349,8 @@ workflow DNA_CORE {
     duplicate_metrics = NORMALIZE_DNA_MARKDUPLICATES.out.metrics
     nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
     nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
-    coverage_bigwigs = NORMALIZE_DNA_BAMCOVERAGE.out.bw
-    coverage_warnings = CHECK_DNA_NODUP_BAM.out.warnings
+    coverage_bigwigs = ch_coverage_bigwigs
+    coverage_warnings = SPLIT_DUPLICATES_DNA.out.warnings
     barcode_reports = ch_barcode_reports
     barcode_report_files = ch_barcode_report_files
     tres_tag_records = TAG_DNA_CELL_BARCODE.out.tres_tag_records

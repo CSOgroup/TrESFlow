@@ -14,7 +14,7 @@ process DEEPTOOLS_BAMCOVERAGE {
     tuple val(meta2), path(blacklist)
 
     output:
-    tuple val(meta), path("*.bigWig")  , emit: bigwig  , optional: true
+    tuple val(meta), path("*.bw")      , emit: bigwig  , optional: true
     tuple val(meta), path("*.bedgraph"), emit: bedgraph, optional: true
     tuple val("${task.process}"), val('deeptools'), eval('bamCoverage --version | sed "s/bamCoverage //g"') , emit: versions_deeptools, topic: versions
     tuple val("${task.process}"), val('samtools'), eval("samtools version | sed '1!d;s/.* //'") , emit: versions_samtools, topic: versions
@@ -26,7 +26,7 @@ process DEEPTOOLS_BAMCOVERAGE {
     def args      = task.ext.args ?: ''
     def prefix    = task.ext.prefix ?: "${meta.id}"
     def blacklist_cmd = blacklist ? "--blackListFileName ${blacklist}" : ""
-    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bigWig"
+    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bw"
 
     // cram_input is currently not working with deeptools
     // therefore it's required to convert cram to bam first
@@ -60,7 +60,7 @@ process DEEPTOOLS_BAMCOVERAGE {
 
     stub:
     def prefix    = task.ext.prefix ?: "${meta.id}"
-    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bigWig"
+    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bw"
     """
     touch ${prefix}.${extension}
     """
