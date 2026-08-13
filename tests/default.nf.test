@@ -245,6 +245,7 @@ nextflow_pipeline {
             params {
                 samplesheet = "$projectDir/tests/samplesheets/dual_without_i2.yaml"
                 outdir = "$outputDir"
+                aviti_optical_duplicate_distance = 12
             }
         }
 
@@ -261,12 +262,19 @@ nextflow_pipeline {
             def tagRecords = new java.util.zip.GZIPInputStream(
                 new FileInputStream(new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz"))
             ).getText("UTF-8")
+            def duplicateMetrics = new File(alignDir, "${splitName}.DuplicateMetrics.txt")
+            def reportMetrics = new groovy.json.JsonSlurper().parse(
+                new File(statsDir, "tres_report_metrics.json")
+            )
 
             assertAll(
                 { assert workflow.success },
                 { assert !splitDir.exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam.bai").exists() },
+                { assert duplicateMetrics.exists() },
+                { assert duplicateMetrics.text.contains("READ_PAIR_OPTICAL_DUPLICATES") },
+                { assert duplicateMetrics.text.contains("ESTIMATED_LIBRARY_SIZE") },
                 { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bam.bai").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bw").exists() },
@@ -283,7 +291,9 @@ nextflow_pipeline {
                 { assert tagRecords.contains("L2:Z:TGCATGCA") },
                 { assert tagRecords.contains("L3:Z:GATCGATC") },
                 { assert tagRecords.contains("SB:Z:AAA") },
-                { assert tagRecords.contains("MO:Z:AGGCTATA") }
+                { assert tagRecords.contains("MO:Z:AGGCTATA") },
+                { assert reportMetrics.raw.duplicate_metrics[0].read_pair_optical_duplicates == 0 },
+                { assert reportMetrics.raw.duplicate_metrics[0].estimated_library_size == 0 }
             )
         }
     }

@@ -31,6 +31,22 @@ process GATK4_MARKDUPLICATES {
     // If the extension is CRAM, then change it to BAM
     prefix_bam = prefix.tokenize('.')[-1] == 'cram' ? "${prefix.substring(0, prefix.lastIndexOf('.'))}.bam" : prefix
 
+    if( task.ext.mock ) {
+        prefix_no_suffix = task.ext.prefix ? prefix.tokenize('.')[0] : "${meta.id}"
+        return """
+        # MarkDuplicates arguments: ${args}
+        touch ${prefix_no_suffix}.bam
+        touch ${prefix_no_suffix}.cram
+        touch ${prefix_no_suffix}.cram.crai
+        touch ${prefix_no_suffix}.bai
+        cat > ${prefix}.metrics <<'EOF'
+## mock Picard MarkDuplicates metrics
+LIBRARY	UNPAIRED_READS_EXAMINED	READ_PAIRS_EXAMINED	SECONDARY_OR_SUPPLEMENTARY_RDS	UNMAPPED_READS	UNPAIRED_READ_DUPLICATES	READ_PAIR_DUPLICATES	READ_PAIR_OPTICAL_DUPLICATES	PERCENT_DUPLICATION	ESTIMATED_LIBRARY_SIZE
+mock	0	0	0	0	0	0	0	0.0	0
+EOF
+        """
+    }
+
     def input_list = bam.collect { bam_ -> "--INPUT ${bam_}" }.join(' ')
     def reference = fasta ? "--REFERENCE_SEQUENCE ${fasta}" : ""
 
@@ -63,13 +79,19 @@ process GATK4_MARKDUPLICATES {
     """
 
     stub:
+    def args = task.ext.args ?: ''
     prefix = task.ext.prefix ?: "${meta.id}.bam"
     prefix_no_suffix = task.ext.prefix ? prefix.tokenize('.')[0] : "${meta.id}"
     """
+    # MarkDuplicates arguments: ${args}
     touch ${prefix_no_suffix}.bam
     touch ${prefix_no_suffix}.cram
     touch ${prefix_no_suffix}.cram.crai
     touch ${prefix_no_suffix}.bai
-    touch ${prefix}.metrics
+    cat > ${prefix}.metrics <<'EOF'
+## mock Picard MarkDuplicates metrics
+LIBRARY	UNPAIRED_READS_EXAMINED	READ_PAIRS_EXAMINED	SECONDARY_OR_SUPPLEMENTARY_RDS	UNMAPPED_READS	UNPAIRED_READ_DUPLICATES	READ_PAIR_DUPLICATES	READ_PAIR_OPTICAL_DUPLICATES	PERCENT_DUPLICATION	ESTIMATED_LIBRARY_SIZE
+mock	0	0	0	0	0	0	0	0.0	0
+EOF
     """
 }

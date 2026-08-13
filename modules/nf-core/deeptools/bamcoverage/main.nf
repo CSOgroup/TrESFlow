@@ -34,6 +34,12 @@ process DEEPTOOLS_BAMCOVERAGE {
     def input_out = is_cram ? input.BaseName + ".bam" : "${input}"
     def fai_reference = fasta_fai ? "--fai-reference ${fasta_fai}" : ""
 
+    if( task.ext.mock ) {
+        return """
+        touch ${prefix}.${extension}
+        """
+    }
+
     if (is_cram){
         """
         samtools view -T $fasta $input $fai_reference -@ $task.cpus -o $input_out

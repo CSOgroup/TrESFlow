@@ -168,6 +168,8 @@ def read_duplicate_metrics(path: Path):
         percent_dup = parse_number(values.get("PERCENT_DUPLICATION", ""))
         read_pairs = parse_number(values.get("READ_PAIRS_EXAMINED", ""))
         read_pair_duplicates = parse_number(values.get("READ_PAIR_DUPLICATES", ""))
+        optical_duplicates = parse_number(values.get("READ_PAIR_OPTICAL_DUPLICATES", ""))
+        estimated_library_size = parse_number(values.get("ESTIMATED_LIBRARY_SIZE", ""))
         unpaired_reads = parse_number(values.get("UNPAIRED_READS_EXAMINED", ""))
         unpaired_duplicates = parse_number(values.get("UNPAIRED_READ_DUPLICATES", ""))
         return {
@@ -177,6 +179,8 @@ def read_duplicate_metrics(path: Path):
             "unique_percent": (1.0 - float(percent_dup)) * 100.0 if percent_dup is not None else None,
             "read_pairs_examined": int(read_pairs) if read_pairs is not None else None,
             "read_pair_duplicates": int(read_pair_duplicates) if read_pair_duplicates is not None else None,
+            "read_pair_optical_duplicates": int(optical_duplicates) if optical_duplicates is not None else None,
+            "estimated_library_size": int(estimated_library_size) if estimated_library_size is not None else None,
             "unpaired_reads_examined": int(unpaired_reads) if unpaired_reads is not None else None,
             "unpaired_read_duplicates": int(unpaired_duplicates) if unpaired_duplicates is not None else None,
         }

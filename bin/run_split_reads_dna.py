@@ -9,7 +9,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from tresflow_fastq_utils import (
-    canonicalize_fastq_comment,
+    canonicalize_dna_fastq_comment,
     fastq_iter,
     find_tag_value,
     load_sb_group_map,
@@ -129,7 +129,7 @@ def mock_split(args):
 
     r1_handles = OrderedDict()
     r2_handles = OrderedDict()
-    target_barcodes = {}
+    target_read_groups = {}
 
     for group_name, mark_name in targets:
         stem = f"{args.sample}_{group_name}_{mark_name}"
@@ -143,7 +143,7 @@ def mock_split(args):
             "wt",
             encoding="utf-8",
         )
-        target_barcodes[(group_name, mark_name)] = set()
+        target_read_groups[(group_name, mark_name)] = set()
 
     processed = 0
     accepted = 0
@@ -176,12 +176,21 @@ def mock_split(args):
 
             key = (group_name, mark_name)
             branch_counts[key] += 1
-            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment)
-            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment)
-            canonical_cb = find_tag_value(r1_comment, "CB")
+            r1_comment = canonicalize_dna_fastq_comment(
+                args.sample, group_name, r1_name, r1_comment
+            )
+            r2_comment = canonicalize_dna_fastq_comment(
+                args.sample, group_name, r2_name, r2_comment
+            )
+            r1_rg = find_tag_value(r1_comment, "RG")
+            r2_rg = find_tag_value(r2_comment, "RG")
+            if r1_rg != r2_rg:
+                raise ValueError(
+                    f"Paired DNA reads resolve to different AVITI lane read groups: {r1_rg} != {r2_rg}"
+                )
             write_fastq_record(r1_handles[key], r1_name, r1_comment, r1_rec[1], r1_rec[3])
             write_fastq_record(r2_handles[key], r2_name, r2_comment, r2_rec[1], r2_rec[3])
-            target_barcodes[key].add(canonical_cb)
+            target_read_groups[key].add(r1_rg)
     finally:
         for handle in r1_handles.values():
             handle.close()
@@ -190,7 +199,12 @@ def mock_split(args):
 
     for group_name, mark_name in targets:
         header_path = args.output_dir / f"SAM_RG_Header_{args.sample}_{group_name}_{mark_name}.tsv"
-        write_rg_header(header_path, args.sample, args.library_name, target_barcodes[(group_name, mark_name)])
+        write_rg_header(
+            header_path,
+            args.sample,
+            args.library_name,
+            target_read_groups[(group_name, mark_name)],
+        )
 
     metrics_path = args.output_dir / f"{args.sample}.dna_read_retention.tsv"
     with metrics_path.open("wt", encoding="utf-8") as handle:

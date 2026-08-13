@@ -7,6 +7,8 @@
  *     -M <sample>.DuplicateMetrics.txt \
  *     --REMOVE_DUPLICATES false \
  *     --BARCODE_TAG CB \
+ *     --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \
+ *     --OPTICAL_DUPLICATE_PIXEL_DISTANCE <aviti_optical_duplicate_distance> \
  *     --CREATE_INDEX true \
  *     --MAX_RECORDS_IN_RAM 10000000
  *
@@ -78,6 +80,8 @@ EOF
           -M "${splitName}.DuplicateMetrics.txt" \\
           --REMOVE_DUPLICATES false \\
           --BARCODE_TAG CB \\
+          --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \\
+          --OPTICAL_DUPLICATE_PIXEL_DISTANCE "${params.aviti_optical_duplicate_distance}" \\
           --CREATE_INDEX true \\
           --MAX_RECORDS_IN_RAM 10000000
 

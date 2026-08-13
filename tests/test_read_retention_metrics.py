@@ -28,7 +28,8 @@ SPLIT_DNA = load_module("retention_split_dna", "bin/run_split_reads_dna.py")
 def write_fastq(path, comments):
     with path.open("w", encoding="utf-8") as handle:
         for index, comment in enumerate(comments, start=1):
-            handle.write(f"@read{index} {comment}\nACGTACGTACGTACGTACGT\n+\nIIIIIIIIIIIIIIIIIIII\n")
+            read_name = f"AV240401:AVT0507:2528453125:1:11104:{index}:3419:UMI{index}"
+            handle.write(f"@{read_name} {comment}\nACGTACGTACGTACGTACGT\n+\nIIIIIIIIIIIIIIIIIIII\n")
 
 
 def read_metrics(path):
@@ -250,6 +251,16 @@ class ReadRetentionMetricTests(unittest.TestCase):
             values = {row["metric"]: int(row["pairs"]) for row in read_metrics(metrics)}
             self.assertEqual(values["trimmed_input_pairs"], 2)
             self.assertEqual(values["joint_barcode_accepted_pairs"], 1)
+            if mode == "dna":
+                header = next(output.glob("SAM_RG_Header_sample_*.tsv")).read_text(
+                    encoding="utf-8"
+                )
+                split_header = next(output.glob("sample_*_R1.fastq")).read_text(
+                    encoding="utf-8"
+                ).splitlines()[0]
+                self.assertIn("@RG\tID:ACGT_L1\tSM:sample\tLB:library", header)
+                self.assertIn("CB:Z:ACGT", split_header)
+                self.assertIn("RG:Z:ACGT_L1", split_header)
 
     def test_real_codon_rna_split_emits_retention_metrics(self):
         self.run_real_codon_split("rna")

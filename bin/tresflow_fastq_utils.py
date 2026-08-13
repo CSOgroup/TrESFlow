@@ -2,6 +2,7 @@
 
 import gzip
 import os
+import re
 import shutil
 import sys
 import time
@@ -11,6 +12,9 @@ from pathlib import Path
 
 FASTQ_SUFFIXES = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
 CANONICAL_CELL_TAG = "XI"
+AVITI_QNAME_PATTERN = re.compile(
+    r"^[^:]+:[^:]+:[^:]+:([0-9]+):([0-9]+):([0-9]+):([0-9]+):[^:]+$"
+)
 
 
 def resolve_temp_root() -> Path:
@@ -195,6 +199,22 @@ def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
     return f"{sample}_{group_name}_{cell_barcode}"
 
 
+def parse_aviti_qname(read_name: str):
+    """Return AVITI lane, tile, x, and y as integers from a FASTQ/BAM read name."""
+    match = AVITI_QNAME_PATTERN.fullmatch(read_name)
+    if match is None:
+        raise ValueError(
+            "DNA read name does not match the expected AVITI format "
+            f"instrument:run:flowcell:lane:tile:x:y:UMI: {read_name}"
+        )
+    return tuple(int(value) for value in match.groups())
+
+
+def aviti_lane_read_group(cell_barcode: str, lane: int) -> str:
+    """Build a SAM-safe, lane-qualified physical read-group ID."""
+    return f"{cell_barcode}_L{lane}"
+
+
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
     candidate_prefixes = [sb]
     if len(sb) > 1:
@@ -212,7 +232,12 @@ def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> s
     )
 
 
-def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> str:
+def canonicalize_fastq_comment(
+    sample: str,
+    group_name: str,
+    comment: str,
+    read_group: str = None,
+) -> str:
     cb = find_tag_value(comment, "CB")
     sb = find_tag_value(comment, "SB")
     if not cb or not sb:
@@ -221,6 +246,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         )
 
     technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+    output_read_group = read_group if read_group is not None else technical_cell
     canonical = canonical_cell_id(sample, group_name, technical_cell)
     tokens = []
     has_rg = False
@@ -229,7 +255,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         if token.startswith("CB:"):
             tokens.append(f"CB:Z:{technical_cell}")
         elif token.startswith("RG:"):
-            tokens.append(f"RG:Z:{technical_cell}")
+            tokens.append(f"RG:Z:{output_read_group}")
             has_rg = True
         elif token.startswith(f"{CANONICAL_CELL_TAG}:"):
             tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
@@ -237,10 +263,29 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         else:
             tokens.append(token)
     if not has_rg:
-        tokens.append(f"RG:Z:{technical_cell}")
+        tokens.append(f"RG:Z:{output_read_group}")
     if not has_canonical:
         tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
     return "\t".join(tokens)
+
+
+def canonicalize_dna_fastq_comment(
+    sample: str,
+    group_name: str,
+    read_name: str,
+    comment: str,
+) -> str:
+    """Canonicalize DNA cell tags while making RG identify the AVITI lane."""
+    lane, _, _, _ = parse_aviti_qname(read_name)
+    cb = find_tag_value(comment, "CB")
+    sb = find_tag_value(comment, "SB")
+    if not cb or not sb:
+        raise ValueError(
+            f"Missing CB or SB tag while canonicalizing cell ID for sample {sample} group {group_name}"
+        )
+    technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+    read_group = aviti_lane_read_group(technical_cell, lane)
+    return canonicalize_fastq_comment(sample, group_name, comment, read_group=read_group)
 
 
 def load_sb_group_map(path: Path, sample: str):
@@ -300,7 +345,12 @@ def write_fastq_record(handle, name: str, comment: str, seq: str, qual: str):
     handle.write("\n")
 
 
-def write_rg_header(path: Path, sample: str, library_name: str, barcodes):
+def write_rg_header(path: Path, sample: str, library_name: str, read_groups):
     with open(path, "wt", encoding="utf-8") as handle:
-        for barcode in sorted(barcodes):
-            handle.write(f"@RG\tID:{barcode}\tSM:{sample}\tLB:{library_name}\tPL:ELEMENT\tPM:AVITI_500MIO\n")
+        for read_group in sorted(read_groups):
+            # All lane-specific RGs share LB so Picard still groups genomic
+            # duplicates across lanes; RG only separates physical locations.
+            handle.write(
+                f"@RG\tID:{read_group}\tSM:{sample}\tLB:{library_name}"
+                "\tPL:ELEMENT\tPM:AVITI_500MIO\n"
+            )

@@ -142,14 +142,19 @@ class FastqCompressionTests(unittest.TestCase):
         dna_comment = f"CB:Z:AAA{cell_barcode}\tRG:Z:AAA{cell_barcode}\tMO:Z:AGGCTATA\tSB:Z:AAA"
 
         rna_canonical = SPLIT_RNA.canonicalize_fastq_comment("sample1", "Normal", rna_comment)
-        dna_canonical = SPLIT_DNA.canonicalize_fastq_comment("sample1", "Normal", dna_comment)
+        dna_canonical = SPLIT_DNA.canonicalize_dna_fastq_comment(
+            "sample1",
+            "Normal",
+            "AV240401:AVT0507:2528453125:1:11104:5031:3419:ACGT",
+            dna_comment,
+        )
         expected = f"sample1_Normal_{cell_barcode}"
 
         self.assertIn(f"CB:Z:{cell_barcode}", rna_canonical)
         self.assertIn(f"RG:Z:{cell_barcode}", rna_canonical)
         self.assertIn(f"XI:Z:{expected}", rna_canonical)
         self.assertIn(f"CB:Z:{cell_barcode}", dna_canonical)
-        self.assertIn(f"RG:Z:{cell_barcode}", dna_canonical)
+        self.assertIn(f"RG:Z:{cell_barcode}_L1", dna_canonical)
         self.assertIn(f"XI:Z:{expected}", dna_canonical)
         self.assertIn("SB:Z:CAGT", rna_canonical)
         self.assertIn("SB:Z:AAA", dna_canonical)

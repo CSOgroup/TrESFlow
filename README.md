@@ -179,6 +179,7 @@ Default local CPU budget:
 - `--max_cpus 64`
 - `--cleanup_work true`, which removes successful task work directories after a successful run.
 - `--publish_split_fastqs false`; enable it to publish gzip-compressed RNA and DNA split FASTQ copies.
+- `--aviti_optical_duplicate_distance 10`; this empirical AVITI 500 coordinate threshold is configurable and is not an Illumina pixel-distance setting.
 - `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
 - `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
 - `RNA_COVERAGE` and `DEEPTOOLS_BAMCOVERAGE` default to `--coverage_cpus 8`.
@@ -190,6 +191,14 @@ Default local CPU budget:
 Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses Nextflow's successful-run cleanup to remove task work directories after outputs have been published and downstream tasks have completed. This substantially reduces retained `work/` storage, but cleaned tasks are not expected to be usable with `--resume`. Set `--cleanup_work false` when you need the previous resume-friendly behavior for debugging or iterative development.
 
 DNA alignment no longer removes low-count cell barcodes during `ALIGN_DNA`. The aligned BAM still keeps proper-pair mapped, non-blacklisted reads; duplicate removal is represented later by `*_NoDup.bam`.
+
+DNA duplicate marking uses the corrected cell barcode in `CB` for biological
+duplicate grouping. Its AVITI QNAME parser extracts tile/x/y, and lane-qualified
+`RG` IDs prevent spatial-coordinate collisions between lanes while a shared
+`LB` preserves same-cell genomic duplicate grouping across lanes. Picard's
+published `ESTIMATED_LIBRARY_SIZE` is the pipeline library-complexity estimate;
+the default spatial cutoff of 10 AVITI coordinate units was calibrated on one
+AVITI run/flowcell and remains configurable.
 
 Every run writes:
 

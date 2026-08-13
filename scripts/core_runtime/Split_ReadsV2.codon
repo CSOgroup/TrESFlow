@@ -104,6 +104,35 @@ def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
 	return sample + "_" + group_name + "_" + cell_barcode
 
 
+def is_decimal(value: str) -> bool:
+	if not value:
+		return False
+	for char in value:
+		if char < '0' or char > '9':
+			return False
+	return True
+
+
+def parse_aviti_lane(read_name: str) -> int:
+	parts = read_name.split(":")
+	if (
+		len(parts) != 8 or
+		not parts[0] or not parts[1] or not parts[2] or not parts[7] or
+		not is_decimal(parts[3]) or not is_decimal(parts[4]) or
+		not is_decimal(parts[5]) or not is_decimal(parts[6])
+	):
+		sys.stderr.write(
+			"ERROR: DNA read name does not match expected AVITI format " +
+			"instrument:run:flowcell:lane:tile:x:y:UMI: " + read_name + "\n"
+		)
+		sys.exit(1)
+	return int(parts[3])
+
+
+def aviti_lane_read_group(cell_barcode: str, lane: int) -> str:
+	return cell_barcode + "_L" + str(lane)
+
+
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
 	if cb.startswith(sb):
 		cell = cb[len(sb):]
@@ -125,7 +154,12 @@ def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> s
 	return ""
 
 
-def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> str:
+def canonicalize_fastq_comment(
+	sample: str,
+	group_name: str,
+	comment: str,
+	read_group: str = ""
+	) -> str:
 	cb, mo, sb = get_cb_mo_sb(comment)
 	if not cb:
 		cb, sb = get_cb_sb(comment)
@@ -138,6 +172,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 		sys.exit(1)
 
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+	output_read_group = read_group if read_group else technical_cell
 	canonical = canonical_cell_id(sample, group_name, technical_cell)
 	out: List[str] = []
 	has_rg = False
@@ -147,7 +182,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 		if token.startswith("CB:"):
 			out.append("CB:Z:" + technical_cell)
 		elif token.startswith("RG:"):
-			out.append("RG:Z:" + technical_cell)
+			out.append("RG:Z:" + output_read_group)
 			has_rg = True
 		elif token.startswith(CANONICAL_CELL_TAG + ":"):
 			out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
@@ -156,11 +191,32 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 			out.append(token)
 
 	if not has_rg:
-		out.append("RG:Z:" + technical_cell)
+		out.append("RG:Z:" + output_read_group)
 	if not has_canonical:
 		out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
 
 	return "\t".join(out)
+
+
+def canonicalize_dna_fastq_comment(
+	sample: str,
+	group_name: str,
+	read_name: str,
+	comment: str
+	) -> str:
+	lane = parse_aviti_lane(read_name)
+	cb, _, sb = get_cb_mo_sb(comment)
+	if not cb:
+		cb, sb = get_cb_sb(comment)
+	if (not cb) or (not sb):
+		sys.stderr.write(
+			"ERROR: Missing CB or SB tag while canonicalizing cell ID for sample " +
+			sample + " group " + group_name + "\n"
+		)
+		sys.exit(1)
+	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+	read_group = aviti_lane_read_group(technical_cell, lane)
+	return canonicalize_fastq_comment(sample, group_name, comment, read_group)
 
 
 # -----------------------------
@@ -315,11 +371,13 @@ def load_mo_map_tsv(map_path: str, sample: str, group_to_gid: Dict[str, int], us
 	return mo_list, mo_gid, mo_mark_idx, idx_to_mark
 
 
-def write_SAM_RG_Header(sample: str, lib: str, out_path: str, passing_BCs: Set[str]) -> None:
+def write_SAM_RG_Header(sample: str, lib: str, out_path: str, read_groups: Set[str]) -> None:
 	with open(out_path, "w") as fh:
-		for bc in passing_BCs:
+		# A shared LB keeps genomic duplicate grouping cross-lane; lane-qualified
+		# RG values are used only to distinguish physical AVITI locations.
+		for read_group in read_groups:
 			fh.write("@RG\tID:")
-			fh.write(bc)
+			fh.write(read_group)
 			fh.write("\tSM:")
 			fh.write(sample)
 			fh.write("\tLB:")
@@ -457,10 +515,10 @@ def MakeRecordNameList_DNA(
 
 	r1_fhs = []
 	r2_fhs = []
-	bc_sets: List[Set[str]] = []
+	rg_sets: List[Set[str]] = []
 
 	for i in range(total_slots):
-		bc_sets.append(Set[str]())
+		rg_sets.append(Set[str]())
 		if used[i] == 1:
 			gid = i // n_marks
 			midx = i - gid * n_marks
@@ -480,7 +538,7 @@ def MakeRecordNameList_DNA(
 
 	unknown_r1 = open("/dev/null", "w")
 	unknown_r2 = open("/dev/null", "w")
-	unknown_bcs: Set[str] = Set[str]()
+	unknown_read_groups: Set[str] = Set[str]()
 	unknown_count = 0
 	unknown_mo_count = 0
 
@@ -505,6 +563,9 @@ def MakeRecordNameList_DNA(
 	for rec1 in R1_gen:
 		rec2 = next(R2_it)
 		processed += 1
+		if rec1.name != rec2.name:
+			sys.stderr.write("ERROR: Paired DNA read name mismatch: " + rec1.name + " != " + rec2.name + "\n")
+			sys.exit(1)
 
 		if processed >= next_report:
 			sys.stdout.write("\r")
@@ -527,6 +588,12 @@ def MakeRecordNameList_DNA(
 		if use_sb:
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
 		group_counts[gid] += 1
+		group_name = idx_to_group[gid] if use_sb else sample
+		lane1 = parse_aviti_lane(rec1.name)
+		lane2 = parse_aviti_lane(rec2.name)
+		if lane1 != lane2:
+			sys.stderr.write("ERROR: Paired DNA reads resolve to different AVITI lanes\n")
+			sys.exit(1)
 
 		midx = find_mark_for_mo(mo, gid, mo_list, mo_gid, mo_mark_idx)
 		if midx < 0:
@@ -537,9 +604,12 @@ def MakeRecordNameList_DNA(
 			elif unknown_mode == 2:
 				seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 				seq2 = str(rec2.seq); qual2 = str(rec2.qual)
-				write_fastq_record(unknown_r1, rec1.name, rec1.comment, seq1, qual1)
-				write_fastq_record(unknown_r2, rec2.name, rec2.comment, seq2, qual2)
-				unknown_bcs.add(cb)
+				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
+				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
+				canonical_cb, _, _ = get_cb_mo_sb(comment1)
+				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
+				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
+				unknown_read_groups.add(aviti_lane_read_group(canonical_cb, lane1))
 				continue
 			else:
 				sys.stderr.write("ERROR: MO barcode not found for sample " + sample + ": " + mo + "\n")
@@ -550,15 +620,14 @@ def MakeRecordNameList_DNA(
 			sys.stderr.write("ERROR: internal: slot not marked used but read mapped to it\n")
 			sys.exit(1)
 
-		group_name = idx_to_group[gid] if use_sb else sample
-		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
-		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment)
+		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
+		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
 		canonical_cb, _, _ = get_cb_mo_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
 		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
-		bc_sets[slot].add(canonical_cb)
+		rg_sets[slot].add(aviti_lane_read_group(canonical_cb, lane1))
 		branch_counts[slot] += 1
 
 	sys.stdout.write("\rFinished processing ")
@@ -592,12 +661,12 @@ def MakeRecordNameList_DNA(
 		else:
 			hpath = out_folder + "/SAM_RG_Header_" + sample + "_" + mark + ".tsv"
 
-		write_SAM_RG_Header(sample, lib_name, hpath, bc_sets[i])
+		write_SAM_RG_Header(sample, lib_name, hpath, rg_sets[i])
 
 	unknown_r1.close()
 	unknown_r2.close()
 	if unknown_mode == 2:
-		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_bcs)
+		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_read_groups)
 
 	metric_group_names: List[str] = idx_to_group if use_sb else [sample]
 	metric_branch_names: List[str] = []

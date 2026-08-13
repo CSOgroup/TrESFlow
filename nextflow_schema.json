@@ -86,6 +86,12 @@
                     "description": "Default local CPU reservation for RNA_COVERAGE and DEEPTOOLS_BAMCOVERAGE. The value is capped by --max_cpus.",
                     "default": 8
                 },
+                "aviti_optical_duplicate_distance": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Empirical AVITI coordinate-distance threshold used by Picard MarkDuplicates for spatial/optical duplicate classification. Default 10, calibrated on AVITI 500 data. This is not an Illumina pixel-distance setting and may be overridden for independently calibrated datasets.",
+                    "default": 10
+                },
                 "publish_dir_mode": {
                     "type": "string",
                     "description": "PublishDir mode applied by the lightweight modules.config layer.",

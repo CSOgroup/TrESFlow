@@ -9,6 +9,22 @@ def loadGroovySupportClass(sourcePath) {
     loader.parseClass(new java.io.File(sourcePath.toString()))
 }
 
+def parseNonNegativeIntegerParameter(rawValue, String parameterName) {
+    def text = rawValue?.toString()?.trim()
+    if( !text || !(text ==~ /[0-9]+/) ) {
+        throw new IllegalArgumentException(
+            "Parameter --${parameterName} must be a non-negative integer; received '${rawValue}'."
+        )
+    }
+    def parsed = new BigInteger(text)
+    if( parsed > Integer.MAX_VALUE ) {
+        throw new IllegalArgumentException(
+            "Parameter --${parameterName} exceeds the supported integer range: '${rawValue}'."
+        )
+    }
+    return parsed.intValue()
+}
+
 workflow {
     def runtimeSupport = loadGroovySupportClass("${projectDir}/lib/RuntimeSupport.groovy")
     def samplesheetParser = loadGroovySupportClass("${projectDir}/lib/SamplesheetParser.groovy")
@@ -16,6 +32,16 @@ workflow {
     def rawSamplesheet = params.get('samplesheet')
     def rawOutdir = params.get('outdir')
     def rawCoreScriptsDir = params.get('core_scripts_dir')
+    def avitiOpticalDuplicateDistance = null
+    try {
+        avitiOpticalDuplicateDistance = parseNonNegativeIntegerParameter(
+            params.get('aviti_optical_duplicate_distance'),
+            'aviti_optical_duplicate_distance'
+        )
+    }
+    catch( IllegalArgumentException e ) {
+        error e.message
+    }
 
     def resolvedSamplesheet = runtimeSupport.resolveLaunchPath(
         launchDir.toString(),
@@ -36,6 +62,7 @@ workflow {
     params.put('samplesheet', resolvedSamplesheet)
     params.put('outdir', resolvedOutdir)
     params.put('core_scripts_dir', resolvedCoreScriptsDir)
+    params.put('aviti_optical_duplicate_distance', avitiOpticalDuplicateDistance)
     java.lang.System.setProperty('tresflow.resolvedOutdir', resolvedOutdir)
     java.lang.System.setProperty('tresflow.resolvedCoreScriptsDir', resolvedCoreScriptsDir)
 

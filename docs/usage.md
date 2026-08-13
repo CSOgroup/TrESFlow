@@ -201,8 +201,24 @@ The main public parameters are:
 - `--helper_cpus`
 - `--tagging_cpus`
 - `--tagging_memory`
+- `--aviti_optical_duplicate_distance`
 
 Deprecated runtime/reference CLI parameters now fail with a hard error.
+
+`--aviti_optical_duplicate_distance` is a non-negative integer and defaults to
+`10`. It is the empirical AVITI coordinate-distance threshold passed to Picard
+MarkDuplicates for spatial/optical duplicate classification. The value was
+calibrated on AVITI 500 data, is expressed in AVITI coordinate units, and is
+not an Illumina pixel-distance setting or a universal Element-defined value.
+Override it only for an independently calibrated dataset.
+
+DNA duplicate grouping remains cell-aware through the corrected 24-base `CB`
+tag. AVITI read names preserve `lane:tile:x:y`; TrESFlow parses those names with
+an AVITI-specific Picard regex and writes lane-qualified DNA read groups such
+as `<CB>_L1`. All lane-specific read groups for a logical library have the same
+`LB`, so ordinary genomic/PCR duplicate families can span lanes for the same
+cell while Picard's physical comparison cannot collide coordinates from two
+different lanes. RNA read-group behavior is unchanged.
 
 `--publish_split_fastqs` defaults to `false`. Internal plain split FASTQs still
 feed RNA and DNA computation, but the publication-only `pigz` tasks and the
