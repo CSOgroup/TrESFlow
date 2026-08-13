@@ -263,9 +263,24 @@ nextflow_pipeline {
                 new FileInputStream(new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz"))
             ).getText("UTF-8")
             def duplicateMetrics = new File(alignDir, "${splitName}.DuplicateMetrics.txt")
+            def artifactJson = new File(
+                statsDir,
+                "${sampleId}.dual_tag_artifact_filter.cutadapt.json"
+            )
+            def artifactSummary = new File(
+                statsDir,
+                "${sampleId}.dual_tag_artifact_filter.summary.tsv"
+            )
             def reportMetrics = new groovy.json.JsonSlurper().parse(
                 new File(statsDir, "tres_report_metrics.json")
             )
+            def artifactReport = new groovy.json.JsonSlurper().parse(artifactJson)
+            def artifactSummaryLines = artifactSummary.readLines()
+            def artifactSummaryValues = artifactSummaryLines.size() == 2
+                ? [artifactSummaryLines[0].split('\t'), artifactSummaryLines[1].split('\t')]
+                    .transpose()
+                    .collectEntries()
+                : [:]
 
             assertAll(
                 { assert workflow.success },
@@ -275,6 +290,13 @@ nextflow_pipeline {
                 { assert duplicateMetrics.exists() },
                 { assert duplicateMetrics.text.contains("READ_PAIR_OPTICAL_DUPLICATES") },
                 { assert duplicateMetrics.text.contains("ESTIMATED_LIBRARY_SIZE") },
+                { assert artifactJson.exists() },
+                { assert artifactSummary.exists() },
+                { assert artifactSummaryLines.size() == 2 },
+                { assert artifactReport.read_counts.input == (artifactSummaryValues.input_pairs as int) },
+                { assert artifactReport.read_counts.output == (artifactSummaryValues.retained_pairs as int) },
+                { assert artifactReport.read_counts.filtered.discard_trimmed == (artifactSummaryValues.rejected_pairs as int) },
+                { assert (artifactSummaryValues.input_pairs as int) == (artifactSummaryValues.retained_pairs as int) + (artifactSummaryValues.rejected_pairs as int) },
                 { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bam.bai").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bw").exists() },
@@ -293,7 +315,33 @@ nextflow_pipeline {
                 { assert tagRecords.contains("SB:Z:AAA") },
                 { assert tagRecords.contains("MO:Z:AGGCTATA") },
                 { assert reportMetrics.raw.duplicate_metrics[0].read_pair_optical_duplicates == 0 },
-                { assert reportMetrics.raw.duplicate_metrics[0].estimated_library_size == 0 }
+                { assert reportMetrics.raw.duplicate_metrics[0].estimated_library_size == 0 },
+                { assert reportMetrics.raw.dual_tag_artifact_filters[0].sample_id == sampleId }
+            )
+        }
+    }
+
+    test("dual tagmentation bypasses artifact filtering when disabled") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_without_i2.yaml"
+                outdir = "$outputDir"
+                filter_dual_tag_artifacts = false
+            }
+        }
+
+        then {
+            def sampleId = "dual_no_i2"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def alignDir = new File(outputDir, "dna_align")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.cutadapt.json").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.summary.tsv").exists() }
             )
         }
     }
@@ -325,6 +373,8 @@ nextflow_pipeline {
                 { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.cutadapt.json").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.summary.tsv").exists() },
                 { assert tagRecords.contains("SB:Z:CGTA") },
                 { assert tagRecords.contains("MO:Z:TTTACGTA") }
             )

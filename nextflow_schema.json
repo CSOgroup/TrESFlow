@@ -92,6 +92,11 @@
                     "description": "Empirical AVITI coordinate-distance threshold used by Picard MarkDuplicates for spatial/optical duplicate classification. Default 10, calibrated on AVITI 500 data. This is not an Illumina pixel-distance setting and may be overridden for independently calibrated datasets.",
                     "default": 10
                 },
+                "filter_dual_tag_artifacts": {
+                    "type": "boolean",
+                    "description": "Discard dual-tagmentation DNA read pairs when either mate contains an audited exact 23-nt linker signature. Enabled by default and never applied to single-tagmentation or RNA reads.",
+                    "default": true
+                },
                 "publish_dir_mode": {
                     "type": "string",
                     "description": "PublishDir mode applied by the lightweight modules.config layer.",

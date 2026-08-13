@@ -187,6 +187,32 @@ def read_duplicate_metrics(path: Path):
     return {"file": path.name}
 
 
+def read_dual_tag_artifact_summary(path: Path):
+    lines = [line for line in path.read_text(errors="replace").splitlines() if line.strip()]
+    if len(lines) != 2:
+        raise ValueError(f"Expected exactly one data row in dual-tag artifact summary: {path}")
+    header = lines[0].split("\t")
+    values = lines[1].split("\t")
+    if len(header) != len(values):
+        raise ValueError(f"Malformed dual-tag artifact summary: {path}")
+    result = dict(zip(header, values))
+    for key in (
+        "input_pairs",
+        "retained_pairs",
+        "rejected_pairs",
+        "r1_with_signature",
+        "r2_with_signature",
+    ):
+        parsed = parse_number(result.get(key, ""))
+        result[key] = int(parsed) if parsed is not None else None
+    rejected_fraction = parse_number(result.get("rejected_fraction", ""))
+    result["rejected_fraction"] = (
+        float(rejected_fraction) if rejected_fraction is not None else None
+    )
+    result["file"] = path.name
+    return result
+
+
 def strip_suffix(name: str, suffix: str) -> str:
     return name[: -len(suffix)] if name.endswith(suffix) else name
 
@@ -198,6 +224,7 @@ def collect_inputs(input_dir: Path):
     star_logs = []
     flagstats = []
     duplicate_metrics = []
+    dual_tag_artifact_filters = []
     samtools_stats = []
 
     for path in files:
@@ -239,6 +266,12 @@ def collect_inputs(input_dir: Path):
             sample = re.sub(r"\.dna_cell\.stats_L[123]\.tsv$", "", name)
             samples[sample]["sample_id"] = sample
             samples[sample]["dna"].setdefault("cell_barcode", []).append(read_tsv_stats(path))
+        elif name.endswith(".dual_tag_artifact_filter.summary.tsv"):
+            sample = strip_suffix(name, ".dual_tag_artifact_filter.summary.tsv")
+            summary = read_dual_tag_artifact_summary(path)
+            samples[sample]["sample_id"] = sample
+            samples[sample]["dna"]["dual_tag_artifact_filter"] = summary
+            dual_tag_artifact_filters.append(summary)
         elif name == "Summary.csv":
             split = path.parent.name.replace(".Solo.outGeneFull", "")
             values = read_csv_key_values(path)
@@ -261,6 +294,7 @@ def collect_inputs(input_dir: Path):
         "star_logs": star_logs,
         "flagstats": flagstats,
         "duplicate_metrics": duplicate_metrics,
+        "dual_tag_artifact_filters": dual_tag_artifact_filters,
         "samtools_stats": samtools_stats,
         "input_file_count": len(files),
     }
@@ -486,6 +520,7 @@ def build_metrics(collected, library_name="unknown library"):
             "rna_summary_count": len(collected["rna_summaries"]),
             "flagstat_count": len(collected["flagstats"]),
             "duplicate_metrics_count": len(collected["duplicate_metrics"]),
+            "dual_tag_artifact_filter_count": len(collected["dual_tag_artifact_filters"]),
             "samtools_stats_count": len(collected["samtools_stats"]),
         },
         "raw": collected,

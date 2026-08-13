@@ -4,6 +4,7 @@ class RuntimeSupport {
 
     private static final List<Map> STANDARD_RUNTIME_TOOLS = [
         [name: 'python3', binary: 'python3'],
+        [name: 'cutadapt', binary: 'cutadapt'],
         [name: 'trim_galore', binary: 'trim_galore'],
         [name: 'STAR', binary: 'STAR'],
         [name: 'samtools', binary: 'samtools'],
@@ -261,6 +262,7 @@ class RuntimeSupport {
             RUNTIME_BIN_DIR        : binDir,
             TMPDIR                 : tmpdir,
             PYTHON3_BIN            : "${binDir}/python3",
+            CUTADAPT_BIN           : "${binDir}/cutadapt",
             TRIM_GALORE_BIN        : "${binDir}/trim_galore",
             STAR_BIN               : "${binDir}/STAR",
             SAMTOOLS_BIN           : "${binDir}/samtools",

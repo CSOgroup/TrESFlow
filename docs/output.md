@@ -109,8 +109,18 @@ Tagging summaries are published with modality-specific names:
 - `<sample>.dna_cell.stats_L2.tsv`
 - `<sample>.dna_cell.stats_L3.tsv`
 - `<sample>.dna_tag_records.tsv.gz`
+- `<sample>.dual_tag_artifact_filter.cutadapt.json` for filtered dual-tag samples
+- `<sample>.dual_tag_artifact_filter.summary.tsv` for filtered dual-tag samples
 
 Tag-record tables are emitted only as final gzip artifacts; no complete uncompressed tag-record copy is retained.
+
+The dual-tag artifact summary reports input, retained, and rejected read-pair
+counts; per-mate signature counts; Cutadapt version; and the audited signature
+FASTA SHA-256. Its accounting is validated as `input_pairs = retained_pairs +
+rejected_pairs`. The raw Cutadapt JSON and summary TSV are also supplied to the
+shared report/QC collection. No rejected or transient cleaned FASTQs are
+published. These files are absent for single-tagmentation samples and when
+`--filter_dual_tag_artifacts false`.
 
 ### Read-retention counters in `TrES_Stats/`
 

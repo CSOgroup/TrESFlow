@@ -52,6 +52,8 @@ flowchart TD
         DNA0[TAG_DNA_SAMPLE_BARCODE]
         DNA1[TAG_DNA_MODALITY_BARCODE]
         DNA2[TAG_DNA_CELL_BARCODE]
+        DNA2R{dual and filter enabled?}
+        DNA2F[DUAL_TAG_ARTIFACT_FILTER\nexact paired 23-mer discard]
         DNA3[TRIM_DNA_FASTQS]
         DNA4[SPLIT_DNA_READS]
         DNA4P[COMPRESS_DNA_SPLIT_FASTQS\noptional published .fastq.gz]
@@ -60,7 +62,10 @@ flowchart TD
         DNA6[nf-core GATK4_MARKDUPLICATES\n+ canonical filename normalization]
         DNA7[SPLIT_DUPLICATES_DNA\nNoDup + mapped-read gate]
         DNA8[nf-core DEEPTOOLS_BAMCOVERAGE\ndirect *_NoDup.bw]
-        DNA0 --> DNA1 --> DNA2 --> DNA3 --> DNA4 --> DNA5 --> DNA6 --> DNA7 --> DNA8
+        DNA0 --> DNA1 --> DNA2 --> DNA2R
+        DNA2R -->|yes| DNA2F --> DNA3
+        DNA2R -->|bypass| DNA3
+        DNA3 --> DNA4 --> DNA5 --> DNA6 --> DNA7 --> DNA8
         DNA5 --> DNA5C
         DNA4 --> DNA4P
     end
@@ -92,6 +97,7 @@ Notes:
 - One hierarchical samplesheet can describe RNA-only, DNA-only, or combined runs.
 - `sb_group_map.tsv`, `dna_mo_map.tsv`, and DNA modality whitelist files are internal artifacts, not user inputs.
 - `TAG_DNA_CELL_BARCODE` uses DNA `i1` as the ligation source: single reads use starts `15,53,91`; dual reads use starts `41,79,117`.
+- `DUAL_TAG_ARTIFACT_FILTER` runs only for dual-tagmentation DNA when `--filter_dual_tag_artifacts` is enabled. Cutadapt requires an exact, full-length, indel-free match to one of 48 audited 23-mers anywhere in either mate, discards the complete pair, and leaves retained records unchanged. Single-tag and disabled inputs bypass the process without a FASTQ copy. Only its JSON and one-row TSV are published under `TrES_Stats/` and included in shared QC inputs.
 - Each Codon split task emits plain FASTQs directly to computation (`FQ_TO_SAM` or `ALIGN_DNA`). With `--publish_split_fastqs`, an independent `pigz -c` branch publishes gzip copies; by default that publication-only task is skipped.
 - `RNA_FILTERED_BAM` publishes its low-compression filtered BAM directly under `rna_align/`; RNA coverage and Samtools QC consume the same process output without a copy or recompression task.
 - Canonical chromosome contracts are resolved once from the STAR and bwa-mem2 dictionaries. No contigs are renamed, and mixed UCSC/Ensembl conventions fail before task execution.

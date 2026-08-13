@@ -21,6 +21,7 @@
 include { TAG_DNA_SAMPLE_BARCODE }   from '../../../modules/local/tag_dna_sb/main'
 include { TAG_DNA_MODALITY_BARCODE } from '../../../modules/local/tag_dna_modality/main'
 include { TAG_DNA_CELL_BARCODE }     from '../../../modules/local/tag_dna_cell_barcode/main'
+include { DUAL_TAG_ARTIFACT_FILTER } from '../../../modules/local/dual_tag_artifact_filter/main'
 include { TRIM_DNA_FASTQS }          from '../../../modules/local/trim_dna_fastqs/main'
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_DNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
@@ -165,7 +166,27 @@ workflow DNA_CORE {
 
     TAG_DNA_CELL_BARCODE(ch_cb_input)
     ch_versions = ch_versions.mix(TAG_DNA_CELL_BARCODE.out.versions)
-    TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged)
+
+    // Only dual-tagmentation DNA is eligible for exact linker-signature
+    // cleanup. A branch operation gives every tagged pair to exactly one
+    // route; single-tagmentation and explicitly disabled samples never invoke
+    // the Cutadapt process. The routes are recombined before ordinary adapter
+    // and quality trimming.
+    ch_dual_tag_artifact_routes = TAG_DNA_CELL_BARCODE.out.tagged.branch { _sampleId, meta, _taggedR1, _taggedR2 ->
+        filter: params.filter_dual_tag_artifacts && meta.dna_tagmentation == 'dual'
+        bypass: true
+    }
+
+    DUAL_TAG_ARTIFACT_FILTER(
+        ch_dual_tag_artifact_routes.filter,
+        file("${projectDir}/assets/dual_tag_artifact_23mers.fasta")
+    )
+    ch_versions = ch_versions.mix(DUAL_TAG_ARTIFACT_FILTER.out.versions)
+
+    ch_tagged_for_trim = ch_dual_tag_artifact_routes.bypass
+        .mix(DUAL_TAG_ARTIFACT_FILTER.out.filtered)
+
+    TRIM_DNA_FASTQS(ch_tagged_for_trim)
     ch_versions = ch_versions.mix(TRIM_DNA_FASTQS.out.versions)
 
     // Split trimmed DNA reads by sample-barcode group and modality mark.
@@ -337,6 +358,7 @@ workflow DNA_CORE {
 
     emit:
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
+    dual_tag_artifact_filter_qc = DUAL_TAG_ARTIFACT_FILTER.out.qc
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed
     split_fastqs    = ch_published_split_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers

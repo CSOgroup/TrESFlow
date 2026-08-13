@@ -12,6 +12,7 @@ def runtimeShellExports(runtimeParams) {
         RUNTIME_BIN_DIR        : binDir,
         TMPDIR                 : tmpdir,
         PYTHON3_BIN            : "${binDir}/python3",
+        CUTADAPT_BIN           : "${binDir}/cutadapt",
         TRIM_GALORE_BIN        : "${binDir}/trim_galore",
         STAR_BIN               : "${binDir}/STAR",
         SAMTOOLS_BIN           : "${binDir}/samtools",

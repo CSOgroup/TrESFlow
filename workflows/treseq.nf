@@ -12,7 +12,7 @@
  *   9. Generate filtered RNA BAMs from the STARsolo barcode calls.
  *  10. Generate stranded and unstranded RNA bigWigs from the filtered BAMs.
  *  11. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
- *      steps plus DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
+ *      steps plus dual-tag artifact filtering, DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
 
@@ -152,6 +152,9 @@ workflow TRESEQ {
         .mix(DNA_CORE.out.barcode_report_files)
 
     ch_report_source_files = ch_barcode_report_files
+        .mix(DNA_CORE.out.dual_tag_artifact_filter_qc.flatMap { _sampleId, _meta, cutadaptJson, summary ->
+            [cutadaptJson, summary]
+        })
         .mix(RNA_CORE.out.aligned_solo_summaries.map { splitName, meta, soloSummary -> soloSummary })
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
@@ -197,6 +200,7 @@ workflow TRESEQ {
     aligned_unstranded_bigwigs = RNA_CORE.out.aligned_unstranded_bigwigs
     barcode_reports             = RNA_CORE.out.barcode_reports
     dna_tagged_fastqs           = DNA_CORE.out.tagged_fastqs
+    dna_dual_tag_artifact_filter_qc = DNA_CORE.out.dual_tag_artifact_filter_qc
     dna_trimmed_fastqs          = DNA_CORE.out.trimmed_fastqs
     dna_split_fastqs            = DNA_CORE.out.split_fastqs
     dna_rg_headers              = DNA_CORE.out.rg_headers

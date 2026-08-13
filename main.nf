@@ -25,6 +25,22 @@ def parseNonNegativeIntegerParameter(rawValue, String parameterName) {
     return parsed.intValue()
 }
 
+def parseBooleanParameter(rawValue, String parameterName) {
+    if( rawValue instanceof Boolean ) {
+        return rawValue
+    }
+    def text = rawValue?.toString()?.trim()?.toLowerCase()
+    if( text == 'true' ) {
+        return true
+    }
+    if( text == 'false' ) {
+        return false
+    }
+    throw new IllegalArgumentException(
+        "Parameter --${parameterName} must be true or false; received '${rawValue}'."
+    )
+}
+
 workflow {
     def runtimeSupport = loadGroovySupportClass("${projectDir}/lib/RuntimeSupport.groovy")
     def samplesheetParser = loadGroovySupportClass("${projectDir}/lib/SamplesheetParser.groovy")
@@ -33,10 +49,15 @@ workflow {
     def rawOutdir = params.get('outdir')
     def rawCoreScriptsDir = params.get('core_scripts_dir')
     def avitiOpticalDuplicateDistance = null
+    def filterDualTagArtifacts = null
     try {
         avitiOpticalDuplicateDistance = parseNonNegativeIntegerParameter(
             params.get('aviti_optical_duplicate_distance'),
             'aviti_optical_duplicate_distance'
+        )
+        filterDualTagArtifacts = parseBooleanParameter(
+            params.get('filter_dual_tag_artifacts'),
+            'filter_dual_tag_artifacts'
         )
     }
     catch( IllegalArgumentException e ) {
@@ -63,6 +84,7 @@ workflow {
     params.put('outdir', resolvedOutdir)
     params.put('core_scripts_dir', resolvedCoreScriptsDir)
     params.put('aviti_optical_duplicate_distance', avitiOpticalDuplicateDistance)
+    params.put('filter_dual_tag_artifacts', filterDualTagArtifacts)
     java.lang.System.setProperty('tresflow.resolvedOutdir', resolvedOutdir)
     java.lang.System.setProperty('tresflow.resolvedCoreScriptsDir', resolvedCoreScriptsDir)
 

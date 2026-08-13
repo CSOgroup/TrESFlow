@@ -109,7 +109,7 @@ samples:
 
 ### `runtime`
 
-- `env_prefix`: environment prefix containing `python3`, `codon`, `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, `FastQC`, and `gatk`
+- `env_prefix`: environment prefix containing `python3`, `codon`, `cutadapt` (5.2 in the supported environment), `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, `FastQC`, and `gatk`
 - `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
 
 ### `references`
@@ -201,9 +201,22 @@ The main public parameters are:
 - `--helper_cpus`
 - `--tagging_cpus`
 - `--tagging_memory`
+- `--filter_dual_tag_artifacts`
 - `--aviti_optical_duplicate_distance`
 
 Deprecated runtime/reference CLI parameters now fail with a hard error.
+
+`--filter_dual_tag_artifacts` defaults to `true`. For dual-tagmentation DNA
+only, TrESFlow searches both mates for 48 audited, oriented linker signatures
+after cell-barcode tagging and before Trim Galore. Each signature is an exact
+23-mer; a full match anywhere in either mate discards the pair, while retained
+FASTQ records pass through unchanged. Single-tagmentation DNA and all RNA
+samples bypass this process, as do dual samples when the parameter is `false`.
+The version-controlled signature asset has SHA-256
+`67c6f1789ef5e36492562203ac38fc13fa901058047ed2bd37b304d85a30ae0f`;
+the supplied provenance audit records zero exact matches in hg38, mm10, and
+mm39. The filter has no QC pass/fail threshold and does not replace ordinary
+adapter/quality trimming or its 20-base minimum.
 
 `--aviti_optical_duplicate_distance` is a non-negative integer and defaults to
 `10`. It is the empirical AVITI coordinate-distance threshold passed to Picard
