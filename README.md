@@ -194,9 +194,10 @@ Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses N
 DNA alignment no longer removes low-count cell barcodes during `ALIGN_DNA`. The aligned BAM still keeps proper-pair mapped, non-blacklisted reads; duplicate removal is represented later by `*_NoDup.bam`.
 
 DNA duplicate marking uses the corrected cell barcode in `CB` for biological
-duplicate grouping. Its AVITI QNAME parser extracts tile/x/y, and lane-qualified
-`RG` IDs prevent spatial-coordinate collisions between lanes while a shared
-`LB` preserves same-cell genomic duplicate grouping across lanes. Picard's
+duplicate grouping. Its AVITI QNAME parser extracts tile/x/y, and compact
+lane-level `RG` IDs (`L1`, `L2`, ...) prevent spatial-coordinate collisions
+between lanes while a shared `LB` preserves same-cell genomic duplicate grouping
+across lanes. Picard's
 published `ESTIMATED_LIBRARY_SIZE` is the pipeline library-complexity estimate;
 the default spatial cutoff of 10 AVITI coordinate units was calibrated on one
 AVITI run/flowcell and remains configurable.

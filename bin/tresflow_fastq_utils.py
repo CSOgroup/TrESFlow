@@ -210,9 +210,9 @@ def parse_aviti_qname(read_name: str):
     return tuple(int(value) for value in match.groups())
 
 
-def aviti_lane_read_group(cell_barcode: str, lane: int) -> str:
-    """Build a SAM-safe, lane-qualified physical read-group ID."""
-    return f"{cell_barcode}_L{lane}"
+def aviti_lane_read_group(lane: int) -> str:
+    """Build the small SAM-safe read-group ID used for an AVITI lane."""
+    return f"L{lane}"
 
 
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
@@ -284,7 +284,7 @@ def canonicalize_dna_fastq_comment(
             f"Missing CB or SB tag while canonicalizing cell ID for sample {sample} group {group_name}"
         )
     technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-    read_group = aviti_lane_read_group(technical_cell, lane)
+    read_group = aviti_lane_read_group(lane)
     return canonicalize_fastq_comment(sample, group_name, comment, read_group=read_group)
 
 
@@ -348,8 +348,8 @@ def write_fastq_record(handle, name: str, comment: str, seq: str, qual: str):
 def write_rg_header(path: Path, sample: str, library_name: str, read_groups):
     with open(path, "wt", encoding="utf-8") as handle:
         for read_group in sorted(read_groups):
-            # All lane-specific RGs share LB so Picard still groups genomic
-            # duplicates across lanes; RG only separates physical locations.
+            # All lane RGs share LB so Picard still groups genomic duplicates
+            # across lanes; CB provides cell identity and RG only separates lanes.
             handle.write(
                 f"@RG\tID:{read_group}\tSM:{sample}\tLB:{library_name}"
                 "\tPL:ELEMENT\tPM:AVITI_500MIO\n"

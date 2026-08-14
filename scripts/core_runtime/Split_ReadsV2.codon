@@ -129,8 +129,8 @@ def parse_aviti_lane(read_name: str) -> int:
 	return int(parts[3])
 
 
-def aviti_lane_read_group(cell_barcode: str, lane: int) -> str:
-	return cell_barcode + "_L" + str(lane)
+def aviti_lane_read_group(lane: int) -> str:
+	return "L" + str(lane)
 
 
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
@@ -215,7 +215,7 @@ def canonicalize_dna_fastq_comment(
 		)
 		sys.exit(1)
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-	read_group = aviti_lane_read_group(technical_cell, lane)
+	read_group = aviti_lane_read_group(lane)
 	return canonicalize_fastq_comment(sample, group_name, comment, read_group)
 
 
@@ -373,8 +373,8 @@ def load_mo_map_tsv(map_path: str, sample: str, group_to_gid: Dict[str, int], us
 
 def write_SAM_RG_Header(sample: str, lib: str, out_path: str, read_groups: Set[str]) -> None:
 	with open(out_path, "w") as fh:
-		# A shared LB keeps genomic duplicate grouping cross-lane; lane-qualified
-		# RG values are used only to distinguish physical AVITI locations.
+		# A shared LB keeps genomic duplicate grouping cross-lane; CB provides cell
+		# identity and the small lane RG namespace separates physical locations.
 		for read_group in read_groups:
 			fh.write("@RG\tID:")
 			fh.write(read_group)
@@ -606,10 +606,9 @@ def MakeRecordNameList_DNA(
 				seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
 				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
-				canonical_cb, _, _ = get_cb_mo_sb(comment1)
 				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
 				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
-				unknown_read_groups.add(aviti_lane_read_group(canonical_cb, lane1))
+				unknown_read_groups.add(aviti_lane_read_group(lane1))
 				continue
 			else:
 				sys.stderr.write("ERROR: MO barcode not found for sample " + sample + ": " + mo + "\n")
@@ -622,12 +621,11 @@ def MakeRecordNameList_DNA(
 
 		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
 		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
-		canonical_cb, _, _ = get_cb_mo_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
 		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
-		rg_sets[slot].add(aviti_lane_read_group(canonical_cb, lane1))
+		rg_sets[slot].add(aviti_lane_read_group(lane1))
 		branch_counts[slot] += 1
 
 	sys.stdout.write("\rFinished processing ")

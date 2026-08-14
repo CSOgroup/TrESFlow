@@ -154,7 +154,7 @@ class FastqCompressionTests(unittest.TestCase):
         self.assertIn(f"RG:Z:{cell_barcode}", rna_canonical)
         self.assertIn(f"XI:Z:{expected}", rna_canonical)
         self.assertIn(f"CB:Z:{cell_barcode}", dna_canonical)
-        self.assertIn(f"RG:Z:{cell_barcode}_L1", dna_canonical)
+        self.assertIn("RG:Z:L1", dna_canonical)
         self.assertIn(f"XI:Z:{expected}", dna_canonical)
         self.assertIn("SB:Z:CAGT", rna_canonical)
         self.assertIn("SB:Z:AAA", dna_canonical)

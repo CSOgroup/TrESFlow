@@ -258,9 +258,9 @@ class ReadRetentionMetricTests(unittest.TestCase):
                 split_header = next(output.glob("sample_*_R1.fastq")).read_text(
                     encoding="utf-8"
                 ).splitlines()[0]
-                self.assertIn("@RG\tID:ACGT_L1\tSM:sample\tLB:library", header)
+                self.assertIn("@RG\tID:L1\tSM:sample\tLB:library", header)
                 self.assertIn("CB:Z:ACGT", split_header)
-                self.assertIn("RG:Z:ACGT_L1", split_header)
+                self.assertIn("RG:Z:L1", split_header)
 
     def test_real_codon_rna_split_emits_retention_metrics(self):
         self.run_real_codon_split("rna")
