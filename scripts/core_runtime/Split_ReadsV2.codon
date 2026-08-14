@@ -402,7 +402,7 @@ def write_split_retention_metrics(
 		path: str,
 		sample: str,
 		modality: str,
-		trimmed_pairs: int,
+		split_input_pairs: int,
 		barcode_accepted_pairs: int,
 		group_names: List[str],
 		group_counts: List[int],
@@ -412,7 +412,7 @@ def write_split_retention_metrics(
 	) -> None:
 	with open(path, "w") as fh:
 		fh.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
-		fh.write(sample + "\t" + modality + "\t__all__\t__all__\ttrimmed_input_pairs\t" + str(trimmed_pairs) + "\tread_pairs\n")
+		fh.write(sample + "\t" + modality + "\t__all__\t__all__\tsplit_input_pairs\t" + str(split_input_pairs) + "\tread_pairs\n")
 		fh.write(sample + "\t" + modality + "\t__all__\t__all__\tjoint_barcode_accepted_pairs\t" + str(barcode_accepted_pairs) + "\tread_pairs\n")
 		for i in range(len(group_names)):
 			fh.write(sample + "\t" + modality + "\t" + group_names[i] + "\t__all__\trouted_group_pairs\t" + str(group_counts[i]) + "\tread_pairs\n")

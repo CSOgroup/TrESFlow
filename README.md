@@ -223,6 +223,15 @@ Every run writes:
 - `${outdir}/TrES_Stats/tres_report_metrics.json`
 - `${outdir}/TrES_Stats/qc/multiqc/multiqc_report.html`
 
+`TrES_Stats/` also contains exact metrics-only barcode contracts named
+`<sample>.<rna|dna>_barcode_gates.tsv` and
+`<sample>.<rna|dna>_barcode_composition.tsv`. They reuse the barcode decisions
+already saved by tagging and intersect them with the paired reads that reach
+splitting, so cumulative gates are same-pair counts rather than combinations of
+the marginal L1/L2/L3, sample-barcode, or MO percentages. For enabled dual-tag
+DNA, the split-input denominator is the artifact-filter-retained population;
+the filter summary's input remains the preceding Trim Galore population.
+
 Runs with real BAM outputs also write combined Samtools sidecar QC under:
 
 - `${outdir}/TrES_Stats/qc/samtools/*.flagstat`

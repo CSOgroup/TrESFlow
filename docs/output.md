@@ -129,16 +129,37 @@ The pipeline publishes small TSV counters for reconstructing nested read-pair
 populations without rereading the large FASTQ and transient BAM files:
 
 - `<sample>.rna_read_retention.tsv`
+- `<sample>.rna_barcode_gates.tsv`
+- `<sample>.rna_barcode_composition.tsv`
 - `<sample>_<group>.rna_filter_retention.tsv`
 - `<sample>.dna_read_retention.tsv`
+- `<sample>.dna_barcode_gates.tsv`
+- `<sample>.dna_barcode_composition.tsv`
 - `<sample>_<group>_<mark>.dna_alignment_retention.tsv`
 
 The RNA and DNA split tables are written by the same Codon loop that emits the
-computational FASTQs. They report pairs present after paired trimming, pairs
-accepted by the complete joint barcode condition (`Split_ReadsV2` rejects any
-record whose accumulated tag comment contains `NoMatch`), and exact group/mark
-routing counts. The barcode statistics listed above remain useful marginal
-diagnostics, but are not conditional retention stages.
+computational FASTQs. `split_input_pairs` means pairs entering that loop. It is
+the paired Trim Galore population for RNA, single-tag DNA, and dual-tag DNA with
+artifact filtering disabled; for filtered dual-tag DNA it is the post-artifact-
+filter population. The tables retain the historical
+`joint_barcode_accepted_pairs` count and exact group/mark routing counts.
+
+The `*_barcode_gates.tsv` sidecars intersect the QNAMEs entering splitting with
+the barcode decisions already recorded by `Tag_Lig3`; they do not rerun barcode
+matching. Their cumulative counts are therefore exact same-pair populations.
+RNA reports `split_input_pairs`, all-three-ligation-barcode acceptance, then
+sample-barcode acceptance. DNA adds MO-barcode acceptance. Every gate uses
+`split_input_pairs` as its documented denominator, and every successive gate is
+validated as a subset of its predecessor.
+
+The `*_barcode_composition.tsv` sidecars contain mutually exclusive categories,
+including an explicit `NoMatch` row even when its count is zero. Sample-barcode
+composition uses the all-L1/L2/L3-accepted population as its denominator. DNA
+mark composition is kept separately per configured sample-barcode group/run and
+uses that group's sample-barcode-accepted population as its denominator. Each
+category set is validated to sum exactly to its denominator. The older barcode
+statistics listed above remain useful marginal diagnostics against raw input,
+but are not conditional retention stages.
 
 The DNA alignment table reports nested primary-R1 pair representatives after
 BWA, blacklist removal, mapped-record selection, and the existing proper-pair

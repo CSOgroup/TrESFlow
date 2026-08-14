@@ -249,7 +249,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             subprocess.run(command, check=True, capture_output=True, text=True)
             metrics = output / f"sample.{mode}_read_retention.tsv"
             values = {row["metric"]: int(row["pairs"]) for row in read_metrics(metrics)}
-            self.assertEqual(values["trimmed_input_pairs"], 2)
+            self.assertEqual(values["split_input_pairs"], 2)
             self.assertEqual(values["joint_barcode_accepted_pairs"], 1)
             if mode == "dna":
                 header = next(output.glob("SAM_RG_Header_sample_*.tsv")).read_text(
@@ -335,7 +335,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             metrics = output / f"sample.{mode}_read_retention.tsv"
             self.assertTrue(metrics.is_file())
             values = {row["metric"]: int(row["pairs"]) for row in read_metrics(metrics)}
-            self.assertEqual(values["trimmed_input_pairs"], 2)
+            self.assertEqual(values["split_input_pairs"], 2)
             self.assertEqual(values["joint_barcode_accepted_pairs"], 1)
             self.assertIn(f"Finished split output move | {metrics}", result.stderr)
             self.assertEqual(list(temp_root.iterdir()), [])
@@ -350,7 +350,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
     def test_real_dna_wrapper_preserves_retention_metrics_before_temp_cleanup(self):
         self.run_real_wrapper_split("dna")
 
-    def test_mock_rna_split_reports_trimmed_joint_and_routed_counts(self):
+    def test_mock_rna_split_reports_input_joint_and_routed_counts(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             comments = [
@@ -378,7 +378,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
 
             rows = read_metrics(root / "sample.rna_read_retention.tsv")
             values = {(row["metric"], row["group"]): int(row["pairs"]) for row in rows}
-            self.assertEqual(values[("trimmed_input_pairs", "__all__")], 3)
+            self.assertEqual(values[("split_input_pairs", "__all__")], 3)
             self.assertEqual(values[("joint_barcode_accepted_pairs", "__all__")], 2)
             self.assertEqual(values[("routed_group_pairs", "group1")], 1)
             self.assertEqual(values[("routed_group_pairs", "group2")], 1)

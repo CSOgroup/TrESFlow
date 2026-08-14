@@ -62,6 +62,9 @@ output:
   - barcode_reports:
       type: file
       description: "Collected RNA barcode metric outputs from upstream tagging steps."
+  - barcode_gate_metrics:
+      type: file
+      description: "Exact cumulative RNA barcode-gate and exhaustive composition TSVs."
   - tres_tag_records:
       type: file
       description: "Final gzip-compressed RNA tag-record TSV."

@@ -86,7 +86,7 @@ def mock_split(args):
     metrics_path = args.output_dir / f"{args.sample}.rna_read_retention.tsv"
     with metrics_path.open("wt", encoding="utf-8") as handle:
         handle.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
-        handle.write(f"{args.sample}\trna\t__all__\t__all__\ttrimmed_input_pairs\t{processed}\tread_pairs\n")
+        handle.write(f"{args.sample}\trna\t__all__\t__all__\tsplit_input_pairs\t{processed}\tread_pairs\n")
         handle.write(f"{args.sample}\trna\t__all__\t__all__\tjoint_barcode_accepted_pairs\t{accepted}\tread_pairs\n")
         for group_name, count in group_counts.items():
             handle.write(f"{args.sample}\trna\t{group_name}\t__all__\trouted_group_pairs\t{count}\tread_pairs\n")

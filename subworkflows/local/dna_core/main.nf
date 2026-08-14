@@ -23,6 +23,7 @@ include { TAG_DNA_MODALITY_BARCODE } from '../../../modules/local/tag_dna_modali
 include { TAG_DNA_CELL_BARCODE }     from '../../../modules/local/tag_dna_cell_barcode/main'
 include { DUAL_TAG_ARTIFACT_FILTER } from '../../../modules/local/dual_tag_artifact_filter/main'
 include { TRIM_DNA_FASTQS }          from '../../../modules/local/trim_dna_fastqs/main'
+include { BARCODE_GATE_METRICS }      from '../../../modules/local/barcode_gate_metrics/main'
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_DNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { ALIGN_DNA }                from '../../../modules/local/align_dna/main'
@@ -190,6 +191,27 @@ workflow DNA_CORE {
     ch_trimmed_for_split = ch_dual_tag_artifact_routes.bypass
         .mix(DUAL_TAG_ARTIFACT_FILTER.out.filtered)
 
+    // Count the exact saved barcode decisions only for pairs that reach
+    // splitting. For filtered dual-tag libraries this is the post-artifact
+    // population; for every other DNA library it is the paired-trim output.
+    ch_dna_tag_records_by_sample = TAG_DNA_CELL_BARCODE.out.tres_tag_records
+        .map { tagRecords ->
+            def sampleId = tagRecords.getName().replaceFirst(/\.dna_tag_records\.tsv\.gz$/, '')
+            tuple(sampleId, tagRecords)
+        }
+    ch_dna_barcode_metric_maps = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
+        tuple(sampleId, meta, moMap, sbGroupMap)
+    }
+    ch_dna_barcode_metric_input = ch_trimmed_for_split
+        .join(ch_dna_tag_records_by_sample)
+        .join(ch_dna_barcode_metric_maps)
+        .map { sampleId, splitMeta, splitR1, splitR2, tagRecords, contractMeta, moMap, sbGroupMap ->
+            tuple(sampleId, splitMeta, 'dna', splitR1, splitR2, tagRecords, [sbGroupMap, moMap])
+        }
+
+    BARCODE_GATE_METRICS(ch_dna_barcode_metric_input)
+    ch_versions = ch_versions.mix(BARCODE_GATE_METRICS.out.versions)
+
     // Split post-trimming DNA reads by sample-barcode group and modality mark.
     ch_split_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, moMap, sbGroupMap)
@@ -356,6 +378,9 @@ workflow DNA_CORE {
         .mix(TAG_DNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, statsL1, statsL2, statsL3 ->
             [counts, statsL1, statsL2, statsL3]
         })
+        .mix(BARCODE_GATE_METRICS.out.metrics.flatMap { sampleId, meta, gates, composition ->
+            [gates, composition]
+        })
 
     emit:
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
@@ -364,6 +389,7 @@ workflow DNA_CORE {
     split_fastqs    = ch_published_split_fastqs
     rg_headers      = SPLIT_DNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_DNA_READS.out.retention_metrics
+    barcode_gate_metrics = BARCODE_GATE_METRICS.out.metrics
     alignment_retention_metrics = ALIGN_DNA.out.retention_metrics
     aligned_bams    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bam
     aligned_bais    = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bai

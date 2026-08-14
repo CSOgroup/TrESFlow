@@ -2,11 +2,12 @@
  * Module: SPLIT_DNA_READS
  * Upstream reference:
  *   codon run -plugin seq -release Split_ReadsV2.codon \
- *     <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <trimmed_R1.fq> <trimmed_R2.fq> <sb_group_map.tsv>
+ *     <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <split_input_R1.fq> <split_input_R2.fq> <sb_group_map.tsv>
  *
  * Inputs:
  *   - sample metadata
- *   - uncompressed trim_galore DNA FASTQs from the CB-tagged reads
+ *   - uncompressed paired DNA FASTQs entering splitting: Trim Galore outputs
+ *     directly, or post-artifact-filter outputs for enabled dual-tag samples
  *   - DNA modality map TSV keyed by sample, group, mark, and modality barcode
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
@@ -23,7 +24,7 @@ process SPLIT_DNA_READS {
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_read_retention.tsv"
 
     input:
-    tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(moMap), path(sbGroupMap)
+    tuple val(sampleId), val(meta), path(splitInputR1), path(splitInputR2), path(moMap), path(sbGroupMap)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq"), path("${sampleId}_*_R2.fastq"), emit: split_fastqs
@@ -42,8 +43,8 @@ process SPLIT_DNA_READS {
     "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_dna.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Split_ReadsV2.codon" \\
-      --r1 "${trimmedR1}" \\
-      --r2 "${trimmedR2}" \\
+      --r1 "${splitInputR1}" \\
+      --r2 "${splitInputR2}" \\
       --mo-map "${moMap}" \\
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\

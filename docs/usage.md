@@ -225,6 +225,16 @@ minimum before exact residual-signature filtering begins.
 The artifact summary's `input_pairs` value is therefore the number of paired
 reads surviving Trim Galore, not the raw or pre-trimming pair count.
 
+The published `*.barcode_gates.tsv` files provide exact cumulative same-pair
+barcode populations among reads that reach splitting. They are computed from
+the routing decisions already recorded during tagging, not by rematching
+barcodes. The companion `*.barcode_composition.tsv` files give exhaustive
+configured sample-group or DNA-mark categories plus `NoMatch`, with explicit
+denominators. Marginal barcode percentages remain raw-input diagnostics and
+must not be interpreted as sequential retention stages. In an enabled dual-tag
+DNA run, `split_input_pairs` and every barcode-gate denominator begin after the
+artifact filter; otherwise they begin after paired trimming.
+
 `--aviti_optical_duplicate_distance` is a non-negative integer and defaults to
 `10`. It is the empirical AVITI coordinate-distance threshold passed to Picard
 MarkDuplicates for spatial/optical duplicate classification. The value was

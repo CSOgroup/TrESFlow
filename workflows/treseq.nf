@@ -190,6 +190,7 @@ workflow TRESEQ {
     split_fastqs                = RNA_CORE.out.split_fastqs
     rg_headers                  = RNA_CORE.out.rg_headers
     rna_split_retention_metrics = RNA_CORE.out.split_retention_metrics
+    rna_barcode_gate_metrics = RNA_CORE.out.barcode_gate_metrics
     rna_filter_retention_metrics = RNA_CORE.out.filter_retention_metrics
     usam_files                  = RNA_CORE.out.usam_files
     aligned_solo_dirs           = RNA_CORE.out.aligned_solo_dirs
@@ -205,6 +206,7 @@ workflow TRESEQ {
     dna_split_fastqs            = DNA_CORE.out.split_fastqs
     dna_rg_headers              = DNA_CORE.out.rg_headers
     dna_split_retention_metrics = DNA_CORE.out.split_retention_metrics
+    dna_barcode_gate_metrics = DNA_CORE.out.barcode_gate_metrics
     dna_alignment_retention_metrics = DNA_CORE.out.alignment_retention_metrics
     dna_aligned_bams            = DNA_CORE.out.aligned_bams
     dna_aligned_bais            = DNA_CORE.out.aligned_bais

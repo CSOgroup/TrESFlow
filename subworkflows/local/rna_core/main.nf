@@ -20,6 +20,7 @@ include { TAG_RNA_SAMPLE_BARCODE } from '../../../modules/local/tag_rna_sb/main'
 include { TAG_RNA_UMI }            from '../../../modules/local/tag_rna_umi/main'
 include { TAG_RNA_CELL_BARCODE }   from '../../../modules/local/tag_rna_cell_barcode/main'
 include { TRIM_RNA_FASTQS }        from '../../../modules/local/trim_rna_fastqs/main'
+include { BARCODE_GATE_METRICS }    from '../../../modules/local/barcode_gate_metrics/main'
 include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
@@ -100,6 +101,27 @@ workflow RNA_CORE {
     ch_versions = ch_versions.mix(TAG_RNA_CELL_BARCODE.out.versions)
     TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
     ch_versions = ch_versions.mix(TRIM_RNA_FASTQS.out.versions)
+
+    // Count exact same-pair cumulative gates from the barcode decisions
+    // already saved by Tag_Lig3, restricted to pairs surviving paired
+    // trimming. This sidecar has no FASTQ output and cannot change routing.
+    ch_rna_tag_records_by_sample = TAG_RNA_CELL_BARCODE.out.tres_tag_records
+        .map { tagRecords ->
+            def sampleId = tagRecords.getName().replaceFirst(/\.rna_tag_records\.tsv\.gz$/, '')
+            tuple(sampleId, tagRecords)
+        }
+    ch_rna_barcode_metric_maps = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
+        tuple(sampleId, meta, sbGroupMap)
+    }
+    ch_rna_barcode_metric_input = TRIM_RNA_FASTQS.out.trimmed
+        .join(ch_rna_tag_records_by_sample)
+        .join(ch_rna_barcode_metric_maps)
+        .map { sampleId, trimMeta, trimmedR1, trimmedR2, tagRecords, contractMeta, sbGroupMap ->
+            tuple(sampleId, trimMeta, 'rna', trimmedR1, trimmedR2, tagRecords, [sbGroupMap])
+        }
+
+    BARCODE_GATE_METRICS(ch_rna_barcode_metric_input)
+    ch_versions = ch_versions.mix(BARCODE_GATE_METRICS.out.versions)
 
     // Split trimmed reads by sample-barcode group before FQ_TO_SAM.
     ch_split_meta = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -193,6 +215,9 @@ workflow RNA_CORE {
         .mix(TAG_RNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, statsL1, statsL2, statsL3 ->
             [counts, statsL1, statsL2, statsL3]
         })
+        .mix(BARCODE_GATE_METRICS.out.metrics.flatMap { sampleId, meta, gates, composition ->
+            [gates, composition]
+        })
 
     emit:
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
@@ -200,6 +225,7 @@ workflow RNA_CORE {
     split_fastqs     = ch_published_split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_RNA_READS.out.retention_metrics
+    barcode_gate_metrics = BARCODE_GATE_METRICS.out.metrics
     usam_files       = FQ_TO_SAM.out.usam
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
     aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
