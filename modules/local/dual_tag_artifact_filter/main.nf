@@ -2,9 +2,10 @@
  * Module: DUAL_TAG_ARTIFACT_FILTER
  *
  * Discard dual-tagmentation DNA read pairs when either mate contains one of
- * the audited 48 exact 23-nt linker signatures. Cutadapt uses action=none so
- * retained FASTQ records are passed through without sequence modification.
- * This process is routed only dual-tagmentation samples by DNA_CORE.
+ * the audited 48 exact 23-nt linker signatures remaining after Trim Galore.
+ * Cutadapt uses action=none so retained trimmed FASTQ records are passed
+ * through without sequence modification. This process is routed only
+ * dual-tagmentation samples by DNA_CORE.
  */
 
 include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
@@ -17,7 +18,7 @@ process DUAL_TAG_ARTIFACT_FILTER {
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dual_tag_artifact_filter.summary.tsv"
 
     input:
-    tuple val(sampleId), val(meta), path(taggedR1), path(taggedR2)
+    tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2)
     path signatureFasta
 
     output:
@@ -36,8 +37,8 @@ process DUAL_TAG_ARTIFACT_FILTER {
       --mode "${mode}" \\
       --sample-id "${sampleId}" \\
       --tagmentation "${meta.dna_tagmentation}" \\
-      --r1 "${taggedR1}" \\
-      --r2 "${taggedR2}" \\
+      --r1 "${trimmedR1}" \\
+      --r2 "${trimmedR2}" \\
       --signature-fasta "${signatureFasta}" \\
       --cutadapt-bin "\$CUTADAPT_BIN" \\
       --cpus "${task.cpus}" \\

@@ -94,7 +94,7 @@
                 },
                 "filter_dual_tag_artifacts": {
                     "type": "boolean",
-                    "description": "Discard dual-tagmentation DNA read pairs when either mate contains an audited exact 23-nt linker signature. Enabled by default and never applied to single-tagmentation or RNA reads.",
+                    "description": "After Trim Galore, discard dual-tagmentation DNA read pairs when either trimmed mate still contains an audited exact 23-nt linker signature. Enabled by default and never applied to single-tagmentation or RNA reads.",
                     "default": true
                 },
                 "publish_dir_mode": {

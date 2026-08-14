@@ -179,7 +179,7 @@ Default local CPU budget:
 - `--max_cpus 64`
 - `--cleanup_work true`, which removes successful task work directories after a successful run.
 - `--publish_split_fastqs false`; enable it to publish gzip-compressed RNA and DNA split FASTQ copies.
-- `--filter_dual_tag_artifacts true`; dual-tagmentation DNA pairs containing an audited exact 23-nt linker signature in either mate are discarded before Trim Galore.
+- `--filter_dual_tag_artifacts true`; after Trim Galore, dual-tagmentation DNA pairs containing a remaining audited exact 23-nt linker signature in either mate are discarded.
 - `--aviti_optical_duplicate_distance 10`; this empirical AVITI 500 coordinate threshold is configurable and is not an Illumina pixel-distance setting.
 - `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
 - `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
@@ -201,11 +201,13 @@ published `ESTIMATED_LIBRARY_SIZE` is the pipeline library-complexity estimate;
 the default spatial cutoff of 10 AVITI coordinate units was calibrated on one
 AVITI run/flowcell and remains configurable.
 
-Dual-tagmentation DNA has a separate pre-trimming artifact filter. After `CB`
-tagging, Cutadapt 5.2 searches both mates for the repository's 48 audited exact
-23-mer linker signatures and discards the whole pair on any match. It uses no
-indels and no trimming action, so retained names, sequences, qualities, and
-order are unchanged before the existing Trim Galore step. Single-tagmentation
+Dual-tagmentation DNA has a separate post-trimming artifact filter. After `CB`
+tagging, every DNA pair first passes through Trim Galore so valid genomic
+prefixes can be retained when adapter/linker read-through occurs. Cutadapt 5.2
+then searches both trimmed mates for the repository's 48 audited exact 23-mer
+linker signatures and discards the whole pair on any remaining match. It uses
+no indels and no trimming action, so retained names, sequences, qualities, and
+order are unchanged relative to the Trim Galore outputs. Single-tagmentation
 DNA and RNA are unaffected. The filter is enabled by default but configurable
 because it is specific to the dual-tag library design.
 

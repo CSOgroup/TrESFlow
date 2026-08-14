@@ -12,7 +12,7 @@
  *   9. Generate filtered RNA BAMs from the STARsolo barcode calls.
  *  10. Generate stranded and unstranded RNA bigWigs from the filtered BAMs.
  *  11. Run the upstream DNA sample-barcode, modality-barcode, and cell-barcode tagging
- *      steps plus dual-tag artifact filtering, DNA trim_galore, Split_ReadsV2 dna mode, AlignDNA.sh,
+ *      steps plus DNA trim_galore, dual-tag artifact filtering, Split_ReadsV2 dna mode, AlignDNA.sh,
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
 

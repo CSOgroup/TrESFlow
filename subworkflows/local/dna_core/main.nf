@@ -167,12 +167,16 @@ workflow DNA_CORE {
     TAG_DNA_CELL_BARCODE(ch_cb_input)
     ch_versions = ch_versions.mix(TAG_DNA_CELL_BARCODE.out.versions)
 
+    // Every DNA pair first undergoes ordinary adapter/quality trimming so
+    // genomic prefixes can be salvaged before exact residual-linker detection.
+    TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged)
+    ch_versions = ch_versions.mix(TRIM_DNA_FASTQS.out.versions)
+
     // Only dual-tagmentation DNA is eligible for exact linker-signature
-    // cleanup. A branch operation gives every tagged pair to exactly one
+    // cleanup. A branch operation gives every trimmed pair to exactly one
     // route; single-tagmentation and explicitly disabled samples never invoke
-    // the Cutadapt process. The routes are recombined before ordinary adapter
-    // and quality trimming.
-    ch_dual_tag_artifact_routes = TAG_DNA_CELL_BARCODE.out.tagged.branch { _sampleId, meta, _taggedR1, _taggedR2 ->
+    // the Cutadapt process. Both routes are recombined once before splitting.
+    ch_dual_tag_artifact_routes = TRIM_DNA_FASTQS.out.trimmed.branch { _sampleId, meta, _trimmedR1, _trimmedR2 ->
         filter: params.filter_dual_tag_artifacts && meta.dna_tagmentation == 'dual'
         bypass: true
     }
@@ -183,19 +187,16 @@ workflow DNA_CORE {
     )
     ch_versions = ch_versions.mix(DUAL_TAG_ARTIFACT_FILTER.out.versions)
 
-    ch_tagged_for_trim = ch_dual_tag_artifact_routes.bypass
+    ch_trimmed_for_split = ch_dual_tag_artifact_routes.bypass
         .mix(DUAL_TAG_ARTIFACT_FILTER.out.filtered)
 
-    TRIM_DNA_FASTQS(ch_tagged_for_trim)
-    ch_versions = ch_versions.mix(TRIM_DNA_FASTQS.out.versions)
-
-    // Split trimmed DNA reads by sample-barcode group and modality mark.
+    // Split post-trimming DNA reads by sample-barcode group and modality mark.
     ch_split_meta = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
         tuple(sampleId, meta, moMap, sbGroupMap)
     }
 
     ch_split_input = ch_split_meta
-        .join(TRIM_DNA_FASTQS.out.trimmed)
+        .join(ch_trimmed_for_split)
         .map { sampleId, metaFromInput, moMap, sbGroupMap, metaFromTrim, trimmedR1, trimmedR2 ->
             tuple(sampleId, metaFromInput, trimmedR1, trimmedR2, moMap, sbGroupMap)
         }

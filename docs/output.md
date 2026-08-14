@@ -116,11 +116,12 @@ Tag-record tables are emitted only as final gzip artifacts; no complete uncompre
 
 The dual-tag artifact summary reports input, retained, and rejected read-pair
 counts; per-mate signature counts; Cutadapt version; and the audited signature
-FASTA SHA-256. Its accounting is validated as `input_pairs = retained_pairs +
-rejected_pairs`. The raw Cutadapt JSON and summary TSV are also supplied to the
-shared report/QC collection. No rejected or transient cleaned FASTQs are
-published. These files are absent for single-tagmentation samples and when
-`--filter_dual_tag_artifacts false`.
+FASTA SHA-256. Here, `input_pairs` means pairs that survived the preceding Trim
+Galore step, not the original raw or pre-trimming pair count. Its accounting is
+validated as `input_pairs = retained_pairs + rejected_pairs`. The raw Cutadapt
+JSON and summary TSV are also supplied to the shared report/QC collection. No
+rejected or transient cleaned FASTQs are published. These files are absent for
+single-tagmentation samples and when `--filter_dual_tag_artifacts false`.
 
 ### Read-retention counters in `TrES_Stats/`
 
