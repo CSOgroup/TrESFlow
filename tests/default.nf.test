@@ -48,7 +48,12 @@ nextflow_pipeline {
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert new File(statsDir, "tres_report.html").exists() },
-                { assert new File(statsDir, "tres_report_metrics.json").exists() },
+                { assert !new File(statsDir, "tres_report_metrics.json").exists() },
+                { assert new File(statsDir, "read_retention.tsv").exists() },
+                { assert new File(statsDir, "qc_metrics.tsv").exists() },
+                { assert new File(statsDir, "barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "library_complexity.tsv").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".png") || it.name.endsWith(".svg") } },
                 { assert new File(qcDir, "fastqc/rna.test_rna.raw_1_fastqc.html").exists() },
                 { assert new File(qcDir, "multiqc/multiqc_report.html").exists() },
                 { assert !new File(outputDir, "tres_report").exists() },
@@ -273,9 +278,12 @@ nextflow_pipeline {
                 statsDir,
                 "${sampleId}.dual_tag_artifact_filter.summary.tsv"
             )
-            def reportMetrics = new groovy.json.JsonSlurper().parse(
-                new File(statsDir, "tres_report_metrics.json")
-            )
+            def complexityLines = new File(statsDir, "library_complexity.tsv").readLines()
+            def complexityRows = complexityLines.size() > 1
+                ? complexityLines.drop(1).collect { line ->
+                    [complexityLines[0].split('\t'), line.split('\t')].transpose().collectEntries()
+                }
+                : []
             def artifactReport = new groovy.json.JsonSlurper().parse(artifactJson)
             def artifactSummaryLines = artifactSummary.readLines()
             def artifactSummaryValues = artifactSummaryLines.size() == 2
@@ -305,6 +313,12 @@ nextflow_pipeline {
                 { assert new File(statsDir, "${sampleId}.dna_read_retention.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.dna_barcode_gates.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.dna_barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "read_retention.tsv").exists() },
+                { assert new File(statsDir, "qc_metrics.tsv").exists() },
+                { assert new File(statsDir, "barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "library_complexity.tsv").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".png") || it.name.endsWith(".svg") } },
+                { assert !new File(statsDir, "tres_report_metrics.json").exists() },
                 { assert new File(statsDir, "${splitName}.dna_alignment_retention.tsv").exists() },
                 { assert canonicalChromosomes.readLines() == ["chr1", "chrX", "chrY", "chrM"] },
                 { assert !new File(statsDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
@@ -318,9 +332,9 @@ nextflow_pipeline {
                 { assert tagRecords.contains("L3:Z:GATCGATC") },
                 { assert tagRecords.contains("SB:Z:AAA") },
                 { assert tagRecords.contains("MO:Z:AGGCTATA") },
-                { assert reportMetrics.raw.duplicate_metrics[0].read_pair_optical_duplicates == 0 },
-                { assert reportMetrics.raw.duplicate_metrics[0].estimated_library_size == 0 },
-                { assert reportMetrics.raw.dual_tag_artifact_filters[0].sample_id == sampleId }
+                { assert complexityRows[0].optical_duplicate_pairs == "0" },
+                { assert complexityRows[0].estimated_library_size == "0" },
+                { assert artifactSummaryValues.sample_id == sampleId }
             )
         }
     }

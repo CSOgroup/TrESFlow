@@ -144,7 +144,7 @@ DNA publishes:
 
 The pipeline also writes two end-of-run HTML reports:
 
-- `TrES_Stats/tres_report.html`: compact TrESFlow-specific RNA/DNA mapping and barcode summary
+- `TrES_Stats/tres_report.html`: self-contained TrESFlow QC report with per-run retention, barcode composition, DNA duplicate complexity, and STARsolo RNA sequencing saturation
 - `TrES_Stats/qc/multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 
 ## Runtime Contract
@@ -219,8 +219,8 @@ Every run writes:
 - `${outdir}/pipeline_info/execution_trace.tsv`
 - `${outdir}/pipeline_info/flowchart.html`
 - `${outdir}/pipeline_info/runtime_contract.tsv`
-- `${outdir}/TrES_Stats/tres_report.html` with per-library main statistics, detailed QC tables, and CSV/Excel export buttons
-- `${outdir}/TrES_Stats/tres_report_metrics.json`
+- `${outdir}/TrES_Stats/tres_report.html`, a self-contained offline QC report with per-run retention, barcode composition, DNA duplicate complexity, RNA sequencing saturation, and client-side SVG/PNG figure downloads
+- `${outdir}/TrES_Stats/{read_retention,qc_metrics,barcode_composition,library_complexity}.tsv`
 - `${outdir}/TrES_Stats/qc/multiqc/multiqc_report.html`
 
 `TrES_Stats/` also contains exact metrics-only barcode contracts named
@@ -231,6 +231,18 @@ splitting, so cumulative gates are same-pair counts rather than combinations of
 the marginal L1/L2/L3, sample-barcode, or MO percentages. For enabled dual-tag
 DNA, the split-input denominator is the artifact-filter-retained population;
 the filter summary's input remains the preceding Trim Galore population.
+The consolidated sample-barcode composition has one row per configured barcode
+sequence (with its group and label) from `*_sample_barcode.counts.tsv`, plus an
+explicit `NoMatch` from `reads_without_bc` in the matching stats TSV. Assigned,
+NoMatch, `bc_reads`, and `reads` are reconciled exactly. DNA mark composition
+retains every configured mark plus `NoMatch`, including zero-count categories.
+All report figures are responsive inline SVG embedded in the HTML; dimensions,
+label placement, legend wrapping, and deterministic category colours adapt to
+the observed run/branch/category counts. Each embedded figure has offline SVG
+and PNG download controls, while the pipeline does not publish separate report
+JSON or plot files. The HTML and consolidated tables are rendered from one
+shared, validated Python data model. The standalone
+entry point is `bin/assess_tresflow_run.py`.
 
 Runs with real BAM outputs also write combined Samtools sidecar QC under:
 

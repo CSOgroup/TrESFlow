@@ -54,7 +54,18 @@ grep -F "timeline.file = '${launch_dir}/results/pipeline_info/execution_timeline
 
 test ! -e "${launch_dir}/relative-results/rna_split_fastqs"
 test -s "${launch_dir}/relative-results/TrES_Stats/tres_report.html"
-test -s "${launch_dir}/relative-results/TrES_Stats/tres_report_metrics.json"
+grep -F '<title>relative-results · TrESFlow QC</title>' \
+    "${launch_dir}/relative-results/TrES_Stats/tres_report.html" > /dev/null
+grep -F '<h1>relative-results</h1>' \
+    "${launch_dir}/relative-results/TrES_Stats/tres_report.html" > /dev/null
+expected_pipeline_version="$(bash "${repo_root}/bin/resolve_tresflow_release_version.sh" "${repo_root}" 0.0.0dev)"
+grep -F "<span>Pipeline version</span><strong>${expected_pipeline_version}</strong>" \
+    "${launch_dir}/relative-results/TrES_Stats/tres_report.html" > /dev/null
+test ! -e "${launch_dir}/relative-results/TrES_Stats/tres_report_metrics.json"
+test -s "${launch_dir}/relative-results/TrES_Stats/read_retention.tsv"
+test -s "${launch_dir}/relative-results/TrES_Stats/qc_metrics.tsv"
+test -s "${launch_dir}/relative-results/TrES_Stats/barcode_composition.tsv"
+test -s "${launch_dir}/relative-results/TrES_Stats/library_complexity.tsv"
 test -s "${launch_dir}/relative-results/TrES_Stats/qc/multiqc/multiqc_report.html"
 test ! -e "${launch_dir}/relative-results/tres_report"
 test ! -e "${launch_dir}/relative-results/qc"

@@ -46,12 +46,12 @@ class BarcodeGateMetricTests(unittest.TestCase):
         tag_records = root / "records.tsv.gz"
         write_records(tag_records, records)
         sb_map = root / "sb.tsv"
-        sb_map.write_text("sample\tgroup1\tAAA\nsample\tgroup2\tCCC\n", encoding="utf-8")
+        sb_map.write_text("sample\trun-alpha\tAAA\nsample\trun-beta\tCCC\n", encoding="utf-8")
         mo_map = root / "mo.tsv"
         mo_map.write_text(
-            "sample\tgroup1\tH3K27ac\tMARKA\n"
-            "sample\tgroup1\tH3K27me3\tMARKB\n"
-            "sample\tgroup2\tH3K9me3\tMARKC\n",
+            "sample\trun-alpha\tmark-one\tMARKA\n"
+            "sample\trun-alpha\tmark-two\tMARKB\n"
+            "sample\trun-beta\tmark-three\tMARKC\n",
             encoding="utf-8",
         )
         argv = [
@@ -88,8 +88,12 @@ class BarcodeGateMetricTests(unittest.TestCase):
             self.assertGreaterEqual(values["split_input_pairs"], values["ligation_barcode_accepted_pairs"])
             self.assertGreaterEqual(values["ligation_barcode_accepted_pairs"], values["sample_barcode_accepted_pairs"])
             counts = {row["category"]: int(row["count"]) for row in composition}
-            self.assertEqual(counts, {"group1": 1, "group2": 1, "NoMatch": 1})
+            self.assertEqual(counts, {"AAA": 1, "CCC": 1, "NoMatch": 1})
             self.assertEqual(sum(counts.values()), 3)
+            by_sequence = {row["barcode_sequence"]: row for row in composition if row["category"] != "NoMatch"}
+            self.assertEqual(by_sequence["AAA"]["group"], "run-alpha")
+            self.assertEqual(by_sequence["CCC"]["group"], "run-beta")
+            self.assertEqual({row["barcode_label"] for row in composition}, {"AAA", "CCC", "NoMatch"})
         finally:
             context.cleanup()
 
@@ -107,12 +111,16 @@ class BarcodeGateMetricTests(unittest.TestCase):
             self.assertEqual(list(values.values()), [5, 4, 3, 2])
             sample_rows = [row for row in composition if row["barcode_type"] == "sample_barcode"]
             self.assertEqual(sum(int(row["count"]) for row in sample_rows), 4)
-            group1 = [row for row in composition if row["barcode_type"] == "dna_mark" and row["group"] == "group1"]
-            group2 = [row for row in composition if row["barcode_type"] == "dna_mark" and row["group"] == "group2"]
-            self.assertEqual({row["category"]: int(row["count"]) for row in group1}, {"H3K27ac": 1, "H3K27me3": 0, "NoMatch": 1})
-            self.assertEqual({row["category"]: int(row["count"]) for row in group2}, {"H3K9me3": 1, "NoMatch": 0})
-            self.assertEqual(sum(int(row["count"]) for row in group1), 2)
-            self.assertEqual(sum(int(row["count"]) for row in group2), 1)
+            self.assertEqual(
+                {row["barcode_sequence"] for row in sample_rows},
+                {"AAA", "CCC", ""},
+            )
+            alpha = [row for row in composition if row["barcode_type"] == "dna_mark" and row["group"] == "run-alpha"]
+            beta = [row for row in composition if row["barcode_type"] == "dna_mark" and row["group"] == "run-beta"]
+            self.assertEqual({row["category"]: int(row["count"]) for row in alpha}, {"mark-one": 1, "mark-two": 0, "NoMatch": 1})
+            self.assertEqual({row["category"]: int(row["count"]) for row in beta}, {"mark-three": 1, "NoMatch": 0})
+            self.assertEqual(sum(int(row["count"]) for row in alpha), 2)
+            self.assertEqual(sum(int(row["count"]) for row in beta), 1)
         finally:
             context.cleanup()
 

@@ -53,6 +53,43 @@ class OutputPublicationTests(unittest.TestCase):
         self.assertNotIn("resolvedOutdir')}/qc/", modules_config)
         self.assertNotIn("resolvedOutdir')}/multiqc", modules_config)
 
+    def test_report_uses_explicit_metric_channels_and_publishes_normalized_outputs(self):
+        workflow = (REPO_ROOT / "workflows/treseq.nf").read_text(encoding="utf-8")
+        entry_workflow = (REPO_ROOT / "main.nf").read_text(encoding="utf-8")
+        report_module = (REPO_ROOT / "modules/local/tres_report_html/main.nf").read_text(encoding="utf-8")
+        for channel_name in (
+            "split_retention_metrics",
+            "filter_retention_metrics",
+            "alignment_retention_metrics",
+            "dual_tag_artifact_filter_qc",
+            "duplicate_metrics",
+            "ch_report_contract_files",
+        ):
+            self.assertIn(channel_name, workflow)
+        self.assertIn("ch_report_source_files.collect()", workflow.replace("\n", "").replace(" ", ""))
+        self.assertNotIn("params.outdir", report_module)
+        for name in ("read_retention.tsv", "qc_metrics.tsv", "barcode_composition.tsv", "library_complexity.tsv"):
+            self.assertIn(name, report_module)
+        self.assertIn("_sample_barcode.counts.tsv", workflow)
+        self.assertNotIn("tres_report_metrics.json", report_module)
+        self.assertNotIn('path("*.png")', report_module)
+        self.assertNotIn('path("*.svg")', report_module)
+        self.assertNotIn("metrics_json", workflow)
+        self.assertNotIn("figures_png", workflow)
+        self.assertNotIn("figures_svg", workflow)
+        self.assertIn("--no-json", report_module)
+        self.assertIn("--no-standalone-figures", report_module)
+        self.assertIn("new File(resolvedOutdir).name", entry_workflow)
+        self.assertIn("resolvePipelineReleaseVersion", entry_workflow)
+        self.assertIn("TRESEQ(\n        sampleRows,", entry_workflow)
+        self.assertIn("report_title    : reportTitle", entry_workflow)
+        self.assertIn("pipeline_version: pipelineReleaseVersion", entry_workflow)
+        self.assertIn("report_title    : reportMetadata.report_title", workflow)
+        self.assertIn("groups          : row.samplesheet_groups ?: []", workflow)
+        self.assertNotIn("sampleRows[0].library_name", workflow)
+        self.assertNotIn("workflow.manifest.version", workflow)
+        self.assertIn('--title "${reportTitle}"', report_module)
+
     def test_rna_filtered_bam_is_published_directly_without_recompression(self):
         module = (REPO_ROOT / "modules/local/rna_filtered_bam/main.nf").read_text(
             encoding="utf-8"

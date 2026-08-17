@@ -98,6 +98,7 @@ EOF
 EOF
         cat > "${splitName}.Solo.outGeneFull/Summary.csv" <<EOF
 Number of Reads,\${input_pairs}
+Sequencing Saturation,0.25
 Reads Mapped to Genome: Unique+Multiple,1.00
 Reads Mapped to Genome: Unique,1.00
 Reads Mapped to GeneFull: Unique+Multiple GeneFull,1.00

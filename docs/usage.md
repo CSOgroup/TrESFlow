@@ -5,18 +5,23 @@
 `TrESFlow` supports one public input contract: a single hierarchical YAML samplesheet passed with `--samplesheet`.
 There is no CSV input mode in this repository.
 
-The pipeline runs two independent modality branches from that YAML, then builds nf-core QC sidecar outputs, MultiQC, and a compact TrESFlow-specific HTML report from the published tag-record, STAR, samtools, and alignment channels:
+The pipeline runs two independent modality branches from that YAML, then builds nf-core QC sidecar outputs, MultiQC, and a self-contained TrESFlow-specific HTML report from explicit metric channels:
 
 - `rna`: sample-barcode tagging, UMI tagging, cell-barcode tagging, trimming, split by SB groups, `FqToSAM`, STARsolo, filtered BAM, bigWigs
 - `dna`: sample-barcode tagging, modality tagging, cell-barcode tagging, trimming, split by SB groups and DNA marks, alignment, duplicate marking, NoDup BAM, bigWig
 
 End-of-run reporting is collected under `TrES_Stats`:
 
-- `TrES_Stats/tres_report.html`: TrESFlow-specific per-library RNA/DNA mapping and barcode summary with CSV/Excel export buttons
-- `TrES_Stats/tres_report_metrics.json`: machine-readable metrics used by the HTML report
+- `TrES_Stats/tres_report.html`: offline run overview, per-independent-run retention, sample/mark composition, DNA duplicate complexity, and STARsolo RNA sequencing-saturation report with embedded inline SVG
+- `TrES_Stats/read_retention.tsv`, `qc_metrics.tsv`, `barcode_composition.tsv`, and `library_complexity.tsv`: consolidated auditable data
 - `TrES_Stats/qc/multiqc/multiqc_report.html`: nf-core MultiQC aggregation of supported logs and QC files
 - `TrES_Stats/qc/fastqc/*_fastqc.{html,zip}`: nf-core FastQC reports for raw FASTQs
 - `TrES_Stats/qc/samtools/*.flagstat`, `*.stats`, `*.idxstats`, and `*.quickcheck.tsv`: combined Samtools sidecar QC for real BAM outputs
+
+The pipeline report title is the basename of the resolved `--outdir`; its
+overview cards retain the samplesheet group names. The standalone assessor uses
+the assessed output-directory basename by default and accepts `--title` (or the
+backward-compatible `--library-name` alias) as an explicit override.
 
 The samtools sidecars are disabled in `-profile test` because the smoke profile uses mock BAM text files rather than valid BAMs.
 
@@ -228,9 +233,10 @@ reads surviving Trim Galore, not the raw or pre-trimming pair count.
 The published `*.barcode_gates.tsv` files provide exact cumulative same-pair
 barcode populations among reads that reach splitting. They are computed from
 the routing decisions already recorded during tagging, not by rematching
-barcodes. The companion `*.barcode_composition.tsv` files give exhaustive
-configured sample-group or DNA-mark categories plus `NoMatch`, with explicit
-denominators. Marginal barcode percentages remain raw-input diagnostics and
+barcodes. The companion `*.barcode_composition.tsv` files give one exact
+category per configured sample-barcode sequence with its group/label, or per
+configured DNA mark, plus `NoMatch` even when zero, with explicit denominators.
+Marginal barcode percentages remain raw-input diagnostics and
 must not be interpreted as sequential retention stages. In an enabled dual-tag
 DNA run, `split_input_pairs` and every barcode-gate denominator begin after the
 artifact filter; otherwise they begin after paired trimming.
@@ -250,6 +256,22 @@ same `LB`, so ordinary genomic/PCR duplicate families can span lanes for the sam
 cell while Picard's physical comparison cannot collide coordinates from two
 different lanes. Cell identity is not encoded in DNA `RG`; it remains in `CB`.
 RNA read-group behavior is unchanged.
+
+The standalone assessor uses the same repository-owned parser, validation,
+normalized model, plots, and HTML renderer as the pipeline:
+
+```bash
+python3 bin/assess_tresflow_run.py /path/to/completed/output \
+  --output-dir /path/to/qc-assessment
+```
+
+It is read-only with respect to the assessed output. Legacy runs without exact
+gate sidecars retain only provable coarse stages; exact gates or composition are
+never reconstructed from marginal percentages.
+
+Unlike the pipeline report process, the standalone assessor also writes its
+normalized JSON model and standalone SVG copies by default. Use `--no-json` and
+`--no-standalone-figures` to request the pipeline's compact five-file contract.
 
 `--publish_split_fastqs` defaults to `false`. Internal plain split FASTQs still
 feed RNA and DNA computation, but the publication-only `pigz` tasks and the

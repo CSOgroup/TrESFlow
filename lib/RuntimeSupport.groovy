@@ -89,6 +89,37 @@ class RuntimeSupport {
         return resolvePath(rawProjectDir, rawPath)
     }
 
+    static String resolvePipelineReleaseVersion(
+        final String rawProjectDir,
+        final Object manifestVersion
+    ) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File resolver = new File(projectDirectory, 'bin/resolve_tresflow_release_version.sh')
+        if( !resolver.exists() ) {
+            throw new IllegalStateException(
+                "Missing repository release-version resolver: ${resolver}"
+            )
+        }
+
+        final Process process = new ProcessBuilder(
+            'bash',
+            resolver.canonicalPath,
+            projectDirectory.canonicalPath,
+            (manifestVersion ?: '').toString()
+        )
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+            .start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+        if( exitCode != 0 || !output ) {
+            throw new IllegalStateException(
+                "Unable to resolve the TrESFlow release version: ${output ?: 'no output'}"
+            )
+        }
+        return output
+    }
+
     static String runCodonSeqPreflight(final Map runtimeParams, final String rawProjectDir) {
         final File projectDirectory = new File(rawProjectDir).canonicalFile
         final File preflight = new File(projectDirectory, 'bin/check_codon_seq_host.sh')

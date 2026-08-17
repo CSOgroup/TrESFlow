@@ -75,6 +75,11 @@ workflow {
     def resolvedCoreScriptsDir = rawCoreScriptsDir
         ? runtimeSupport.resolveLaunchPath(launchDir.toString(), rawCoreScriptsDir)
         : runtimeSupport.resolveProjectPath(projectDir.toString(), 'scripts/core_runtime')
+    def reportTitle = new File(resolvedOutdir).name
+    def pipelineReleaseVersion = runtimeSupport.resolvePipelineReleaseVersion(
+        projectDir.toString(),
+        workflow.manifest.version
+    )
 
     // Resolve launch-time paths once. Downstream modules consume these canonical
     // values, while repository-owned wrappers and assets continue to use projectDir.
@@ -183,5 +188,11 @@ workflow {
         runtimeSupport.runtimeContext(runtimeParams)
     )
 
-    TRESEQ(sampleRows)
+    TRESEQ(
+        sampleRows,
+        [
+            report_title    : reportTitle,
+            pipeline_version: pipelineReleaseVersion,
+        ]
+    )
 }

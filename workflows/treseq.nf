@@ -86,13 +86,13 @@ def validateCoreResourceContract(rnaRows, dnaRows, maxCpus) {
 workflow TRESEQ {
     take:
     sampleRows
+    reportMetadata
 
     main:
     // Parse the single supported YAML contract into modality-specific work rows.
     def rnaRows = sampleRows.findAll { row -> row.modality == 'rna' }
     def dnaRows = sampleRows.findAll { row -> row.modality == 'dna' }
     def maxCpus = params.max_cpus as int
-    def libraryName = sampleRows ? (sampleRows[0].library_name as String) : 'unknown library'
 
     validateCoreResourceContract(rnaRows, dnaRows, maxCpus)
 
@@ -151,7 +151,10 @@ workflow TRESEQ {
     ch_barcode_report_files = RNA_CORE.out.barcode_report_files
         .mix(DNA_CORE.out.barcode_report_files)
 
-    ch_report_source_files = ch_barcode_report_files
+    // MultiQC retains its broad source collection. The TrESFlow report instead
+    // receives explicit metric contracts and waits on every producer, avoiding
+    // output-directory scans and publication races.
+    ch_multiqc_source_files = ch_barcode_report_files
         .mix(DNA_CORE.out.dual_tag_artifact_filter_qc.flatMap { _sampleId, _meta, cutadaptJson, summary ->
             [cutadaptJson, summary]
         })
@@ -164,11 +167,48 @@ workflow TRESEQ {
         .mix(SAMTOOLS_BAM_QC.out.idxstats.map { meta, idxstats -> idxstats })
         .mix(SAMTOOLS_BAM_QC.out.quickcheck.map { meta, report -> report })
 
+    ch_report_barcode_files = ch_barcode_report_files.filter { reportFile ->
+        def name = reportFile.getName()
+        name.endsWith('.stats.tsv') || name.endsWith('_sample_barcode.counts.tsv') || name.endsWith('_barcode_gates.tsv') || name.endsWith('_barcode_composition.tsv')
+    }
+
+    def reportContractPaths = sampleRows
+        .collectMany { row -> [row.sb_group_map, row.mo_map].findAll { it } }
+        .collect { path -> file(path) }
+        .unique { path -> path.toString() }
+
+    ch_report_contract_files = Channel.fromList(reportContractPaths)
+
+    ch_report_source_files = ch_report_barcode_files
+        .mix(RNA_CORE.out.split_retention_metrics.map { sampleId, meta, metrics -> metrics })
+        .mix(RNA_CORE.out.filter_retention_metrics.map { splitName, meta, metrics -> metrics })
+        .mix(DNA_CORE.out.split_retention_metrics.map { sampleId, meta, metrics -> metrics })
+        .mix(DNA_CORE.out.alignment_retention_metrics.map { splitName, meta, metrics -> metrics })
+        .mix(DNA_CORE.out.dual_tag_artifact_filter_qc.map { _sampleId, _meta, _cutadaptJson, summary -> summary })
+        .mix(RNA_CORE.out.aligned_solo_summaries.map { splitName, meta, soloSummary -> soloSummary })
+        .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
+        .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
+        .mix(SAMTOOLS_BAM_QC.out.flagstat.map { meta, flagstat -> flagstat })
+        .mix(ch_report_contract_files)
+
     ch_tres_report_input = ch_report_source_files
         .collect()
-        .map { files -> tuple([id: 'tresflow', library_name: libraryName], files) }
+        .map { files -> tuple([
+            id              : 'tresflow',
+            report_title    : reportMetadata.report_title,
+            pipeline_version: reportMetadata.pipeline_version,
+            filter_dual_tag_artifacts: params.filter_dual_tag_artifacts,
+            runtime_env_prefix: sampleRows ? sampleRows[0].runtime_env_prefix : '',
+            runtime_tmpdir  : sampleRows ? sampleRows[0].runtime_tmpdir : '',
+            samples         : sampleRows.collect { row -> [
+                id              : row.id,
+                modality        : row.modality,
+                dna_tagmentation: row.dna_tagmentation,
+                groups          : row.samplesheet_groups ?: [],
+            ] },
+        ], files) }
 
-    ch_multiqc_input = ch_report_source_files
+    ch_multiqc_input = ch_multiqc_source_files
         .collect()
         .map { files ->
             tuple(
@@ -227,5 +267,8 @@ workflow TRESEQ {
     multiqc_report              = MULTIQC.out.report
     multiqc_data                = MULTIQC.out.data
     tres_report_html            = TRES_REPORT_HTML.out.html
-    tres_report_metrics_json    = TRES_REPORT_HTML.out.metrics_json
+    tres_report_read_retention  = TRES_REPORT_HTML.out.read_retention
+    tres_report_qc_metrics      = TRES_REPORT_HTML.out.qc_metrics
+    tres_report_barcode_composition = TRES_REPORT_HTML.out.barcode_composition
+    tres_report_library_complexity = TRES_REPORT_HTML.out.library_complexity
 }

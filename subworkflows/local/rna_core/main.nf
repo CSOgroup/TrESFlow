@@ -209,12 +209,13 @@ workflow RNA_CORE {
         .mix(TAG_RNA_UMI.out.metrics)
         .mix(TAG_RNA_CELL_BARCODE.out.metrics)
 
-    ch_barcode_report_files = TAG_RNA_SAMPLE_BARCODE.out.metrics
-        .flatMap { sampleId, counts, stats -> [counts, stats] }
-        .mix(TAG_RNA_UMI.out.metrics.flatMap { sampleId, counts -> [counts] })
-        .mix(TAG_RNA_CELL_BARCODE.out.metrics.flatMap { sampleId, counts, statsL1, statsL2, statsL3 ->
-            [counts, statsL1, statsL2, statsL3]
-        })
+    // Use the modality-qualified publication copies for report consumers. The
+    // generic runtime filenames are intentionally retained only on the
+    // computational tuples and are ambiguous when RNA and DNA share a sample.
+    ch_barcode_report_files = TAG_RNA_SAMPLE_BARCODE.out.tres_stats
+        .flatMap { reportFiles -> asRnaPathList(reportFiles) }
+        .mix(TAG_RNA_UMI.out.tres_stats.flatMap { reportFiles -> asRnaPathList(reportFiles) })
+        .mix(TAG_RNA_CELL_BARCODE.out.tres_cell_stats.flatMap { reportFiles -> asRnaPathList(reportFiles) })
         .mix(BARCODE_GATE_METRICS.out.metrics.flatMap { sampleId, meta, gates, composition ->
             [gates, composition]
         })

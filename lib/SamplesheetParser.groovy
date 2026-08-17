@@ -245,6 +245,11 @@ class SamplesheetParser {
             row.sb_group_map = row.modality == MODALITY_RNA
                 ? rnaSbGroupMapFile.canonicalPath
                 : dnaSbGroupMapFile.canonicalPath
+            // Preserve the samplesheet's explicit group identities as report
+            // metadata before removing the internal barcode-definition map.
+            row.samplesheet_groups = new ArrayList<String>(
+                (row.group_definitions as Map).keySet().collect { it.toString() }
+            )
             row.remove('group_definitions')
             if( row.modality == MODALITY_DNA ) {
                 row.mo_map = dnaMoMapFile.canonicalPath

@@ -13,7 +13,7 @@ import argparse
 import csv
 import gzip
 import sys
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from itertools import zip_longest
 from pathlib import Path
 
@@ -124,6 +124,7 @@ def write_composition_rows(
     sample: str,
     modality: str,
     sample_counts: OrderedDict[str, int],
+    sample_barcode_groups: dict[str, str],
     sample_denominator: int,
     mark_counts: dict[str, OrderedDict[str, int]],
     mark_denominators: dict[str, int],
@@ -134,6 +135,8 @@ def write_composition_rows(
         "group",
         "barcode_type",
         "category",
+        "barcode_sequence",
+        "barcode_label",
         "count",
         "percentage",
         "denominator_count",
@@ -144,13 +147,16 @@ def write_composition_rows(
         writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t")
         writer.writeheader()
         for category, count in sample_counts.items():
+            is_no_match = category == NO_MATCH
             writer.writerow(
                 {
                     "sample_id": sample,
                     "modality": modality,
-                    "group": "__all__",
+                    "group": "__all__" if is_no_match else sample_barcode_groups[category],
                     "barcode_type": "sample_barcode",
                     "category": category,
+                    "barcode_sequence": "" if is_no_match else category,
+                    "barcode_label": category,
                     "count": count,
                     "percentage": f"{percentage(count, sample_denominator):.6f}",
                     "denominator_count": sample_denominator,
@@ -168,6 +174,8 @@ def write_composition_rows(
                         "group": group,
                         "barcode_type": "dna_mark",
                         "category": category,
+                        "barcode_sequence": "",
+                        "barcode_label": category,
                         "count": count,
                         "percentage": f"{percentage(count, denominator):.6f}",
                         "denominator_count": denominator,
@@ -181,7 +189,10 @@ def write_composition_rows(
 
 def calculate(args):
     sb_to_group, group_names = load_sb_group_map(args.sb_group_map, args.sample)
-    sample_counts = OrderedDict((group, 0) for group in group_names)
+    # Preserve every configured sequence as an explicit category. The SB tag is
+    # already the existing tagger's corrected decision; this helper only
+    # resolves that decision to its configured map row and never rematches it.
+    sample_counts = OrderedDict((barcode, 0) for barcode in sb_to_group)
     sample_counts[NO_MATCH] = 0
 
     mappings = None
@@ -212,15 +223,17 @@ def calculate(args):
 
         sb = tag_value(fields, "SB")
         group = None
+        configured_sb = None
         if sb != NO_MATCH:
             try:
                 group = resolve_group(args.sample, sb, sb_to_group)
+                configured_sb = sb if sb in sb_to_group else sb[1:]
             except (KeyError, ValueError):
                 group = None
-        if group is None:
+        if group is None or configured_sb not in sb_to_group:
             sample_counts[NO_MATCH] += 1
             continue
-        sample_counts[group] += 1
+        sample_counts[configured_sb] += 1
         sample_accepted += 1
 
         if args.modality == "dna":
@@ -280,6 +293,7 @@ def main(argv=None):
         args.sample,
         args.modality,
         sample_counts,
+        load_sb_group_map(args.sb_group_map, args.sample)[0],
         counts["ligation_barcode_accepted_pairs"],
         mark_counts,
         mark_denominators,
