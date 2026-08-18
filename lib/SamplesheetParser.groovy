@@ -86,6 +86,14 @@ class SamplesheetParser {
             final boolean hasRna = rnaConfig != null
             final boolean hasDna = dnaConfig != null
 
+            if( hasDna && dnaConfig.containsKey('mark_barcodes') ) {
+                throw new IllegalArgumentException(
+                    "samples.${sampleId}.dna.mark_barcodes is no longer supported; " +
+                    "define mark_barcodes under each DNA group at " +
+                    "samples.${sampleId}.groups.<group>.mark_barcodes"
+                )
+            }
+
             if( !hasRna && !hasDna ) {
                 throw new IllegalArgumentException(
                     "samples.${sampleId} must define at least one modality block: rna or dna"
@@ -120,6 +128,7 @@ class SamplesheetParser {
                     libraryName,
                     baseDir,
                     normalizedGroups.dna as LinkedHashMap<String, List<String>>,
+                    normalizedGroups.dna_mark_barcodes as LinkedHashMap<String, Map<String, String>>,
                     normalizedGroups.dna_source_summary as String,
                     dnaTagmentation,
                     dnaConfig,
@@ -179,6 +188,7 @@ class SamplesheetParser {
         final String libraryName,
         final File baseDir,
         final LinkedHashMap<String, List<String>> normalizedGroups,
+        final LinkedHashMap<String, Map<String, String>> markBarcodesByGroup,
         final String sbSourceSummary,
         final String tagmentation,
         final Map dnaConfig,
@@ -187,10 +197,6 @@ class SamplesheetParser {
         final Map references
     ) {
         final Map reads = resolveDnaReads(baseDir, dnaConfig, sampleId, tagmentation)
-        final LinkedHashMap<String, String> markBarcodes = parseMarkBarcodes(
-            dnaConfig.mark_barcodes,
-            sampleId
-        )
         final Map dnaTagDefaults = dnaTagDefaultsForTagmentation(defaults, tagmentation)
 
         return [
@@ -229,7 +235,7 @@ class SamplesheetParser {
             group_definitions           : normalizedGroups,
             dna_sb_barcode_source       : sbSourceSummary,
             dna_sb_barcode_len          : dnaSbBarcodeLength(tagmentation),
-            mark_barcodes               : markBarcodes,
+            mark_barcodes               : markBarcodesByGroup,
         ]
     }
 
@@ -270,6 +276,7 @@ class SamplesheetParser {
     ) {
         final LinkedHashMap<String, List<String>> rnaGroups = new LinkedHashMap<>()
         final LinkedHashMap<String, List<String>> dnaGroups = new LinkedHashMap<>()
+        final LinkedHashMap<String, Map<String, String>> dnaMarkBarcodes = new LinkedHashMap<>()
         final LinkedHashMap<String, String> rnaSources = new LinkedHashMap<>()
         final LinkedHashMap<String, String> dnaSources = new LinkedHashMap<>()
 
@@ -277,27 +284,66 @@ class SamplesheetParser {
             final String groupName = requireString(rawGroupName, "samples.${sampleId}.groups.<group>")
             final Map groupConfig = asMap(rawGroupConfig, "samples.${sampleId}.groups.${groupName}")
 
-            if( hasRna ) {
+            final boolean hasRnaBarcodes = groupConfig.containsKey('rna_sb_barcodes') || groupConfig.containsKey('sb_barcodes')
+            if( hasRna && hasRnaBarcodes ) {
                 final Map rnaSelection = selectRnaSbBarcodes(groupConfig, sampleId, groupName)
                 addGroupBarcodes(rnaGroups, rnaSources, groupName, rnaSelection, RNA_SB_BARCODE_LENGTH)
             }
 
             if( hasDna ) {
-                final Map dnaSelection = selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
-                addGroupBarcodes(dnaGroups, dnaSources, groupName, dnaSelection, dnaSbBarcodeLength(dnaTagmentation))
+                final boolean hasDnaBarcodes = groupConfig.containsKey('dna_sb_barcodes') ||
+                    (dnaTagmentation == TAGMENTATION_SINGLE && groupConfig.containsKey('sb_barcodes'))
+                final boolean hasMarkBarcodes = groupConfig.containsKey('mark_barcodes')
+
+                if( hasMarkBarcodes && !hasDnaBarcodes ) {
+                    if( dnaTagmentation == TAGMENTATION_DUAL ) {
+                        // Preserve the established, actionable dual-tag error.
+                        selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+                    }
+                    throw new IllegalArgumentException(
+                        "samples.${sampleId}.groups.${groupName}.mark_barcodes requires " +
+                        "a DNA sample-barcode field (dna_sb_barcodes; or sb_barcodes for single tagmentation)"
+                    )
+                }
+                if( hasDnaBarcodes && !hasMarkBarcodes ) {
+                    throw new IllegalArgumentException(
+                        "Missing required field: samples.${sampleId}.groups.${groupName}.mark_barcodes for DNA group"
+                    )
+                }
+
+                if( hasDnaBarcodes ) {
+                    final Map dnaSelection = selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+                    addGroupBarcodes(dnaGroups, dnaSources, groupName, dnaSelection, dnaSbBarcodeLength(dnaTagmentation))
+                    dnaMarkBarcodes[groupName] = parseMarkBarcodes(
+                        groupConfig.mark_barcodes,
+                        sampleId,
+                        groupName
+                    )
+                }
             }
         }
 
         if( hasRna ) {
+            if( rnaGroups.isEmpty() ) {
+                throw new IllegalArgumentException(
+                    "samples.${sampleId} has RNA reads but no group with rna_sb_barcodes"
+                )
+            }
             validateNoGroupBarcodeCollisions(sampleId, 'RNA', rnaGroups)
         }
         if( hasDna ) {
+            if( dnaGroups.isEmpty() ) {
+                throw new IllegalArgumentException(
+                    "samples.${sampleId} has DNA reads but no group with dna_sb_barcodes and mark_barcodes"
+                )
+            }
             validateNoGroupBarcodeCollisions(sampleId, 'DNA', dnaGroups)
         }
 
         return [
             rna               : rnaGroups,
             dna               : dnaGroups,
+            dna_mark_barcodes : dnaMarkBarcodes,
             rna_source_summary: summarizeSources(rnaSources.values()),
             dna_source_summary: summarizeSources(dnaSources.values()),
         ]
@@ -315,21 +361,26 @@ class SamplesheetParser {
         sources[groupName] = fieldName
     }
 
-    private static LinkedHashMap<String, String> parseMarkBarcodes(final Object value, final String sampleId) {
-        final Map marksConfig = asMap(value, "samples.${sampleId}.dna.mark_barcodes")
+    private static LinkedHashMap<String, String> parseMarkBarcodes(
+        final Object value,
+        final String sampleId,
+        final String groupName
+    ) {
+        final String fieldPrefix = "samples.${sampleId}.groups.${groupName}.mark_barcodes"
+        final Map marksConfig = asMap(value, fieldPrefix)
         if( marksConfig.isEmpty() ) {
-            throw new IllegalArgumentException("samples.${sampleId}.dna.mark_barcodes must not be empty")
+            throw new IllegalArgumentException("${fieldPrefix} must not be empty")
         }
 
         final LinkedHashMap<String, String> normalized = new LinkedHashMap<>()
         final Map<String, String> barcodeToMark = [:]
 
         marksConfig.each { rawMarkName, rawBarcode ->
-            final String markName = requireString(rawMarkName, "samples.${sampleId}.dna.mark_barcodes.<mark>")
-            final String barcode = requireString(rawBarcode, "samples.${sampleId}.dna.mark_barcodes.${markName}")
+            final String markName = requireString(rawMarkName, "${fieldPrefix}.<mark>")
+            final String barcode = requireString(rawBarcode, "${fieldPrefix}.${markName}")
             if( barcodeToMark.containsKey(barcode) && barcodeToMark[barcode] != markName ) {
                 throw new IllegalArgumentException(
-                    "Duplicate DNA modality barcode '${barcode}' for sample '${sampleId}': " +
+                    "Duplicate DNA modality barcode '${barcode}' for sample '${sampleId}' group '${groupName}': " +
                     "${barcodeToMark[barcode]} vs ${markName}"
                 )
             }
@@ -520,7 +571,8 @@ class SamplesheetParser {
 
         dnaRows.each { row ->
             row.group_definitions.each { groupName, barcodes ->
-                row.mark_barcodes.each { markName, barcode ->
+                final Map groupMarkBarcodes = (row.mark_barcodes as Map)[groupName] as Map
+                groupMarkBarcodes.each { markName, barcode ->
                     lines << "${row.id}\t${groupName}\t${markName}\t${barcode}"
                 }
             }
@@ -537,7 +589,11 @@ class SamplesheetParser {
         final Map<String, String> out = [:]
         dnaRows.each { row ->
             final File file = new File(whitelistDir, "${row.id}.txt")
-            file.text = row.mark_barcodes.values().join('\n') + '\n'
+            final LinkedHashSet<String> modalityBarcodes = new LinkedHashSet<>()
+            (row.mark_barcodes as Map).values().each { groupMarks ->
+                (groupMarks as Map).values().each { barcode -> modalityBarcodes.add(barcode.toString()) }
+            }
+            file.text = modalityBarcodes.join('\n') + '\n'
             out[row.id] = file.canonicalPath
         }
         return out

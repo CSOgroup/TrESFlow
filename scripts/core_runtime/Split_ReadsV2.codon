@@ -705,9 +705,9 @@ def MakeRecordNameList_RNA(
 		unknown_policy: str = "fail"
 	) -> int:
 
-	use_sb = False
-	if sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none":
-		use_sb = True
+	# Keep this as a single expression. Codon can incorrectly constant-fold a
+	# boolean initialized False and mutated before use inside the record loop.
+	use_sb = bool(sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none")
 
 	sys.stdout.write("Initialization\n")
 

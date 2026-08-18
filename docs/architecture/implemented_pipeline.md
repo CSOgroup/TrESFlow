@@ -11,8 +11,8 @@ flowchart TD
     SS[Hierarchical YAML samplesheet]
     RUN[runtime block]
     REF[references block\nspecies and direct paths]
-    GROUPS[groups with sb_barcodes]
-    DNAMARKS[DNA mark_barcodes]
+    GROUPS[groups with modality barcodes and group-specific mark_barcodes]
+    DNAMARKS[Group-specific DNA mark_barcodes]
     DERIVE[Derive internal files\nbarcode maps and whitelists\ncanonical chromosome contracts]
 
     SS --> RUN

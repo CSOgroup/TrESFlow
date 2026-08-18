@@ -2,7 +2,6 @@ library_name: TESTLIB
 
 runtime:
   env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /tmp/TrESFlow_test_dual_missing_tmp
 
 references:
   species: human
@@ -10,17 +9,15 @@ references:
   ligation_barcode_whitelist: ../../assets/testdata/TrESFlow_References/ligation_barcode_whitelist.txt
 
 samples:
-  dual_missing:
+  old_contract:
     groups:
-      Normal:
-        sb_barcodes: [CAGT]
-        mark_barcodes:
-          H3K27ac: AGGCTATA
-
+      DNA_group:
+        dna_sb_barcodes: [AAA]
     dna:
       tagmentation: dual
       reads:
-        i1: ../../assets/testdata/test_dna_I1.fastq
-        i2: ../../assets/testdata/test_dna_I2_dummy.fastq
+        i1: ../../assets/testdata/test_dna_I1_dual_lig.fastq
         r1: ../../assets/testdata/test_dna_R1.fastq
         r2: ../../assets/testdata/test_dna_R2.fastq
+      mark_barcodes:
+        MarkA: AGGCTATA

@@ -84,9 +84,15 @@ samples:
       Normal:
         rna_sb_barcodes: [CAGT, ACGT]
         dna_sb_barcodes: [CAG, ACG]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
       Co2:
         rna_sb_barcodes: [GTCA, TGCA]
         dna_sb_barcodes: [GTC, TGC]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
 
     rna:
       reads:
@@ -100,9 +106,6 @@ samples:
         i1: /path/to/day15_DNA_I1.fastq.gz
         r1: /path/to/day15_DNA_R1.fastq.gz
         r2: /path/to/day15_DNA_R2.fastq.gz
-      mark_barcodes:
-        H3K27me3: AGGCTATA
-        H3K27ac: GCCTCTAT
 ```
 
 ### Top-level fields
@@ -146,7 +149,9 @@ and derives the final canonical NoDup BAM and BigWig from it.
 
 - each group key is the biological label that will appear in split outputs
 - `rna_sb_barcodes` and `dna_sb_barcodes` are modality-specific sample barcodes assigned to that logical group.
+- A group participates in RNA when it has `rna_sb_barcodes`; it participates in DNA when it has both `dna_sb_barcodes` and `mark_barcodes`. RNA-only and DNA-only groups may coexist under one sample.
 - Legacy `sb_barcodes` remains supported for single-tagmentation samples. In `dna.tagmentation: dual`, DNA requires explicit 3 nt `dna_sb_barcodes`; they are not derived from RNA barcodes.
+- `mark_barcodes` belongs inside each DNA-participating group and maps mark labels to modality barcodes for that group.
 - sample barcodes must be unique within a sample block
 
 ### `samples.<sample_id>.rna`
@@ -164,7 +169,6 @@ The DNA block is optional, but if present it must contain:
 - `reads.i1`
 - `reads.r1`
 - `reads.r2`
-- `mark_barcodes`
 
 `reads.i2` is required for `dna.tagmentation: single` and optional for `dna.tagmentation: dual`.
 
@@ -173,7 +177,12 @@ DNA ligation tagging uses the same `Tag_Lig3` correction and output format for b
 - `single`: ligation source `reads.i1`, L1/L2/L3 starts `15,53,91`
 - `dual`: ligation source `reads.i1`, L1/L2/L3 starts `41,79,117`
 
-`mark_barcodes` maps biological mark labels, such as `H3K27ac`, to their DNA modality barcodes.
+`groups.<group>.mark_barcodes` maps biological mark labels to DNA modality
+barcodes for that group. A group participates in RNA when it defines
+`rna_sb_barcodes` (with legacy `sb_barcodes` retained as a single-tag fallback),
+and participates in DNA when it defines both `dna_sb_barcodes` and
+`mark_barcodes`. RNA-only and DNA-only groups may coexist under one sample;
+the sample-level `rna.reads` and `dna.reads` are each processed once.
 
 ## Derived Internal Contract
 
@@ -188,6 +197,11 @@ These derived files include:
 - `sb_group_map.tsv`
 - `dna_mo_map.tsv` when DNA is present
 - per-sample DNA modality whitelist files
+
+`dna_mo_map.tsv` retains the four columns `sample`, `sb_group`, `mark`, and
+`mo_bc`; mappings are group-specific, so one MO barcode may identify different
+marks in different groups. The per-sample DNA modality whitelist is the union
+of MO barcodes across that sample's DNA-participating groups.
 
 This keeps the public input contract user-friendly while preserving the split and alignment interfaces used by the current core modules.
 

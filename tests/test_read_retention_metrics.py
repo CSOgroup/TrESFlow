@@ -265,6 +265,92 @@ class ReadRetentionMetricTests(unittest.TestCase):
     def test_real_codon_rna_split_emits_retention_metrics(self):
         self.run_real_codon_split("rna")
 
+    def test_real_rna_wrapper_routes_multiple_sb_groups(self):
+        codon = shutil.which("codon")
+        if not codon:
+            self.skipTest("codon is not installed")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sample_id = "multi_group_sample"
+            comments = [
+                "CB:Z:TAAAAACGT\tSB:Z:TAAAA\tUM:Z:TTTT",
+                "CB:Z:GCCCCACGT\tSB:Z:GCCCC\tUM:Z:TTTT",
+            ]
+            r1 = root / "r1.fastq"
+            r2 = root / "r2.fastq"
+            write_fastq(r1, comments)
+            write_fastq(r2, comments)
+            sb_map = root / "rna_sb_group_map.tsv"
+            sb_map.write_text(
+                "sample\tsb_group\tsb_bc\n"
+                f"{sample_id}\talpha\tAAAA\n"
+                f"{sample_id}\tbeta\tCCCC\n",
+                encoding="utf-8",
+            )
+            output = root / "output"
+            temp_root = root / "runtime_tmp"
+            output.mkdir()
+            temp_root.mkdir()
+
+            env = os.environ.copy()
+            env["CODON_BIN"] = codon
+            env["TMPDIR"] = str(temp_root)
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "bin/run_split_reads_rna.py"),
+                    "--mode",
+                    "real",
+                    "--script",
+                    str(REPO_ROOT / "scripts/core_runtime/Split_ReadsV2.codon"),
+                    "--r1",
+                    str(r1),
+                    "--r2",
+                    str(r2),
+                    "--sb-group-map",
+                    str(sb_map),
+                    "--sample",
+                    sample_id,
+                    "--library-name",
+                    "library",
+                    "--output-dir",
+                    str(output),
+                ],
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            rows = read_metrics(output / f"{sample_id}.rna_read_retention.tsv")
+            group_counts = {
+                row["group"]: int(row["pairs"])
+                for row in rows
+                if row["metric"] == "routed_group_pairs"
+            }
+            self.assertEqual(group_counts, {"alpha": 1, "beta": 1})
+            self.assertEqual(
+                sum(1 for line in (output / f"{sample_id}_alpha_R1.fastq").read_text().splitlines() if line.startswith("@")),
+                1,
+            )
+            self.assertEqual(
+                sum(1 for line in (output / f"{sample_id}_beta_R1.fastq").read_text().splitlines() if line.startswith("@")),
+                1,
+            )
+            self.assertEqual(
+                sum(1 for line in (output / f"{sample_id}_beta_R2.fastq").read_text().splitlines() if line.startswith("@")),
+                1,
+            )
+            self.assertIn(
+                "SB:Z:TAAAA",
+                (output / f"{sample_id}_alpha_R1.fastq").read_text(),
+            )
+            self.assertIn(
+                "SB:Z:GCCCC",
+                (output / f"{sample_id}_beta_R1.fastq").read_text(),
+            )
+
     def test_real_codon_dna_split_emits_retention_metrics(self):
         self.run_real_codon_split("dna")
 

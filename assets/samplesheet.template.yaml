@@ -20,12 +20,19 @@ references:
 samples:
   sample_id:
     groups:
+      # A group may be RNA-only, DNA-only, or participate in both modalities.
       group_a:
         rna_sb_barcodes: [AAAA, CCCC]
         dna_sb_barcodes: [AAA, CCC]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
       group_b:
         rna_sb_barcodes: [GGGG, TTTT]
         dna_sb_barcodes: [GGG, TTT]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
 
     rna:
       reads:
@@ -44,6 +51,3 @@ samples:
         i1: /path/to/sample_DNA_I1.fq.gz
         r1: /path/to/sample_DNA_R1.fq.gz
         r2: /path/to/sample_DNA_R2.fq.gz
-      mark_barcodes:
-        H3K27me3: AGGCTATA
-        H3K27ac: GCCTCTAT

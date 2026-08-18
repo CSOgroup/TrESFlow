@@ -62,9 +62,15 @@ samples:
       group_a:
         rna_sb_barcodes: [AAAA, CCCC]
         dna_sb_barcodes: [AAA, CCC]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
       group_b:
         rna_sb_barcodes: [GGGG, TTTT]
         dna_sb_barcodes: [GGG, TTT]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
 
     rna:
       reads:
@@ -83,9 +89,6 @@ samples:
         i1: /path/to/sample_DNA_I1.fq.gz
         r1: /path/to/sample_DNA_R1.fq.gz
         r2: /path/to/sample_DNA_R2.fq.gz
-      mark_barcodes:
-        H3K27me3: AGGCTATA
-        H3K27ac: GCCTCTAT
 ```
 
 Notes:
@@ -93,11 +96,18 @@ Notes:
 - Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
 - `runtime.env_prefix`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. `runtime.tmpdir` is optional and defaults to `--outdir`. Runtime and reference paths are no longer accepted as normal CLI parameters.
 - `groups.<group>.sb_barcodes` remains supported for single-tagmentation samples. Use `rna_sb_barcodes` and `dna_sb_barcodes` when RNA and DNA sample barcodes differ; `dna.tagmentation: dual` requires explicit 3 nt `dna_sb_barcodes`.
+- Groups may be RNA-only or DNA-only; sample-level `rna.reads` and `dna.reads` are each processed once and routed using the applicable group maps.
 - `dna.reads.i2` is required for single tagmentation and optional for dual tagmentation.
 - DNA ligation tagging uses `reads.i1` starts `15,53,91` for single tagmentation and `reads.i1` starts `41,79,117` for dual tagmentation.
 - `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
 - `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
-- `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
+- `groups.<group>.mark_barcodes` is the source of truth for DNA modality barcodes
+  for that group. A group participates in DNA only when it defines both
+  `dna_sb_barcodes` (or legacy `sb_barcodes` for single tagmentation) and
+  `mark_barcodes`.
+- The derived four-column `dna_mo_map.tsv` remains `sample`, `sb_group`, `mark`,
+  `mo_bc`; the DNA modality whitelist is the union of MO barcodes across DNA
+  groups, and the same MO may map to different marks in different groups.
 
 ### Canonical human chromosomes
 

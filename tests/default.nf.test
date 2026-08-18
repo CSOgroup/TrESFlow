@@ -111,6 +111,25 @@ nextflow_pipeline {
         }
     }
 
+    test("sample-level DNA mark_barcodes are rejected") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/reject_sample_level_mark_barcodes.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
+            assertAll(
+                { assert !workflow.success },
+                { assert output.contains("samples.old_contract.dna.mark_barcodes is no longer supported") },
+                { assert output.contains("samples.old_contract.groups.<group>.mark_barcodes") }
+            )
+        }
+    }
+
     test("cleanup_work false keeps pipeline success and published outputs") {
 
         when {

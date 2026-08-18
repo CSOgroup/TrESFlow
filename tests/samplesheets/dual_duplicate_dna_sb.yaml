@@ -14,8 +14,12 @@ samples:
     groups:
       Normal:
         dna_sb_barcodes: [AAA]
+        mark_barcodes:
+          H3K27ac: AGGCTATA
       Co2:
         dna_sb_barcodes: [AAA]
+        mark_barcodes:
+          H3K27me3: GCCTCTAT
 
     dna:
       tagmentation: dual
@@ -24,5 +28,3 @@ samples:
         i2: ../../assets/testdata/test_dna_I2_dummy.fastq
         r1: ../../assets/testdata/test_dna_R1.fastq
         r2: ../../assets/testdata/test_dna_R2.fastq
-      mark_barcodes:
-        H3K27ac: AGGCTATA
