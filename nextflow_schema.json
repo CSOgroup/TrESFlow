@@ -59,32 +59,77 @@
                 "tagging_cpus": {
                     "type": "integer",
                     "description": "Default local CPU reservation for barcode-tagging processes. The value is capped by --max_cpus.",
-                    "default": 4
+                    "default": 3
                 },
                 "tagging_memory": {
                     "type": "string",
                     "description": "Default local memory reservation for barcode-tagging processes.",
-                    "default": "32 GB"
+                    "default": "24 GB"
                 },
-                "helper_cpus": {
+                "trim_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for trim, split, filtered-BAM, and duplicate-filter helper processes. The value is capped by --max_cpus.",
+                    "description": "Default CPU reservation for RNA and DNA Trim Galore processes. The value is capped by --max_cpus.",
                     "default": 4
+                },
+                "trim_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for RNA and DNA Trim Galore processes.",
+                    "default": "2 GB"
+                },
+                "artifact_filter_cpus": {
+                    "type": "integer",
+                    "description": "Default CPU reservation for the dual-tag Cutadapt artifact-filter process. The value is capped by --max_cpus.",
+                    "default": 8
+                },
+                "artifact_filter_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for the dual-tag Cutadapt artifact-filter process.",
+                    "default": "2 GB"
                 },
                 "rna_starsolo_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for RNA_STARSOLO_ALIGN. The value is capped by --max_cpus.",
-                    "default": 16
+                    "description": "Default CPU reservation for RNA_STARSOLO_ALIGN. The value is capped by --max_cpus.",
+                    "default": 20
+                },
+                "rna_starsolo_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for RNA_STARSOLO_ALIGN, including the STAR genome index.",
+                    "default": "48 GB"
+                },
+                "rna_coverage_cpus": {
+                    "type": "integer",
+                    "description": "Default CPU reservation for STAR-based RNA_COVERAGE. The value is capped by --max_cpus.",
+                    "default": 4
+                },
+                "rna_coverage_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for STAR-based RNA_COVERAGE.",
+                    "default": "24 GB"
                 },
                 "dna_align_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for ALIGN_DNA and its bwa-mem2/samtools wrapper. The value is capped by --max_cpus.",
-                    "default": 16
+                    "description": "Default CPU reservation for ALIGN_DNA and its bwa-mem2/samtools wrapper. The value is capped by --max_cpus.",
+                    "default": 12
                 },
-                "coverage_cpus": {
+                "dna_align_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for ALIGN_DNA, including bwa-mem2 and threaded samtools sorting.",
+                    "default": "36 GB"
+                },
+                "dna_markdup_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for GATK/Picard MarkDuplicates.",
+                    "default": "16 GB"
+                },
+                "dna_coverage_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for RNA_COVERAGE and DEEPTOOLS_BAMCOVERAGE. The value is capped by --max_cpus.",
+                    "description": "Default CPU reservation for deepTools bamCoverage. The value is capped by --max_cpus.",
                     "default": 8
+                },
+                "dna_coverage_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for deepTools bamCoverage.",
+                    "default": "2 GB"
                 },
                 "aviti_optical_duplicate_distance": {
                     "type": "integer",

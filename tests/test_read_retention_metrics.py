@@ -120,6 +120,224 @@ class ReadRetentionMetricTests(unittest.TestCase):
             )
             self.assertEqual(final_count.stdout.strip(), "1")
 
+    def test_filter_canonical_combined_validation_preserves_existing_behavior(self):
+        samtools = shutil.which("samtools")
+        if not samtools:
+            self.skipTest("samtools is not installed")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_sam = root / "source.sam"
+            sequence = "ACGTACGTACGTACGTACGT"
+            quality = "IIIIIIIIIIIIIIIIIIII"
+
+            source_sam.write_text(
+                "@HD\tVN:1.6\tSO:unsorted\n"
+                "@SQ\tSN:chr1\tLN:1000\n"
+                "@SQ\tSN:chrUn\tLN:1000\n"
+                f"primary\t65\tchr1\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\n"
+                f"primary\t129\tchr1\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\n"
+                f"secondary_r1\t321\tchr1\t201\t60\t20M\t=\t251\t70\t{sequence}\t{quality}\n"
+                f"supplementary_r1\t2113\tchr1\t301\t60\t20M\t=\t351\t70\t{sequence}\t{quality}\n"
+                f"cross_contig_mate\t65\tchr1\t401\t60\t20M\tchrUn\t451\t70\t{sequence}\t{quality}\n"
+                f"noncanonical_rname\t0\tchrUn\t501\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\n",
+                encoding="utf-8",
+            )
+
+            input_bam = root / "input.bam"
+            subprocess.run(
+                [samtools, "sort", "-o", str(input_bam), str(source_sam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run([samtools, "index", str(input_bam)], check=True)
+
+            canonical = root / "canonical.txt"
+            canonical.write_text("chr1\n", encoding="utf-8")
+
+            output_bam = root / "output.bam"
+            summary = root / "validation.tsv"
+
+            env = os.environ.copy()
+            env["SAMTOOLS_BIN"] = samtools
+
+            subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "scripts/core_runtime/FilterCanonicalBam.sh"),
+                    str(input_bam),
+                    str(output_bam),
+                    str(canonical),
+                    "1",
+                    "normal",
+                    "--validation-summary",
+                    str(summary),
+                ],
+                cwd=root,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            subprocess.run([samtools, "quickcheck", str(output_bam)], check=True)
+
+            # The noncanonical RNAME record must still be excluded.
+            retained_rnames = subprocess.run(
+                [samtools, "view", str(output_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+            self.assertTrue(retained_rnames)
+            self.assertTrue(
+                all(line.split("\t")[2] == "chr1" for line in retained_rnames)
+            )
+
+            # A retained chr1 record refers to chrUn as its mate. The helper
+            # must therefore preserve chrUn in @SQ exactly as before.
+            header = subprocess.run(
+                [samtools, "view", "-H", str(output_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            self.assertIn("@SQ\tSN:chr1\t", header)
+            self.assertIn("@SQ\tSN:chrUn\t", header)
+
+            validation = {}
+            with summary.open(encoding="utf-8") as handle:
+                for row in csv.DictReader(handle, delimiter="\t"):
+                    validation[row["metric"]] = int(row["count"])
+
+            old_count = subprocess.run(
+                [
+                    samtools,
+                    "view",
+                    "--count",
+                    "--require-flags",
+                    "0x40",
+                    "--exclude-flags",
+                    "0x900",
+                    str(output_bam),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(validation["invalid_alignment_records"], 0)
+            self.assertEqual(validation["invalid_mate_reference_records"], 1)
+            self.assertEqual(
+                validation["primary_r1_records"],
+                int(old_count.stdout.strip()),
+            )
+
+    def test_filter_canonical_removes_unused_noncanonical_sq_when_mates_are_canonical(self):
+        samtools = shutil.which("samtools")
+        if not samtools:
+            self.skipTest("samtools is not installed")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_sam = root / "source.sam"
+            sequence = "ACGTACGTACGTACGTACGT"
+            quality = "IIIIIIIIIIIIIIIIIIII"
+
+            # chrUn exists in the input dictionary but no retained alignment
+            # or mate refers to it. The canonical filter should therefore
+            # safely remove chrUn from the output @SQ dictionary.
+            source_sam.write_text(
+                "@HD\tVN:1.6\tSO:unsorted\n"
+                "@SQ\tSN:chr1\tLN:1000\n"
+                "@SQ\tSN:chrUn\tLN:1000\n"
+                f"canonical_pair\t99\tchr1\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\n"
+                f"canonical_pair\t147\tchr1\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\n"
+                f"noncanonical\t0\tchrUn\t501\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\n",
+                encoding="utf-8",
+            )
+
+            input_bam = root / "input.bam"
+            subprocess.run(
+                [samtools, "sort", "-o", str(input_bam), str(source_sam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                [samtools, "index", str(input_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            canonical = root / "canonical.txt"
+            canonical.write_text("chr1\n", encoding="utf-8")
+
+            output_bam = root / "output.bam"
+            summary = root / "validation.tsv"
+
+            env = os.environ.copy()
+            env["SAMTOOLS_BIN"] = samtools
+
+            subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "scripts/core_runtime/FilterCanonicalBam.sh"),
+                    str(input_bam),
+                    str(output_bam),
+                    str(canonical),
+                    "1",
+                    "normal",
+                    "--validation-summary",
+                    str(summary),
+                ],
+                cwd=root,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            subprocess.run(
+                [samtools, "quickcheck", str(output_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            header = subprocess.run(
+                [samtools, "view", "-H", str(output_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+            self.assertIn("@SQ\tSN:chr1\t", header)
+            self.assertNotIn("@SQ\tSN:chrUn\t", header)
+
+            records = subprocess.run(
+                [samtools, "view", str(output_bam)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+
+            self.assertEqual(len(records), 2)
+            self.assertTrue(
+                all(line.split("\t")[2] == "chr1" for line in records)
+            )
+
+            validation = {}
+            with summary.open(encoding="utf-8") as handle:
+                for row in csv.DictReader(handle, delimiter="\t"):
+                    validation[row["metric"]] = int(row["count"])
+
+            self.assertEqual(validation["invalid_alignment_records"], 0)
+            self.assertEqual(validation["invalid_mate_reference_records"], 0)
+            self.assertEqual(validation["primary_r1_records"], 1)
+
     def test_align_dna_reports_bwa_blacklist_and_proper_pair_populations(self):
         samtools = shutil.which("samtools")
         if not samtools:

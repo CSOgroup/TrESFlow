@@ -22,6 +22,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BARCODES="${solo_dir}/filtered/barcodes.tsv"
 OUTBAM="${outdir}/${sample_name}.filtered_cells.bam"
 RETENTION_METRICS="${outdir}/${sample_name}.rna_filter_retention.tsv"
+FILTER_VALIDATION="${outdir}/.${sample_name}.canonical_filter_validation.tsv"
 
 if [[ ! -s "${BARCODES}" ]]; then
     echo "ERROR: Filtered STARsolo barcodes missing or empty: ${BARCODES}" >&2
@@ -51,15 +52,18 @@ bash "${script_dir}/FilterCanonicalBam.sh" \
     "${canonical_contigs}" \
     "${threads}" \
     uncompressed \
+    --validation-summary "${FILTER_VALIDATION}" \
     --exclude-flags 0x100 \
     --require-flags 0x1,0x2 \
     --tag-file RG:"${BARCODES}"
 
 expected_pairs="$(awk -F '\t' '$2 == "called_cell_pairs" { print $3 }' "${RETENTION_METRICS}")"
-observed_pairs="$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x900 "${OUTBAM}")"
-if [[ -z "${expected_pairs}" || "${observed_pairs}" != "${expected_pairs}" ]]; then
-    echo "ERROR: RNA final pair count does not match retention audit for ${sample_name}: expected=${expected_pairs:-missing}, observed=${observed_pairs}" >&2
+observed_pairs="$(awk -F '\t' '$1 == "primary_r1_records" { print $2 }' "${FILTER_VALIDATION}")"
+
+if [[ -z "${expected_pairs}" || -z "${observed_pairs}" || "${observed_pairs}" != "${expected_pairs}" ]]; then
+    echo "ERROR: RNA final pair count does not match retention audit for ${sample_name}: expected=${expected_pairs:-missing}, observed=${observed_pairs:-missing}" >&2
     exit 1
 fi
 
+rm -f "${FILTER_VALIDATION}"
 rm "${outdir}/${sample_name}.Aligned.sortedByCoord.out.bam"*
