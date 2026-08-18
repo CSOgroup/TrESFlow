@@ -141,13 +141,12 @@ workflow {
     def sampleRows = samplesheetContract['samples'] as List<Map>
 
     log.warn """
-    ================================================================================
-    TrESFlow runtime TMPDIR resolved for this run:
-      ${runtimeParams.runtime_tmpdir}
+    TrESFlow storage paths:
+      results: ${resolvedOutdir}
+      TMPDIR:  ${runtimeParams.runtime_tmpdir}
+      workDir: ${workflow.workDir}
 
-    This directory can become very large on production FASTQ/BAM runs. Monitor free
-    space on the filesystem that backs this path.
-    ================================================================================
+    Large runs can use substantial disk space; monitor free space.
     """.stripIndent().trim()
 
     runtimeSupport.validateRuntimeContract(runtimeParams)
@@ -176,10 +175,6 @@ workflow {
         row.canonical_chromosomes = chromosomeContract.allowlist
         row.canonical_chrom_sizes = chromosomeContract.chrom_sizes
         row.chromosome_naming = chromosomeContract.style
-    }
-    canonicalChromosomeContracts.each { modality, contract ->
-        log.info "Resolved ${modality.toUpperCase()} canonical chromosomes " +
-            "(${contract.style}): ${contract.contigs.join(', ')}"
     }
     runtimeSupport.writeRuntimeContract(
         resolvedOutdir,
