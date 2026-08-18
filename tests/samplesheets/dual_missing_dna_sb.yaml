@@ -14,6 +14,8 @@ samples:
     groups:
       Normal:
         sb_barcodes: [CAGT]
+        mark_barcodes:
+          H3K27ac: AGGCTATA
 
     dna:
       tagmentation: dual
@@ -22,5 +24,3 @@ samples:
         i2: ../../assets/testdata/test_dna_I2_dummy.fastq
         r1: ../../assets/testdata/test_dna_R1.fastq
         r2: ../../assets/testdata/test_dna_R2.fastq
-      mark_barcodes:
-        H3K27ac: AGGCTATA

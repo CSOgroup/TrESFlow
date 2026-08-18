@@ -13,10 +13,13 @@ components:
   - "tag/dna/cell/barcode"
   - "trim/dna/fastqs"
   - "split/dna/reads"
+  - "compress/split/fastqs"
   - "align/dna"
-  - "mark/duplicates/dna"
+  - "filter/canonical/dna/aligned/bam"
+  - "gatk4/markduplicates"
+  - "normalize/dna/markduplicates"
   - "split/duplicates/dna"
-  - "bam/coverage/dna"
+  - "deeptools/bamcoverage"
 input:
   - ch_dna_samples:
       type: tuple
@@ -30,22 +33,19 @@ output:
       description: "Trimmed DNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Per-group per-mark split DNA FASTQs."
+      description: "Optional gzip-compressed publication copies of per-group per-mark split DNA FASTQs, emitted only with --publish_split_fastqs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split DNA outputs."
   - sample_barcode_counts:
       type: file
       description: "DNA sample-barcode count TSVs."
-  - cell_barcode_tag_records:
-      type: file
-      description: "DNA cell-barcode tag record TSVs."
   - cell_barcode_counts:
       type: file
       description: "DNA cell-barcode count TSVs."
   - aligned_bams:
       type: file
-      description: "Aligned DNA BAM files."
+      description: "Canonical-chromosome aligned DNA BAM files used by output and QC branches."
   - aligned_bais:
       type: file
       description: "Aligned DNA BAM indexes."
@@ -54,7 +54,7 @@ output:
       description: "Properly paired mapped-read counts per barcode."
   - markeddup_bams:
       type: file
-      description: "Duplicate-marked DNA BAM files."
+      description: "Canonical-chromosome duplicate-marked DNA BAM files."
   - markeddup_bais:
       type: file
       description: "Duplicate-marked DNA BAM indexes."
@@ -63,16 +63,25 @@ output:
       description: "Duplicate metrics files."
   - nodup_bams:
       type: file
-      description: "Duplicate-filtered NoDup DNA BAM files."
+      description: "Canonical-chromosome duplicate-filtered NoDup DNA BAM files."
   - nodup_bais:
       type: file
       description: "Duplicate-filtered NoDup DNA BAM indexes."
   - coverage_bigwigs:
       type: file
-      description: "DNA coverage bigWig tracks."
+      description: "Canonical-chromosome DNA NoDup coverage bigWig tracks written directly as <split>_NoDup.bw."
+  - coverage_warnings:
+      type: file
+      description: "Zero-mapped NoDup BAM warning TSVs emitted by SPLIT_DUPLICATES_DNA when bamCoverage is skipped."
   - barcode_reports:
       type: file
       description: "Collected DNA barcode metric outputs from upstream tagging steps."
+  - barcode_gate_metrics:
+      type: file
+      description: "Exact cumulative DNA barcode-gate and exhaustive composition TSVs."
+  - tres_tag_records:
+      type: file
+      description: "Final gzip-compressed DNA tag-record TSV."
   - versions:
       type: file
       description: "Aggregated module version manifests emitted by the DNA core."

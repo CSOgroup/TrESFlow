@@ -4,7 +4,7 @@
 
 # ./AlignDNA.sh Human H3K27ac H2RD1 H2RD1_Human_H3K27ac_R1.fastq H2RD1_Human_H3K27ac_R2.fastq hg38-blacklist.bed SAM_RG_Header_H2RD1_Human_H3K27ac.tsv hg38_bwamem2_index 2913022398
 
-set -e
+set -euo pipefail
 
 threads="${ALIGN_DNA_THREADS:-8}"
 view_threads="${ALIGN_DNA_VIEW_THREADS:-4}"
@@ -33,6 +33,7 @@ BWA_MEM2_BIN="${BWA_MEM2_BIN:-bwa-mem2}"
 SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
 
 PathOutputBam=${outdir}/${sample_name}_${modality}.bam
+PathOutputMetrics=${outdir}/${sample_name}_${modality}.dna_alignment_retention.tsv
 
 RGID="${sample_name}_${modality}"
 
@@ -52,21 +53,40 @@ head -n "$last_sq_line" "${RGID}_TEMPHEADER.sam" > "${RGID}_TEMPHEADER1.sam"
 tail -n +"$((last_sq_line + 1))" "${RGID}_TEMPHEADER.sam" > "${RGID}_TEMPHEADER2.sam"
 
 # Append the new header to the RG-replaced SAM file and convert to BAM
-{ cat ${RGID}_TEMPHEADER1.sam ${PathSam_header} ${RGID}_TEMPHEADER2.sam; "${SAMTOOLS_BIN}" view --threads ${view_threads} ${RGID}_TEMP.sam; } | "${SAMTOOLS_BIN}" sort --threads ${sort_threads} -m ${sort_mem} -n -o ${RGID}_TEMP.bam -
+{ cat ${RGID}_TEMPHEADER1.sam ${PathSam_header} ${RGID}_TEMPHEADER2.sam; "${SAMTOOLS_BIN}" view --threads ${view_threads} ${RGID}_TEMP.sam; } | "${SAMTOOLS_BIN}" sort --threads ${sort_threads} -m ${sort_mem} -l 0 -n -o ${RGID}_TEMP.bam -
 
 echo "Removing blacklist-overlapping reads..."
 # Remove reads overlapping with the blacklist
-"${SAMTOOLS_BIN}" view --threads ${view_threads} --bam --with-header --output ${RGID}_TEMP_inBLRegions.bam --unoutput ${RGID}_TEMP_outBLRegions.bam -L ${blacklist_bed} ${RGID}_TEMP.bam
+"${SAMTOOLS_BIN}" view --threads ${view_threads} --uncompressed --with-header --output ${RGID}_TEMP_inBLRegions.bam --unoutput ${RGID}_TEMP_outBLRegions.bam -L ${blacklist_bed} ${RGID}_TEMP.bam
 
 echo "Filtering properly paired mapped reads and sorting..."
-"${SAMTOOLS_BIN}" view --threads ${view_threads} --with-header --require-flags 0x2 --output ${RGID}_TEMP_Good.bam ${RGID}_TEMP_outBLRegions.bam
+"${SAMTOOLS_BIN}" view --threads ${view_threads} --uncompressed --with-header --require-flags 0x2 ${RGID}_TEMP_outBLRegions.bam \
+  | "${SAMTOOLS_BIN}" sort -@ ${sort_threads} -m ${sort_mem} -o ${PathOutputBam} -
 
-## Sort and output final bam
-"${SAMTOOLS_BIN}" sort -@ ${sort_threads} -m ${sort_mem} -o ${PathOutputBam} ${RGID}_TEMP_Good.bam
+# Count one primary R1 record as the representative for each input read pair.
+# These counters inspect intermediates that already exist in this task and do
+# not alter the alignment/filtering path.
+bwa_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x900 "${RGID}_TEMP.bam")
+post_blacklist_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x900 "${RGID}_TEMP_outBLRegions.bam")
+post_blacklist_mapped_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x40 --exclude-flags 0x904 "${RGID}_TEMP_outBLRegions.bam")
+proper_pair_primary_pairs=$("${SAMTOOLS_BIN}" view --count --require-flags 0x42 --exclude-flags 0x900 "${PathOutputBam}")
+
+if (( post_blacklist_primary_pairs > bwa_primary_pairs || post_blacklist_mapped_primary_pairs > post_blacklist_primary_pairs || proper_pair_primary_pairs > post_blacklist_mapped_primary_pairs )); then
+  echo "ERROR: Non-nested DNA retention counts for ${sample_name}_${modality}: BWA=${bwa_primary_pairs}, post-blacklist=${post_blacklist_primary_pairs}, post-blacklist-mapped=${post_blacklist_mapped_primary_pairs}, proper-pair=${proper_pair_primary_pairs}" >&2
+  exit 1
+fi
+
+{
+  printf 'split_id\tmetric\tpairs\tunit\n'
+  printf '%s\tbwa_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${bwa_primary_pairs}"
+  printf '%s\tpost_blacklist_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${post_blacklist_primary_pairs}"
+  printf '%s\tpost_blacklist_mapped_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${post_blacklist_mapped_primary_pairs}"
+  printf '%s\tproper_pair_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${proper_pair_primary_pairs}"
+} > "${PathOutputMetrics}"
 
 # Index the BAM
 "${SAMTOOLS_BIN}" index --threads ${threads} --bai --output ${PathOutputBam}.bai ${PathOutputBam}
 
 #Remove temp files
 echo "Removing temp files..."
-rm ${RGID}_TEMP.sam ${RGID}_TEMPHEADER.sam ${RGID}_TEMPHEADER1.sam ${RGID}_TEMPHEADER2.sam ${RGID}_TEMP.bam ${RGID}_TEMP_Good.bam ${RGID}_TEMP_inBLRegions.bam ${RGID}_TEMP_outBLRegions.bam
+rm ${RGID}_TEMP.sam ${RGID}_TEMPHEADER.sam ${RGID}_TEMPHEADER1.sam ${RGID}_TEMPHEADER2.sam ${RGID}_TEMP.bam ${RGID}_TEMP_inBLRegions.bam ${RGID}_TEMP_outBLRegions.bam

@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/tres/main/nextflow_schema.json",
-    "title": "nf-core/tres pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/CSOgroup/TrESFlow/main/nextflow_schema.json",
+    "title": "CSOgroup/TrESFlow pipeline parameters",
     "description": "Repo-owned Nextflow DSL2 implementation of the TrES core RNA and DNA workflows",
     "type": "object",
     "$defs": {
@@ -22,13 +22,19 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. A relative path is resolved from the Nextflow launch directory."
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
-                    "description": "Output directory for published pipeline results and pipeline_info artifacts.",
-                    "fa_icon": "fas fa-folder-open"
+                    "description": "Output directory for published pipeline results and pipeline_info artifacts. Relative paths are resolved from the Nextflow launch directory; the default is <launch-directory>/results.",
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "results"
+                },
+                "publish_split_fastqs": {
+                    "type": "boolean",
+                    "description": "Publish gzip-compressed RNA and DNA split FASTQ copies under rna_split_fastqs/ and dna_split_fastqs/. Internal uncompressed split FASTQs are always retained long enough for downstream computation.",
+                    "default": false
                 }
             }
         },
@@ -39,7 +45,7 @@
             "properties": {
                 "core_scripts_dir": {
                     "type": "string",
-                    "description": "Directory containing the vendored TrES core runtime scripts used by the local wrapper modules."
+                    "description": "Optional override for the TrES core runtime scripts. A relative override is resolved from the Nextflow launch directory; when omitted, the repository-owned scripts/core_runtime directory is used."
                 },
                 "max_cpus": {
                     "type": "integer",
@@ -54,32 +60,88 @@
                 "tagging_cpus": {
                     "type": "integer",
                     "description": "Default local CPU reservation for barcode-tagging processes. The value is capped by --max_cpus.",
-                    "default": 4
+                    "default": 3
                 },
                 "tagging_memory": {
                     "type": "string",
                     "description": "Default local memory reservation for barcode-tagging processes.",
-                    "default": "32 GB"
+                    "default": "24 GB"
                 },
-                "helper_cpus": {
+                "trim_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for trim, split, filtered-BAM, and duplicate-filter helper processes. The value is capped by --max_cpus.",
+                    "description": "Default CPU reservation for RNA and DNA Trim Galore processes. The value is capped by --max_cpus.",
                     "default": 4
+                },
+                "trim_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for RNA and DNA Trim Galore processes.",
+                    "default": "2 GB"
+                },
+                "artifact_filter_cpus": {
+                    "type": "integer",
+                    "description": "Default CPU reservation for the dual-tag Cutadapt artifact-filter process. The value is capped by --max_cpus.",
+                    "default": 8
+                },
+                "artifact_filter_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for the dual-tag Cutadapt artifact-filter process.",
+                    "default": "2 GB"
                 },
                 "rna_starsolo_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for RNA_STARSOLO_ALIGN. The value is capped by --max_cpus.",
-                    "default": 16
+                    "description": "Default CPU reservation for RNA_STARSOLO_ALIGN. The value is capped by --max_cpus.",
+                    "default": 20
+                },
+                "rna_starsolo_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for RNA_STARSOLO_ALIGN, including the STAR genome index.",
+                    "default": "48 GB"
+                },
+                "rna_coverage_cpus": {
+                    "type": "integer",
+                    "description": "Default CPU reservation for STAR-based RNA_COVERAGE. The value is capped by --max_cpus.",
+                    "default": 4
+                },
+                "rna_coverage_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for STAR-based RNA_COVERAGE.",
+                    "default": "24 GB"
                 },
                 "dna_align_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for ALIGN_DNA and its bwa-mem2/samtools wrapper. The value is capped by --max_cpus.",
-                    "default": 16
+                    "description": "Default CPU reservation for ALIGN_DNA and its bwa-mem2/samtools wrapper. The value is capped by --max_cpus.",
+                    "default": 12
                 },
-                "coverage_cpus": {
+                "dna_align_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for ALIGN_DNA, including bwa-mem2 and threaded samtools sorting.",
+                    "default": "36 GB"
+                },
+                "dna_markdup_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for GATK/Picard MarkDuplicates.",
+                    "default": "16 GB"
+                },
+                "dna_coverage_cpus": {
                     "type": "integer",
-                    "description": "Default local CPU reservation for RNA_COVERAGE and BAM_COVERAGE_DNA. The value is capped by --max_cpus.",
+                    "description": "Default CPU reservation for deepTools bamCoverage. The value is capped by --max_cpus.",
                     "default": 8
+                },
+                "dna_coverage_memory": {
+                    "type": "string",
+                    "description": "Default memory reservation for deepTools bamCoverage.",
+                    "default": "2 GB"
+                },
+                "aviti_optical_duplicate_distance": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Empirical AVITI coordinate-distance threshold used by Picard MarkDuplicates for spatial/optical duplicate classification. Default 10, calibrated on AVITI 500 data. This is not an Illumina pixel-distance setting and may be overridden for independently calibrated datasets.",
+                    "default": 10
+                },
+                "filter_dual_tag_artifacts": {
+                    "type": "boolean",
+                    "description": "After Trim Galore, discard dual-tagmentation DNA read pairs when either trimmed mate still contains an audited exact 23-nt linker signature. Enabled by default and never applied to single-tagmentation or RNA reads.",
+                    "default": true
                 },
                 "publish_dir_mode": {
                     "type": "string",

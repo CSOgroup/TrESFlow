@@ -18,8 +18,14 @@ samples:
     groups:
       Normal:
         sb_barcodes: [CAGT, ACGT, GCTA, CGTA]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
       Co2:
         sb_barcodes: [GTCA, TGCA, CTGA, TCGA]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
 
     rna:
       reads:
@@ -33,6 +39,3 @@ samples:
         i2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_I2_001.fastq.gz
         r1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_R1_001.fastq.gz
         r2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_R2_001.fastq.gz
-      mark_barcodes:
-        H3K27me3: AGGCTATA
-        H3K27ac: GCCTCTAT

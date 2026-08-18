@@ -20,12 +20,15 @@ nextflow_pipeline {
             def alignDir = new File(outputDir, "rna_align")
             def statsDir = new File(outputDir, "TrES_Stats")
             def pipelineInfoDir = new File(outputDir, "pipeline_info")
+            def qcDir = new File(statsDir, "qc")
+            def canonicalChromosomes = new File(
+                pipelineInfoDir,
+                "derived_contract/rna_canonical_chromosomes.txt"
+            )
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
-                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
-                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
+                { assert !splitDir.exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.Solo.outGeneFull/filtered/matrix.mtx").exists() },
                 { assert new File(alignDir, "${sampleId}_Normal.filtered_cells.bam").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_sample_barcode.counts.tsv").exists() },
@@ -35,11 +38,57 @@ nextflow_pipeline {
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L1.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L2.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_cell.stats_L3.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_read_retention.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_barcode_gates.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.rna_barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}_Normal.rna_filter_retention.tsv").exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() },
+                { assert canonicalChromosomes.readLines() == ["chr1", "chrX", "chrY", "chrM"] },
                 { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
+                { assert new File(statsDir, "tres_report.html").exists() },
+                { assert !new File(statsDir, "tres_report_metrics.json").exists() },
+                { assert new File(statsDir, "read_retention.tsv").exists() },
+                { assert new File(statsDir, "qc_metrics.tsv").exists() },
+                { assert new File(statsDir, "barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "library_complexity.tsv").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".png") || it.name.endsWith(".svg") } },
+                { assert new File(qcDir, "fastqc/rna.test_rna.raw_1_fastqc.html").exists() },
+                { assert new File(qcDir, "multiqc/multiqc_report.html").exists() },
+                { assert !new File(outputDir, "tres_report").exists() },
+                { assert !new File(outputDir, "qc").exists() },
+                { assert !new File(outputDir, "multiqc").exists() },
                 { assert new File(pipelineInfoDir, "runtime_contract.tsv").exists() }
+            )
+        }
+    }
+
+    test("publish_split_fastqs true publishes RNA gzip copies") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                publish_split_fastqs = true
+            }
+        }
+
+        then {
+            def sampleId = "test_rna"
+            def splitDir = new File(outputDir, "rna_split_fastqs")
+            def publishedR1 = new File(splitDir, "${sampleId}_Normal_R1.fastq.gz")
+            def publishedR1Text = new java.util.zip.GZIPInputStream(
+                new FileInputStream(publishedR1)
+            ).getText("UTF-8")
+
+            assertAll(
+                { assert workflow.success },
+                { assert publishedR1.exists() },
+                { assert publishedR1Text.startsWith("@") },
+                { assert new File(splitDir, "${sampleId}_Co2_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
+                { assert !splitDir.listFiles().any { it.name.startsWith("SAM_RG_Header") } },
+                { assert !new File(outputDir, "dna_split_fastqs").exists() }
             )
         }
     }
@@ -62,6 +111,25 @@ nextflow_pipeline {
         }
     }
 
+    test("sample-level DNA mark_barcodes are rejected") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/reject_sample_level_mark_barcodes.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def output = (workflow.stdout + workflow.stderr).join('\n')
+            assertAll(
+                { assert !workflow.success },
+                { assert output.contains("samples.old_contract.dna.mark_barcodes is no longer supported") },
+                { assert output.contains("samples.old_contract.groups.<group>.mark_barcodes") }
+            )
+        }
+    }
+
     test("cleanup_work false keeps pipeline success and published outputs") {
 
         when {
@@ -78,7 +146,7 @@ nextflow_pipeline {
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${sampleId}_Normal_R1.fastq.gz").exists() },
+                { assert !splitDir.exists() },
                 { assert new File(statsDir, "${sampleId}.rna_tag_records.tsv.gz").exists() }
             )
         }
@@ -203,6 +271,7 @@ nextflow_pipeline {
             params {
                 samplesheet = "$projectDir/tests/samplesheets/dual_without_i2.yaml"
                 outdir = "$outputDir"
+                aviti_optical_duplicate_distance = 12
             }
         }
 
@@ -212,28 +281,106 @@ nextflow_pipeline {
             def splitDir = new File(outputDir, "dna_split_fastqs")
             def alignDir = new File(outputDir, "dna_align")
             def statsDir = new File(outputDir, "TrES_Stats")
+            def canonicalChromosomes = new File(
+                outputDir,
+                "pipeline_info/derived_contract/dna_canonical_chromosomes.txt"
+            )
             def tagRecords = new java.util.zip.GZIPInputStream(
                 new FileInputStream(new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz"))
             ).getText("UTF-8")
+            def duplicateMetrics = new File(alignDir, "${splitName}.DuplicateMetrics.txt")
+            def artifactJson = new File(
+                statsDir,
+                "${sampleId}.dual_tag_artifact_filter.cutadapt.json"
+            )
+            def artifactSummary = new File(
+                statsDir,
+                "${sampleId}.dual_tag_artifact_filter.summary.tsv"
+            )
+            def complexityLines = new File(statsDir, "library_complexity.tsv").readLines()
+            def complexityRows = complexityLines.size() > 1
+                ? complexityLines.drop(1).collect { line ->
+                    [complexityLines[0].split('\t'), line.split('\t')].transpose().collectEntries()
+                }
+                : []
+            def artifactReport = new groovy.json.JsonSlurper().parse(artifactJson)
+            def artifactSummaryLines = artifactSummary.readLines()
+            def artifactSummaryValues = artifactSummaryLines.size() == 2
+                ? [artifactSummaryLines[0].split('\t'), artifactSummaryLines[1].split('\t')]
+                    .transpose()
+                    .collectEntries()
+                : [:]
 
             assertAll(
                 { assert workflow.success },
-                { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert !splitDir.exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam.bai").exists() },
+                { assert duplicateMetrics.exists() },
+                { assert duplicateMetrics.text.contains("READ_PAIR_OPTICAL_DUPLICATES") },
+                { assert duplicateMetrics.text.contains("ESTIMATED_LIBRARY_SIZE") },
+                { assert artifactJson.exists() },
+                { assert artifactSummary.exists() },
+                { assert artifactSummaryLines.size() == 2 },
+                { assert artifactReport.read_counts.input == (artifactSummaryValues.input_pairs as int) },
+                { assert artifactReport.read_counts.output == (artifactSummaryValues.retained_pairs as int) },
+                { assert artifactReport.read_counts.filtered.discard_trimmed == (artifactSummaryValues.rejected_pairs as int) },
+                { assert (artifactSummaryValues.input_pairs as int) == (artifactSummaryValues.retained_pairs as int) + (artifactSummaryValues.rejected_pairs as int) },
                 { assert new File(alignDir, "${splitName}_NoDup.bam").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bam.bai").exists() },
                 { assert new File(alignDir, "${splitName}_NoDup.bw").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_read_retention.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_gates.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "read_retention.tsv").exists() },
+                { assert new File(statsDir, "qc_metrics.tsv").exists() },
+                { assert new File(statsDir, "barcode_composition.tsv").exists() },
+                { assert new File(statsDir, "library_complexity.tsv").exists() },
+                { assert !statsDir.listFiles().any { it.name.endsWith(".png") || it.name.endsWith(".svg") } },
+                { assert !new File(statsDir, "tres_report_metrics.json").exists() },
+                { assert new File(statsDir, "${splitName}.dna_alignment_retention.tsv").exists() },
+                { assert canonicalChromosomes.readLines() == ["chr1", "chrX", "chrY", "chrM"] },
                 { assert !new File(statsDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
                 { assert !new File(alignDir, "${splitName}_ProperPairedMapped_reads_per_barcode.tsv").exists() },
                 { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
+                { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
                 { assert tagRecords.contains("CB:Z:AAAACGTACGTTGCATGCAGATCGATC") },
                 { assert tagRecords.contains("L1:Z:ACGTACGT") },
                 { assert tagRecords.contains("L2:Z:TGCATGCA") },
                 { assert tagRecords.contains("L3:Z:GATCGATC") },
                 { assert tagRecords.contains("SB:Z:AAA") },
-                { assert tagRecords.contains("MO:Z:AGGCTATA") }
+                { assert tagRecords.contains("MO:Z:AGGCTATA") },
+                { assert complexityRows[0].optical_duplicate_pairs == "0" },
+                { assert complexityRows[0].estimated_library_size == "0" },
+                { assert artifactSummaryValues.sample_id == sampleId }
+            )
+        }
+    }
+
+    test("dual tagmentation bypasses artifact filtering when disabled") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/dual_without_i2.yaml"
+                outdir = "$outputDir"
+                filter_dual_tag_artifacts = false
+            }
+        }
+
+        then {
+            def sampleId = "dual_no_i2"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def alignDir = new File(outputDir, "dna_align")
+
+            assertAll(
+                { assert workflow.success },
+                { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_gates.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_composition.tsv").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.cutadapt.json").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.summary.tsv").exists() }
             )
         }
     }
@@ -244,6 +391,7 @@ nextflow_pipeline {
             params {
                 samplesheet = "$projectDir/tests/samplesheets/single_with_i2.yaml"
                 outdir = "$outputDir"
+                publish_split_fastqs = true
             }
         }
 
@@ -260,8 +408,14 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert new File(splitDir, "${splitName}_R1.fastq.gz").exists() },
+                { assert new File(splitDir, "${splitName}_R2.fastq.gz").exists() },
+                { assert !splitDir.listFiles().any { it.name.endsWith(".fastq") } },
                 { assert new File(alignDir, "${splitName}_MarkedDup.bam").exists() },
                 { assert new File(statsDir, "${sampleId}.dna_tag_records.tsv.gz").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_gates.tsv").exists() },
+                { assert new File(statsDir, "${sampleId}.dna_barcode_composition.tsv").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.cutadapt.json").exists() },
+                { assert !new File(statsDir, "${sampleId}.dual_tag_artifact_filter.summary.tsv").exists() },
                 { assert tagRecords.contains("SB:Z:CGTA") },
                 { assert tagRecords.contains("MO:Z:TTTACGTA") }
             )

@@ -5,7 +5,7 @@
  *     --quality 10 \
  *     --cores <task.cpus> \
  *     --output_dir <outdir> \
- *     --gzip \
+ *     --dont_gzip \
  *     --length 20 \
  *     --paired \
  *     <CB_tagged_R1.fastq> <CB_tagged_R2.fastq>
@@ -14,10 +14,10 @@
  *   - sample metadata
  *   - DNA R1 / R2 FASTQs tagged with SB, MO, CB, and RG comments
  * Outputs:
- *   - trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
+ *   - uncompressed trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  */
 
-import RuntimeSupport
+include { runtimeShellExports } from '../runtime_support/main'
 
 process TRIM_DNA_FASTQS {
     tag "${sampleId}"
@@ -27,12 +27,12 @@ process TRIM_DNA_FASTQS {
     tuple val(sampleId), val(meta), path(taggedR1), path(taggedR2)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1_val_1.fq.gz"), path("${sampleId}.dna_sample_barcode_modality_cell.R2_val_2.fq.gz"), emit: trimmed
+    tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1_val_1.fq"), path("${sampleId}.dna_sample_barcode_modality_cell.R2_val_2.fq"), emit: trimmed
     path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}
@@ -45,8 +45,8 @@ process TRIM_DNA_FASTQS {
       --quality 10 \\
       --cores ${task.cpus} \\
       --length 20 \\
-      --output-r1 "${sampleId}.dna_sample_barcode_modality_cell.R1_val_1.fq.gz" \\
-      --output-r2 "${sampleId}.dna_sample_barcode_modality_cell.R2_val_2.fq.gz"
+      --output-r1 "${sampleId}.dna_sample_barcode_modality_cell.R1_val_1.fq" \\
+      --output-r2 "${sampleId}.dna_sample_barcode_modality_cell.R2_val_2.fq"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -1,7 +1,10 @@
+import groovy.json.JsonSlurper
+
 class RuntimeSupport {
 
     private static final List<Map> STANDARD_RUNTIME_TOOLS = [
         [name: 'python3', binary: 'python3'],
+        [name: 'cutadapt', binary: 'cutadapt'],
         [name: 'trim_galore', binary: 'trim_galore'],
         [name: 'STAR', binary: 'STAR'],
         [name: 'samtools', binary: 'samtools'],
@@ -63,19 +66,161 @@ class RuntimeSupport {
         return runtimeEnvPrefix(params)
     }
 
-    static String resolveProjectPath(final String rawProjectDir, final Object rawPath) {
-        final String projectDir = rawProjectDir?.toString()?.trim()
+    static String resolvePath(final String rawBaseDir, final Object rawPath) {
+        final String baseDir = rawBaseDir?.toString()?.trim()
         final String path = rawPath?.toString()?.trim()
         if( !path ) {
             return path
         }
 
         final File candidate = new File(path)
-        if( candidate.isAbsolute() || !projectDir ) {
-            return candidate.path
+        if( candidate.isAbsolute() || !baseDir ) {
+            return candidate.canonicalPath
         }
 
-        return new File(projectDir, path).canonicalPath
+        return new File(baseDir, path).canonicalPath
+    }
+
+    static String resolveLaunchPath(final String rawLaunchDir, final Object rawPath) {
+        return resolvePath(rawLaunchDir, rawPath)
+    }
+
+    static String resolveProjectPath(final String rawProjectDir, final Object rawPath) {
+        return resolvePath(rawProjectDir, rawPath)
+    }
+
+    static String resolvePipelineReleaseVersion(
+        final String rawProjectDir,
+        final Object manifestVersion
+    ) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File resolver = new File(projectDirectory, 'bin/resolve_tresflow_release_version.sh')
+        if( !resolver.exists() ) {
+            throw new IllegalStateException(
+                "Missing repository release-version resolver: ${resolver}"
+            )
+        }
+
+        final Process process = new ProcessBuilder(
+            'bash',
+            resolver.canonicalPath,
+            projectDirectory.canonicalPath,
+            (manifestVersion ?: '').toString()
+        )
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+            .start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+        if( exitCode != 0 || !output ) {
+            throw new IllegalStateException(
+                "Unable to resolve the TrESFlow release version: ${output ?: 'no output'}"
+            )
+        }
+        return output
+    }
+
+    static String runCodonSeqPreflight(final Map runtimeParams, final String rawProjectDir) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File preflight = new File(projectDirectory, 'bin/check_codon_seq_host.sh')
+        final String codonBin = runtimeToolPath(runtimeParams, 'codon')
+        final String codonHome = runtimeCodonHome(runtimeParams)
+
+        if( !preflight.exists() ) {
+            throw new IllegalStateException(
+                "Global pinned Codon/Seq preflight failed. Missing required preflight script: ${preflight}"
+            )
+        }
+
+        final ProcessBuilder processBuilder = new ProcessBuilder('bash', preflight.toString())
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+
+        final Map<String, String> env = processBuilder.environment()
+        if( codonBin ) {
+            env.put('CODON_BIN', codonBin)
+        }
+        if( codonHome ) {
+            env.put('CODON_HOME', codonHome)
+        }
+
+        final Process process = processBuilder.start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+
+        if( exitCode != 0 ) {
+            final String detail = output ? "\n${output}" : ''
+            throw new IllegalStateException(
+                "Global pinned Codon/Seq preflight failed. Every pipeline run requires codon 0.16.3 and Seq 0.11.3.${detail}"
+            )
+        }
+
+        return output
+    }
+
+    static Map writeCanonicalChromosomeContracts(
+        final Map runtimeParams,
+        final String rawProjectDir,
+        final String rawOutdir,
+        final Map references,
+        final Map modalities
+    ) {
+        final File projectDirectory = new File(rawProjectDir).canonicalFile
+        final File resolver = new File(projectDirectory, 'bin/resolve_canonical_chromosomes.py')
+        final File outputDirectory = new File(
+            new File(rawOutdir).canonicalFile,
+            'pipeline_info/derived_contract'
+        )
+        final String pythonBin = runtimeToolPath(runtimeParams, 'python3')
+
+        validateConfiguredExecutable('canonical chromosome resolver', resolver.canonicalPath)
+        validateConfiguredExecutable('runtime python3', pythonBin)
+
+        final List<String> command = [
+            pythonBin,
+            resolver.canonicalPath,
+            '--output-dir',
+            outputDirectory.canonicalPath,
+        ]
+
+        if( modalities.rna as boolean ) {
+            command.addAll([
+                '--rna-chrom-sizes',
+                references.rna_chrom_sizes.toString(),
+            ])
+        }
+        if( modalities.dna as boolean ) {
+            command.addAll([
+                '--dna-bwa-ann',
+                "${references.dna_bwa_reference}.ann".toString(),
+            ])
+            final String dnaChromSizes = references.dna_chrom_sizes?.toString()?.trim()
+            if( dnaChromSizes ) {
+                command.addAll(['--dna-chrom-sizes', dnaChromSizes])
+            }
+        }
+
+        final Process process = new ProcessBuilder(command)
+            .directory(projectDirectory)
+            .redirectErrorStream(true)
+            .start()
+        final String output = process.inputStream.getText('UTF-8').trim()
+        final int exitCode = process.waitFor()
+        if( exitCode != 0 ) {
+            throw new IllegalArgumentException(
+                "Canonical chromosome resolution failed for the configured reference index: ${output}"
+            )
+        }
+
+        try {
+            return new JsonSlurper().parseText(output) as Map
+        }
+        catch( Exception error ) {
+            throw new IllegalStateException(
+                "Canonical chromosome resolver returned invalid output: ${output}",
+                error
+            )
+        }
     }
 
     static List<Map> standardRuntimeTools(final Map params) {
@@ -148,6 +293,7 @@ class RuntimeSupport {
             RUNTIME_BIN_DIR        : binDir,
             TMPDIR                 : tmpdir,
             PYTHON3_BIN            : "${binDir}/python3",
+            CUTADAPT_BIN           : "${binDir}/cutadapt",
             TRIM_GALORE_BIN        : "${binDir}/trim_galore",
             STAR_BIN               : "${binDir}/STAR",
             SAMTOOLS_BIN           : "${binDir}/samtools",

@@ -13,6 +13,7 @@ components:
   - "tag/rna/cell/barcode"
   - "trim/rna/fastqs"
   - "split/rna/reads"
+  - "compress/split/fastqs"
   - "fq/to/sam"
   - "rna/starsolo/align"
   - "rna/filtered/bam"
@@ -30,7 +31,7 @@ output:
       description: "Trimmed RNA FASTQs."
   - split_fastqs:
       type: file
-      description: "Per-group split RNA FASTQs."
+      description: "Optional gzip-compressed publication copies of per-group split RNA FASTQs, emitted only with --publish_split_fastqs."
   - rg_headers:
       type: file
       description: "SAM RG header TSVs for split RNA outputs."
@@ -48,16 +49,25 @@ output:
       description: "RNA STARsolo output directories."
   - aligned_filtered_bams:
       type: file
-      description: "RNA filtered BAM files."
+      description: "Published low-compression canonical-chromosome RNA filtered BAM files."
+  - internal_filtered_bams:
+      type: file
+      description: "The same low-compression canonical-chromosome RNA filtered BAMs used by coverage and QC."
   - aligned_stranded_bigwigs:
       type: file
-      description: "RNA stranded bigWig tracks."
+      description: "Canonical-chromosome RNA stranded bigWig tracks."
   - aligned_unstranded_bigwigs:
       type: file
-      description: "RNA unstranded bigWig tracks."
+      description: "Canonical-chromosome RNA unstranded bigWig tracks."
   - barcode_reports:
       type: file
       description: "Collected RNA barcode metric outputs from upstream tagging steps."
+  - barcode_gate_metrics:
+      type: file
+      description: "Exact cumulative RNA barcode-gate and exhaustive composition TSVs."
+  - tres_tag_records:
+      type: file
+      description: "Final gzip-compressed RNA tag-record TSV."
   - versions:
       type: file
       description: "Aggregated module version manifests emitted by the RNA core."

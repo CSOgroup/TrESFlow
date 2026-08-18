@@ -14,13 +14,13 @@
  *   - modality-barcode counts and summary stats
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process TAG_DNA_MODALITY_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.dna_modality.*.tsv"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_modality.*.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(indexRead), path(taggedR1), path(taggedR2), path(modalityWhitelist)
@@ -32,8 +32,8 @@ process TAG_DNA_MODALITY_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

@@ -5,6 +5,16 @@ from typing import Dict, Set, List, Tuple
 
 CANONICAL_CELL_TAG = "XI"
 
+
+def open_fastq(path: str):
+	# Trim Galore intermediates are normally uncompressed, while this script also
+	# remains compatible with legacy gzip-compressed inputs.
+	if path.endswith(".gz"):
+		return bio.FASTQ(path, gzip=True, validate=False, copy=True)
+	else:
+		return bio.FASTQ(path, gzip=False, validate=False, copy=True)
+
+
 # -----------------------------
 # Normalize SB: by design SB in comment includes injected base as FIRST base.
 # Key is "all bases after the first one".
@@ -94,6 +104,35 @@ def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
 	return sample + "_" + group_name + "_" + cell_barcode
 
 
+def is_decimal(value: str) -> bool:
+	if not value:
+		return False
+	for char in value:
+		if char < '0' or char > '9':
+			return False
+	return True
+
+
+def parse_aviti_lane(read_name: str) -> int:
+	parts = read_name.split(":")
+	if (
+		len(parts) != 8 or
+		not parts[0] or not parts[1] or not parts[2] or not parts[7] or
+		not is_decimal(parts[3]) or not is_decimal(parts[4]) or
+		not is_decimal(parts[5]) or not is_decimal(parts[6])
+	):
+		sys.stderr.write(
+			"ERROR: DNA read name does not match expected AVITI format " +
+			"instrument:run:flowcell:lane:tile:x:y:UMI: " + read_name + "\n"
+		)
+		sys.exit(1)
+	return int(parts[3])
+
+
+def aviti_lane_read_group(lane: int) -> str:
+	return "L" + str(lane)
+
+
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
 	if cb.startswith(sb):
 		cell = cb[len(sb):]
@@ -115,7 +154,12 @@ def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> s
 	return ""
 
 
-def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> str:
+def canonicalize_fastq_comment(
+	sample: str,
+	group_name: str,
+	comment: str,
+	read_group: str = ""
+	) -> str:
 	cb, mo, sb = get_cb_mo_sb(comment)
 	if not cb:
 		cb, sb = get_cb_sb(comment)
@@ -128,6 +172,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 		sys.exit(1)
 
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+	output_read_group = read_group if read_group else technical_cell
 	canonical = canonical_cell_id(sample, group_name, technical_cell)
 	out: List[str] = []
 	has_rg = False
@@ -137,7 +182,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 		if token.startswith("CB:"):
 			out.append("CB:Z:" + technical_cell)
 		elif token.startswith("RG:"):
-			out.append("RG:Z:" + technical_cell)
+			out.append("RG:Z:" + output_read_group)
 			has_rg = True
 		elif token.startswith(CANONICAL_CELL_TAG + ":"):
 			out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
@@ -146,11 +191,32 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
 			out.append(token)
 
 	if not has_rg:
-		out.append("RG:Z:" + technical_cell)
+		out.append("RG:Z:" + output_read_group)
 	if not has_canonical:
 		out.append(CANONICAL_CELL_TAG + ":Z:" + canonical)
 
 	return "\t".join(out)
+
+
+def canonicalize_dna_fastq_comment(
+	sample: str,
+	group_name: str,
+	read_name: str,
+	comment: str
+	) -> str:
+	lane = parse_aviti_lane(read_name)
+	cb, _, sb = get_cb_mo_sb(comment)
+	if not cb:
+		cb, sb = get_cb_sb(comment)
+	if (not cb) or (not sb):
+		sys.stderr.write(
+			"ERROR: Missing CB or SB tag while canonicalizing cell ID for sample " +
+			sample + " group " + group_name + "\n"
+		)
+		sys.exit(1)
+	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+	read_group = aviti_lane_read_group(lane)
+	return canonicalize_fastq_comment(sample, group_name, comment, read_group)
 
 
 # -----------------------------
@@ -305,11 +371,13 @@ def load_mo_map_tsv(map_path: str, sample: str, group_to_gid: Dict[str, int], us
 	return mo_list, mo_gid, mo_mark_idx, idx_to_mark
 
 
-def write_SAM_RG_Header(sample: str, lib: str, out_path: str, passing_BCs: Set[str]) -> None:
+def write_SAM_RG_Header(sample: str, lib: str, out_path: str, read_groups: Set[str]) -> None:
 	with open(out_path, "w") as fh:
-		for bc in passing_BCs:
+		# A shared LB keeps genomic duplicate grouping cross-lane; CB provides cell
+		# identity and the small lane RG namespace separates physical locations.
+		for read_group in read_groups:
 			fh.write("@RG\tID:")
-			fh.write(bc)
+			fh.write(read_group)
 			fh.write("\tSM:")
 			fh.write(sample)
 			fh.write("\tLB:")
@@ -328,6 +396,28 @@ def write_fastq_record(fh, name: str, comment: str, seq_s: str, qual_s: str) -> 
 	fh.write("\n+\n")
 	fh.write(qual_s)
 	fh.write("\n")
+
+
+def write_split_retention_metrics(
+		path: str,
+		sample: str,
+		modality: str,
+		split_input_pairs: int,
+		barcode_accepted_pairs: int,
+		group_names: List[str],
+		group_counts: List[int],
+		branch_names: List[str],
+		branch_groups: List[str],
+		branch_counts: List[int]
+	) -> None:
+	with open(path, "w") as fh:
+		fh.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
+		fh.write(sample + "\t" + modality + "\t__all__\t__all__\tsplit_input_pairs\t" + str(split_input_pairs) + "\tread_pairs\n")
+		fh.write(sample + "\t" + modality + "\t__all__\t__all__\tjoint_barcode_accepted_pairs\t" + str(barcode_accepted_pairs) + "\tread_pairs\n")
+		for i in range(len(group_names)):
+			fh.write(sample + "\t" + modality + "\t" + group_names[i] + "\t__all__\trouted_group_pairs\t" + str(group_counts[i]) + "\tread_pairs\n")
+		for i in range(len(branch_names)):
+			fh.write(sample + "\t" + modality + "\t" + branch_groups[i] + "\t" + branch_names[i] + "\trouted_branch_pairs\t" + str(branch_counts[i]) + "\tread_pairs\n")
 
 
 def find_mark_for_mo(mo: str, gid: int, mo_list: List[str], mo_gid: List[int], mo_mark_idx: List[int]) -> int:
@@ -354,7 +444,7 @@ def gid_from_sb_raw(sample: str, sb_raw: str, sb_to_gid: Dict[str, int]) -> int:
 	# defensive: if some inputs ever already have injected base removed
 	if sb_raw in sb_to_gid:
 		return sb_to_gid[sb_raw]
-	
+
 	key1 = normalize_sb_drop_first(sb_raw)
 	if key1 in sb_to_gid:
 		return sb_to_gid[key1]
@@ -381,8 +471,8 @@ def MakeRecordNameList_DNA(
 
 	sys.stdout.write("Initialization\n")
 
-	R1_gen = bio.FASTQ(R1_path, gzip=True, validate=False, copy=True)
-	R2_gen = bio.FASTQ(R2_path, gzip=True, validate=False, copy=True)
+	R1_gen = open_fastq(R1_path)
+	R2_gen = open_fastq(R2_path)
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
@@ -425,10 +515,10 @@ def MakeRecordNameList_DNA(
 
 	r1_fhs = []
 	r2_fhs = []
-	bc_sets: List[Set[str]] = []
+	rg_sets: List[Set[str]] = []
 
 	for i in range(total_slots):
-		bc_sets.append(Set[str]())
+		rg_sets.append(Set[str]())
 		if used[i] == 1:
 			gid = i // n_marks
 			midx = i - gid * n_marks
@@ -448,7 +538,7 @@ def MakeRecordNameList_DNA(
 
 	unknown_r1 = open("/dev/null", "w")
 	unknown_r2 = open("/dev/null", "w")
-	unknown_bcs: Set[str] = Set[str]()
+	unknown_read_groups: Set[str] = Set[str]()
 	unknown_count = 0
 	unknown_mo_count = 0
 
@@ -461,11 +551,21 @@ def MakeRecordNameList_DNA(
 	sys.stdout.write("Read Splitting\n")
 
 	processed = 0
+	barcode_accepted = 0
+	group_counts: List[int] = []
+	branch_counts: List[int] = []
+	for _ in range(n_groups):
+		group_counts.append(0)
+	for _ in range(total_slots):
+		branch_counts.append(0)
 	next_report = 20000
 
 	for rec1 in R1_gen:
 		rec2 = next(R2_it)
 		processed += 1
+		if rec1.name != rec2.name:
+			sys.stderr.write("ERROR: Paired DNA read name mismatch: " + rec1.name + " != " + rec2.name + "\n")
+			sys.exit(1)
 
 		if processed >= next_report:
 			sys.stdout.write("\r")
@@ -477,6 +577,7 @@ def MakeRecordNameList_DNA(
 		comment = rec1.comment
 		if comment.find("NoMatch") >= 0:
 			continue
+		barcode_accepted += 1
 
 		cb, mo, sb_raw = get_cb_mo_sb(comment)
 		if (not cb) or (not mo) or (not sb_raw):
@@ -486,6 +587,13 @@ def MakeRecordNameList_DNA(
 		gid = 0
 		if use_sb:
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
+		group_counts[gid] += 1
+		group_name = idx_to_group[gid] if use_sb else sample
+		lane1 = parse_aviti_lane(rec1.name)
+		lane2 = parse_aviti_lane(rec2.name)
+		if lane1 != lane2:
+			sys.stderr.write("ERROR: Paired DNA reads resolve to different AVITI lanes\n")
+			sys.exit(1)
 
 		midx = find_mark_for_mo(mo, gid, mo_list, mo_gid, mo_mark_idx)
 		if midx < 0:
@@ -496,9 +604,11 @@ def MakeRecordNameList_DNA(
 			elif unknown_mode == 2:
 				seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 				seq2 = str(rec2.seq); qual2 = str(rec2.qual)
-				write_fastq_record(unknown_r1, rec1.name, rec1.comment, seq1, qual1)
-				write_fastq_record(unknown_r2, rec2.name, rec2.comment, seq2, qual2)
-				unknown_bcs.add(cb)
+				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
+				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
+				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
+				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
+				unknown_read_groups.add(aviti_lane_read_group(lane1))
 				continue
 			else:
 				sys.stderr.write("ERROR: MO barcode not found for sample " + sample + ": " + mo + "\n")
@@ -509,15 +619,14 @@ def MakeRecordNameList_DNA(
 			sys.stderr.write("ERROR: internal: slot not marked used but read mapped to it\n")
 			sys.exit(1)
 
-		group_name = idx_to_group[gid] if use_sb else sample
-		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
-		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment)
-		canonical_cb, _, _ = get_cb_mo_sb(comment1)
+		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
+		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
 		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
-		bc_sets[slot].add(canonical_cb)
+		rg_sets[slot].add(aviti_lane_read_group(lane1))
+		branch_counts[slot] += 1
 
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))
@@ -550,12 +659,37 @@ def MakeRecordNameList_DNA(
 		else:
 			hpath = out_folder + "/SAM_RG_Header_" + sample + "_" + mark + ".tsv"
 
-		write_SAM_RG_Header(sample, lib_name, hpath, bc_sets[i])
+		write_SAM_RG_Header(sample, lib_name, hpath, rg_sets[i])
 
 	unknown_r1.close()
 	unknown_r2.close()
 	if unknown_mode == 2:
-		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_bcs)
+		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_read_groups)
+
+	metric_group_names: List[str] = idx_to_group if use_sb else [sample]
+	metric_branch_names: List[str] = []
+	metric_branch_groups: List[str] = []
+	metric_branch_counts: List[int] = []
+	for i in range(total_slots):
+		if used[i] != 1:
+			continue
+		gid3 = i // n_marks
+		midx3 = i - gid3 * n_marks
+		metric_branch_names.append(idx_to_mark[midx3])
+		metric_branch_groups.append(metric_group_names[gid3])
+		metric_branch_counts.append(branch_counts[i])
+	write_split_retention_metrics(
+		out_folder + "/" + sample + ".dna_read_retention.tsv",
+		sample,
+		"dna",
+		processed,
+		barcode_accepted,
+		metric_group_names,
+		group_counts,
+		metric_branch_names,
+		metric_branch_groups,
+		metric_branch_counts
+	)
 
 	sys.stdout.write("DONE\n")
 	return 0
@@ -571,14 +705,14 @@ def MakeRecordNameList_RNA(
 		unknown_policy: str = "fail"
 	) -> int:
 
-	use_sb = False
-	if sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none":
-		use_sb = True
+	# Keep this as a single expression. Codon can incorrectly constant-fold a
+	# boolean initialized False and mutated before use inside the record loop.
+	use_sb = bool(sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none")
 
 	sys.stdout.write("Initialization\n")
 
-	R1_gen = bio.FASTQ(R1_path, gzip=True, validate=False, copy=True)
-	R2_gen = bio.FASTQ(R2_path, gzip=True, validate=False, copy=True)
+	R1_gen = open_fastq(R1_path)
+	R2_gen = open_fastq(R2_path)
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
@@ -626,6 +760,10 @@ def MakeRecordNameList_RNA(
 	sys.stdout.write("Read Splitting\n")
 
 	processed = 0
+	barcode_accepted = 0
+	group_counts: List[int] = []
+	for _ in range(n_groups):
+		group_counts.append(0)
 	next_report = 20000
 
 	for rec1 in R1_gen:
@@ -642,6 +780,7 @@ def MakeRecordNameList_RNA(
 		comment = rec1.comment
 		if comment.find("NoMatch") >= 0:
 			continue
+		barcode_accepted += 1
 
 		cb, sb_raw = get_cb_sb(comment)
 		if (not cb) or (not sb_raw):
@@ -652,6 +791,7 @@ def MakeRecordNameList_RNA(
 		if use_sb:
 			# This is the critical part: no fallback to TP3_A on mismatch.
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
+		group_counts[gid] += 1
 
 		group_name = idx_to_group[gid] if use_sb else sample
 		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
@@ -694,6 +834,23 @@ def MakeRecordNameList_RNA(
 	if unknown_mode == 2:
 		write_SAM_RG_Header(sample, lib_name, out_folder + "/SAM_RG_Header_" + sample + "_Unknown.tsv", unknown_bcs)
 
+	metric_group_names: List[str] = idx_to_group if use_sb else [sample]
+	metric_branch_names: List[str] = []
+	for _ in range(n_groups):
+		metric_branch_names.append("RNA")
+	write_split_retention_metrics(
+		out_folder + "/" + sample + ".rna_read_retention.tsv",
+		sample,
+		"rna",
+		processed,
+		barcode_accepted,
+		metric_group_names,
+		group_counts,
+		metric_branch_names,
+		metric_group_names,
+		group_counts
+	)
+
 	sys.stdout.write("DONE\n")
 	return 0
 
@@ -701,9 +858,9 @@ def MakeRecordNameList_RNA(
 def main():
 	# Unified interface (unchanged):
 	# DNA:
-	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <R1.fq.gz> <R2.fq.gz> [sb_group_map.tsv]
+	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> dna <mo_map.tsv> <R1.fq[.gz]> <R2.fq[.gz]> [sb_group_map.tsv]
 	# RNA:
-	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> rna - <R1.fq.gz> <R2.fq.gz> [sb_group_map.tsv]
+	#   codon run -plugin seq -release Split_ReadsV2.codon <Sample> <OutFolder> <LibName> rna - <R1.fq[.gz]> <R2.fq[.gz]> [sb_group_map.tsv]
 	if len(sys.argv) != 8 and len(sys.argv) != 9:
 		sys.stderr.write(
 			"Wrong call, exiting...\n"

@@ -2,8 +2,8 @@
 
 import gzip
 import os
+import re
 import shutil
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -12,6 +12,9 @@ from pathlib import Path
 
 FASTQ_SUFFIXES = (".fastq.gz", ".fq.gz", ".fastq", ".fq")
 CANONICAL_CELL_TAG = "XI"
+AVITI_QNAME_PATTERN = re.compile(
+    r"^[^:]+:[^:]+:[^:]+:([0-9]+):([0-9]+):([0-9]+):([0-9]+):[^:]+$"
+)
 
 
 def resolve_temp_root() -> Path:
@@ -119,20 +122,6 @@ def resolve_codon_bin() -> str:
     return resolved
 
 
-def resolve_pigz_bin() -> str:
-    configured = os.environ.get("PIGZ_BIN")
-    if configured:
-        pigz_bin = Path(configured)
-        if not pigz_bin.exists() or not os.access(pigz_bin, os.X_OK):
-            raise RuntimeError(f"Configured PIGZ_BIN is missing or not executable: {pigz_bin}")
-        return str(pigz_bin)
-
-    resolved = shutil.which("pigz")
-    if resolved is None:
-        raise RuntimeError("pigz executable not found in PATH; final split FASTQ compression requires pigz")
-    return resolved
-
-
 def find_existing_output(base_dir: Path, candidate_names, label: str) -> Path:
     for candidate_name in candidate_names:
         candidate = base_dir / candidate_name
@@ -187,26 +176,6 @@ def move_split_output(source: Path, output_dir: Path) -> Path:
     return destination
 
 
-def compress_fastq_with_pigz(source: Path, threads: int, pigz_bin: str):
-    destination = Path(str(source) + ".gz")
-    if destination.exists():
-        raise RuntimeError(f"Refusing to overwrite existing compressed split FASTQ: {destination}")
-
-    start = time.monotonic()
-    log_event("Starting final pigz compression", source)
-    subprocess.run([pigz_bin, "-p", str(threads), str(source)], check=True)
-    log_event("Finished final pigz compression", destination, elapsed=time.monotonic() - start)
-
-
-def compress_final_fastqs(output_dir: Path, threads: int):
-    if threads < 1:
-        raise RuntimeError(f"Invalid pigz thread count: {threads}")
-
-    pigz_bin = resolve_pigz_bin()
-    for source in sorted(output_dir.glob("*_R1.fastq")) + sorted(output_dir.glob("*_R2.fastq")):
-        compress_fastq_with_pigz(source, threads, pigz_bin)
-
-
 def percent(count: int, total: int) -> str:
     if total == 0:
         return "0.0%"
@@ -230,6 +199,22 @@ def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
     return f"{sample}_{group_name}_{cell_barcode}"
 
 
+def parse_aviti_qname(read_name: str):
+    """Return AVITI lane, tile, x, and y as integers from a FASTQ/BAM read name."""
+    match = AVITI_QNAME_PATTERN.fullmatch(read_name)
+    if match is None:
+        raise ValueError(
+            "DNA read name does not match the expected AVITI format "
+            f"instrument:run:flowcell:lane:tile:x:y:UMI: {read_name}"
+        )
+    return tuple(int(value) for value in match.groups())
+
+
+def aviti_lane_read_group(lane: int) -> str:
+    """Build the small SAM-safe read-group ID used for an AVITI lane."""
+    return f"L{lane}"
+
+
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
     candidate_prefixes = [sb]
     if len(sb) > 1:
@@ -247,7 +232,12 @@ def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> s
     )
 
 
-def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> str:
+def canonicalize_fastq_comment(
+    sample: str,
+    group_name: str,
+    comment: str,
+    read_group: str = None,
+) -> str:
     cb = find_tag_value(comment, "CB")
     sb = find_tag_value(comment, "SB")
     if not cb or not sb:
@@ -256,6 +246,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         )
 
     technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+    output_read_group = read_group if read_group is not None else technical_cell
     canonical = canonical_cell_id(sample, group_name, technical_cell)
     tokens = []
     has_rg = False
@@ -264,7 +255,7 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         if token.startswith("CB:"):
             tokens.append(f"CB:Z:{technical_cell}")
         elif token.startswith("RG:"):
-            tokens.append(f"RG:Z:{technical_cell}")
+            tokens.append(f"RG:Z:{output_read_group}")
             has_rg = True
         elif token.startswith(f"{CANONICAL_CELL_TAG}:"):
             tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
@@ -272,10 +263,29 @@ def canonicalize_fastq_comment(sample: str, group_name: str, comment: str) -> st
         else:
             tokens.append(token)
     if not has_rg:
-        tokens.append(f"RG:Z:{technical_cell}")
+        tokens.append(f"RG:Z:{output_read_group}")
     if not has_canonical:
         tokens.append(f"{CANONICAL_CELL_TAG}:Z:{canonical}")
     return "\t".join(tokens)
+
+
+def canonicalize_dna_fastq_comment(
+    sample: str,
+    group_name: str,
+    read_name: str,
+    comment: str,
+) -> str:
+    """Canonicalize DNA cell tags while making RG identify the AVITI lane."""
+    lane, _, _, _ = parse_aviti_qname(read_name)
+    cb = find_tag_value(comment, "CB")
+    sb = find_tag_value(comment, "SB")
+    if not cb or not sb:
+        raise ValueError(
+            f"Missing CB or SB tag while canonicalizing cell ID for sample {sample} group {group_name}"
+        )
+    technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
+    read_group = aviti_lane_read_group(lane)
+    return canonicalize_fastq_comment(sample, group_name, comment, read_group=read_group)
 
 
 def load_sb_group_map(path: Path, sample: str):
@@ -335,7 +345,12 @@ def write_fastq_record(handle, name: str, comment: str, seq: str, qual: str):
     handle.write("\n")
 
 
-def write_rg_header(path: Path, sample: str, library_name: str, barcodes):
+def write_rg_header(path: Path, sample: str, library_name: str, read_groups):
     with open(path, "wt", encoding="utf-8") as handle:
-        for barcode in sorted(barcodes):
-            handle.write(f"@RG\tID:{barcode}\tSM:{sample}\tLB:{library_name}\tPL:ELEMENT\tPM:AVITI_500MIO\n")
+        for read_group in sorted(read_groups):
+            # All lane RGs share LB so Picard still groups genomic duplicates
+            # across lanes; CB provides cell identity and RG only separates lanes.
+            handle.write(
+                f"@RG\tID:{read_group}\tSM:{sample}\tLB:{library_name}"
+                "\tPL:ELEMENT\tPM:AVITI_500MIO\n"
+            )

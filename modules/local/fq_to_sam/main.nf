@@ -10,11 +10,11 @@
  *   - unmapped SAM carrying CR:Z:CB+UM plus preserved non-CB/non-UM tags
  *
  * Notes:
- *   - Upstream MAINLAUNCH.sh comments say the script must accept gzipped FASTQs.
- *     The checked-in FqToSAM.codon does accept `.gz` inputs directly, and this wrapper preserves that contract.
+ *   - The computational branch supplies plain split FASTQs, avoiding a decode before SAM conversion.
+ *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process FQ_TO_SAM {
     tag "${splitName}"
@@ -29,8 +29,8 @@ process FQ_TO_SAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

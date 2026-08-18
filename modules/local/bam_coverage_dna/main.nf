@@ -21,14 +21,14 @@
  *     stderr and does not finish cleanly on an empty mapped-read set.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process BAM_COVERAGE_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "${splitName}_NoDup.bw"
-    publishDir "${params.outdir ?: "${projectDir}/results"}/pipeline_info/warnings", mode: 'copy', overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
+    publishDir { "${runtimeOutdir()}/dna_align" }, mode: 'copy', overwrite: true, pattern: "*_NoDup.bw"
+    publishDir { "${runtimeOutdir()}/pipeline_info/warnings" }, mode: 'copy', overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
 
     input:
     tuple val(splitName), val(meta), path(noDupBam), path(noDupBai), val(effectiveGenomeSize)
@@ -40,7 +40,7 @@ process BAM_COVERAGE_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
     def sampleId = meta.id as String
     def suffix = splitName.replaceFirst("^${sampleId}_", '')
     def tokens = suffix.tokenize('_')

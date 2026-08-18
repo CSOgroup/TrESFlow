@@ -7,6 +7,8 @@
  *     -M <sample>.DuplicateMetrics.txt \
  *     --REMOVE_DUPLICATES false \
  *     --BARCODE_TAG CB \
+ *     --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \
+ *     --OPTICAL_DUPLICATE_PIXEL_DISTANCE <aviti_optical_duplicate_distance> \
  *     --CREATE_INDEX true \
  *     --MAX_RECORDS_IN_RAM 10000000
  *
@@ -22,13 +24,13 @@
  *   - It normalizes the created BAM index to <sample>_MarkedDup.bam.bai for a stable Nextflow output contract.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process MARK_DUPLICATES_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/dna_align", mode: 'copy', overwrite: true, pattern: "${splitName}_MarkedDup.bam*"
+    publishDir { "${runtimeOutdir()}/dna_align" }, mode: 'copy', overwrite: true, pattern: "*_MarkedDup.bam*"
 
     input:
     tuple val(splitName), val(meta), path(alignedBam)
@@ -41,7 +43,7 @@ process MARK_DUPLICATES_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """
@@ -78,6 +80,8 @@ EOF
           -M "${splitName}.DuplicateMetrics.txt" \\
           --REMOVE_DUPLICATES false \\
           --BARCODE_TAG CB \\
+          --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \\
+          --OPTICAL_DUPLICATE_PIXEL_DISTANCE "${params.aviti_optical_duplicate_distance}" \\
           --CREATE_INDEX true \\
           --MAX_RECORDS_IN_RAM 10000000
 

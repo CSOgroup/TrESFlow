@@ -1,5 +1,34 @@
 {
-    "name": "nf-core/tres",
-    "homePage": "",
-    "repos": {}
+    "name": "CSOgroup/TrESFlow",
+    "homePage": "https://github.com/CSOgroup/TrESFlow",
+    "repos": {
+        "https://github.com/nf-core/modules.git": {
+            "modules": {
+                "nf-core": {
+                    "deeptools/bamcoverage": {
+                        "branch": "master",
+                        "git_sha": "6d46786420b4d7bc88eba026eb389c0c5535d120",
+                        "installed_by": ["modules"],
+                        "patch": "modules/nf-core/deeptools/bamcoverage/deeptools-bamcoverage.diff"
+                    },
+                    "fastqc": {
+                        "branch": "master",
+                        "git_sha": "6d46786420b4d7bc88eba026eb389c0c5535d120",
+                        "installed_by": ["modules"]
+                    },
+                    "gatk4/markduplicates": {
+                        "branch": "master",
+                        "git_sha": "6d46786420b4d7bc88eba026eb389c0c5535d120",
+                        "installed_by": ["modules"],
+                        "patch": "modules/nf-core/gatk4/markduplicates/gatk4-markduplicates.diff"
+                    },
+                    "multiqc": {
+                        "branch": "master",
+                        "git_sha": "98403d15b0e50edae1f3fec5eae5e24982f1fade",
+                        "installed_by": ["modules"]
+                    }
+                }
+            }
+        }
+    }
 }

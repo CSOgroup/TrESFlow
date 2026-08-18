@@ -2,14 +2,14 @@
  * Module: SPLIT_RNA_READS
  * Upstream reference:
  *   codon run -plugin seq -release Split_ReadsV2.codon \
- *     <Sample> <OutFolder> <LibName> rna - <trimmed_R1.fq.gz> <trimmed_R2.fq.gz> <sb_group_map.tsv>
+ *     <Sample> <OutFolder> <LibName> rna - <trimmed_R1.fq> <trimmed_R2.fq> <sb_group_map.tsv>
  *
  * Inputs:
  *   - sample metadata
- *   - trim_galore RNA FASTQs from the CB-tagged reads
+ *   - uncompressed trim_galore RNA FASTQs from the CB-tagged reads
  *   - shared sample-barcode group map TSV keyed by sample and group
  * Outputs:
- *   - per-group RNA FASTQ pairs named as final pigz-compressed split outputs
+ *   - uncompressed per-group RNA FASTQ pairs for downstream computation
  *   - per-group SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  *
  * Notes:
@@ -18,26 +18,27 @@
  *     raw SB match first, then drop-first fallback.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process SPLIT_RNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_split_fastqs", mode: 'copy', overwrite: true, pattern: "${sampleId}_*_R[12].fastq.gz"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_read_retention.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(trimmedR1), path(trimmedR2), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq.gz"), path("${sampleId}_*_R2.fastq.gz"), emit: split_fastqs
+    tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq"), path("${sampleId}_*_R2.fastq"), emit: split_fastqs
     tuple val(sampleId), val(meta), path("SAM_RG_Header_${sampleId}_*.tsv"), emit: rg_headers
+    tuple val(sampleId), val(meta), path("${sampleId}.rna_read_retention.tsv"), emit: retention_metrics
     path("versions.yml"), emit: versions
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}
@@ -50,12 +51,11 @@ process SPLIT_RNA_READS {
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --library-name "${meta.library_name}" \\
-      --output-dir "." \\
-      --pigz-threads "${task.cpus}"
+      --output-dir "."
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-      component: "local"
-    END_VERSIONS
+    printf '%s\\n' \\
+      '"${task.process}":' \\
+      '  component: "local"' \\
+      > versions.yml
     """
 }

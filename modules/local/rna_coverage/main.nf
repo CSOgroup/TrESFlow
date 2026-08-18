@@ -6,18 +6,18 @@
  *
  * Inputs:
  *   - filtered-cells RNA BAM from RNA_FILTERED_BAM
- *   - exact RNA STAR index directory from references.rna_ref_dir and derived STAR chrNameLength.txt chromosome sizes file
+ *   - exact RNA STAR index directory and canonical-only chromosome sizes resolved from its dictionary
  * Outputs:
  *   - stranded and unstranded RNA bigWig tracks
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process RNA_COVERAGE {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/rna_align", mode: 'copy', overwrite: true
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true
 
     input:
     tuple val(splitName), val(meta), path(filteredBam), val(starIndexDir), val(chromSizes)
@@ -29,8 +29,8 @@ process RNA_COVERAGE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """

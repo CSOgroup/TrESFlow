@@ -4,7 +4,7 @@
  *   ./AlignDNA.sh <modality> <sample_name> <R1> <R2> <blacklist.bed> <SAM_RG_Header.tsv> <bwa_prefix> <effective_genome_size> <outdir>
  *
  * Inputs:
- *   - one split DNA FASTQ pair from Split_ReadsV2 dna mode
+ *   - one uncompressed split DNA FASTQ pair from Split_ReadsV2 dna mode
  *   - matching SAM RG header TSV from Split_ReadsV2 dna mode
  *   - bwa-mem2 index prefix inferred from references.dna_ref_dir
  *   - explicit blacklist BED path
@@ -18,11 +18,13 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
     label 'codon_wrapper'
+
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_alignment_retention.tsv"
 
     input:
     tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
@@ -30,6 +32,7 @@ process ALIGN_DNA {
     output:
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
     tuple val(splitName), val(meta), path("${splitName}.bam.bai"), emit: bai
+    tuple val(splitName), val(meta), path("${splitName}.dna_alignment_retention.tsv"), emit: retention_metrics
     path("versions.yml"), emit: versions
 
     script:
@@ -37,8 +40,8 @@ process ALIGN_DNA {
     def alignThreads = task.cpus as int
     def viewThreads = alignThreads
     def sortThreads = alignThreads
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     if( mode == 'mock' ) {
         """
@@ -46,6 +49,14 @@ process ALIGN_DNA {
 
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
+        pair_count="\$(awk 'END { print int(NR / 4) }' "${splitR1}")"
+        cat > "${splitName}.dna_alignment_retention.tsv" <<EOF
+split_id	metric	pairs	unit
+${splitName}	bwa_primary_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	post_blacklist_primary_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	post_blacklist_mapped_primary_pairs	\${pair_count}	primary_read1_pair_representatives
+${splitName}	proper_pair_primary_pairs	\${pair_count}	primary_read1_pair_representatives
+EOF
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

@@ -18,13 +18,13 @@
  *   - barcode counts and summary stats
  */
 
-import RuntimeSupport
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
 
 process TAG_RNA_SAMPLE_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
-    publishDir "${params.outdir ?: "${projectDir}/results"}/TrES_Stats", mode: 'copy', overwrite: true, pattern: "${sampleId}.rna_sample_barcode.*.tsv"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_sample_barcode.*.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(r1), path(r2), path(sbGroupMap)
@@ -37,8 +37,8 @@ process TAG_RNA_SAMPLE_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = RuntimeSupport.resolveProjectPath(projectDir.toString(), params.core_scripts_dir ?: 'scripts/core_runtime')
-    def runtimeExports = RuntimeSupport.shellExports(meta)
+    def coreScriptsDir = runtimeCoreScriptsDir()
+    def runtimeExports = runtimeShellExports(meta)
 
     """
     ${runtimeExports}

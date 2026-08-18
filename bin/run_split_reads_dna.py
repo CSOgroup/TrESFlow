@@ -9,15 +9,12 @@ from collections import OrderedDict
 from pathlib import Path
 
 from tresflow_fastq_utils import (
-    canonicalize_fastq_comment,
-    compress_fastq_with_pigz,
-    compress_final_fastqs,
+    canonicalize_dna_fastq_comment,
     fastq_iter,
     find_tag_value,
     load_sb_group_map,
     log_event,
     move_split_output,
-    normalize_split_fastq_name,
     parse_header,
     resolve_codon_bin,
     resolve_group,
@@ -132,7 +129,7 @@ def mock_split(args):
 
     r1_handles = OrderedDict()
     r2_handles = OrderedDict()
-    target_barcodes = {}
+    target_read_groups = {}
 
     for group_name, mark_name in targets:
         stem = f"{args.sample}_{group_name}_{mark_name}"
@@ -146,10 +143,16 @@ def mock_split(args):
             "wt",
             encoding="utf-8",
         )
-        target_barcodes[(group_name, mark_name)] = set()
+        target_read_groups[(group_name, mark_name)] = set()
+
+    processed = 0
+    accepted = 0
+    group_counts = OrderedDict((group_name, 0) for group_name in group_names)
+    branch_counts = OrderedDict((target, 0) for target in targets)
 
     try:
         for r1_rec, r2_rec in zip(fastq_iter(args.r1), fastq_iter(args.r2)):
+            processed += 1
             r1_name, r1_comment = parse_header(r1_rec[0])
             r2_name, r2_comment = parse_header(r2_rec[0])
             if r1_name != r2_name:
@@ -157,6 +160,7 @@ def mock_split(args):
 
             if "NoMatch" in r1_comment:
                 continue
+            accepted += 1
 
             cb = find_tag_value(r1_comment, "CB")
             mo = find_tag_value(r1_comment, "MO")
@@ -165,17 +169,28 @@ def mock_split(args):
                 raise ValueError(f"Missing CB or MO or SB tag in FASTQ comment for {r1_name}")
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
+            group_counts[group_name] += 1
             mark_name = find_mark_for_mo(mo, group_name, group_names, mappings)
             if mark_name is None:
                 raise ValueError(f"MO barcode not found for sample {args.sample}: {mo}")
 
             key = (group_name, mark_name)
-            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment)
-            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment)
-            canonical_cb = find_tag_value(r1_comment, "CB")
+            branch_counts[key] += 1
+            r1_comment = canonicalize_dna_fastq_comment(
+                args.sample, group_name, r1_name, r1_comment
+            )
+            r2_comment = canonicalize_dna_fastq_comment(
+                args.sample, group_name, r2_name, r2_comment
+            )
+            r1_rg = find_tag_value(r1_comment, "RG")
+            r2_rg = find_tag_value(r2_comment, "RG")
+            if r1_rg != r2_rg:
+                raise ValueError(
+                    f"Paired DNA reads resolve to different AVITI lane read groups: {r1_rg} != {r2_rg}"
+                )
             write_fastq_record(r1_handles[key], r1_name, r1_comment, r1_rec[1], r1_rec[3])
             write_fastq_record(r2_handles[key], r2_name, r2_comment, r2_rec[1], r2_rec[3])
-            target_barcodes[key].add(canonical_cb)
+            target_read_groups[key].add(r1_rg)
     finally:
         for handle in r1_handles.values():
             handle.close()
@@ -184,9 +199,22 @@ def mock_split(args):
 
     for group_name, mark_name in targets:
         header_path = args.output_dir / f"SAM_RG_Header_{args.sample}_{group_name}_{mark_name}.tsv"
-        write_rg_header(header_path, args.sample, args.library_name, target_barcodes[(group_name, mark_name)])
+        write_rg_header(
+            header_path,
+            args.sample,
+            args.library_name,
+            target_read_groups[(group_name, mark_name)],
+        )
 
-    compress_final_fastqs(args.output_dir, args.pigz_threads)
+    metrics_path = args.output_dir / f"{args.sample}.dna_read_retention.tsv"
+    with metrics_path.open("wt", encoding="utf-8") as handle:
+        handle.write("sample_id\tmodality\tgroup\tbranch\tmetric\tpairs\tunit\n")
+        handle.write(f"{args.sample}\tdna\t__all__\t__all__\tsplit_input_pairs\t{processed}\tread_pairs\n")
+        handle.write(f"{args.sample}\tdna\t__all__\t__all__\tjoint_barcode_accepted_pairs\t{accepted}\tread_pairs\n")
+        for group_name, count in group_counts.items():
+            handle.write(f"{args.sample}\tdna\t{group_name}\t__all__\trouted_group_pairs\t{count}\tread_pairs\n")
+        for (group_name, mark_name), count in branch_counts.items():
+            handle.write(f"{args.sample}\tdna\t{group_name}\t{mark_name}\trouted_branch_pairs\t{count}\tread_pairs\n")
 
 
 def real_split(args):
@@ -215,13 +243,16 @@ def real_split(args):
         subprocess.run(cmd, check=True)
         log_event("Finished Codon Split_ReadsV2.codon DNA", args.r1, args.r2, elapsed=time.monotonic() - codon_start)
 
+        retention_name = f"{args.sample}.dna_read_retention.tsv"
+        retention_source = tmp_path / retention_name
+        if not retention_source.is_file():
+            raise FileNotFoundError(
+                f"Codon completed without producing required DNA retention metrics: {retention_source}"
+            )
+
         moved = 0
         fastq_moved = 0
         for pattern in (
-            f"{args.sample}_*_R1.fastq.gz",
-            f"{args.sample}_*_R2.fastq.gz",
-            f"{args.sample}_*_R1.fq.gz",
-            f"{args.sample}_*_R2.fq.gz",
             f"{args.sample}_*_R1.fastq",
             f"{args.sample}_*_R2.fastq",
             f"{args.sample}_*_R1.fq",
@@ -237,7 +268,11 @@ def real_split(args):
         if moved == 0 or fastq_moved == 0:
             raise RuntimeError(f"No DNA split outputs were produced for sample {args.sample}")
 
-        compress_final_fastqs(args.output_dir, args.pigz_threads)
+        retention_destination = move_split_output(retention_source, args.output_dir)
+        if retention_destination != args.output_dir / retention_name:
+            raise RuntimeError(
+                f"DNA retention metrics were moved to an unexpected path: {retention_destination}"
+            )
 
 
 def parse_args():
@@ -251,7 +286,6 @@ def parse_args():
     parser.add_argument("--sample", required=True)
     parser.add_argument("--library-name", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--pigz-threads", required=True, type=int)
     return parser.parse_args()
 
 

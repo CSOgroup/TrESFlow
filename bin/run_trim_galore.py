@@ -19,20 +19,14 @@ def resolve_temp_root() -> Path:
     return root.resolve()
 
 
-def open_maybe_gzip(path: Path, mode: str):
-    if path.suffix == ".gz":
-        return gzip.open(path, mode)
-    return open(path, mode, encoding="utf-8")
-
-
 def open_maybe_gzip_binary(path: Path, mode: str):
     if path.suffix == ".gz":
         return gzip.open(path, mode)
     return open(path, mode)
 
 
-def copy_as_gzip(source: Path, destination: Path):
-    with open_maybe_gzip_binary(source, "rb") as src, gzip.open(destination, "wb") as dst:
+def copy_as_uncompressed(source: Path, destination: Path):
+    with open_maybe_gzip_binary(source, "rb") as src, open(destination, "wb") as dst:
         shutil.copyfileobj(src, dst)
 
 
@@ -49,8 +43,8 @@ def stem_without_fastq_suffix(name: str) -> str:
 
 
 def mock_trim(args):
-    copy_as_gzip(args.r1, args.output_r1)
-    copy_as_gzip(args.r2, args.output_r2)
+    copy_as_uncompressed(args.r1, args.output_r1)
+    copy_as_uncompressed(args.r2, args.output_r2)
 
 
 def real_trim(args):
@@ -76,7 +70,7 @@ def real_trim(args):
             str(args.cores),
             "--output_dir",
             str(tmp_path),
-            "--gzip",
+            "--dont_gzip",
             "--length",
             str(args.length),
             "--paired",
@@ -85,8 +79,8 @@ def real_trim(args):
         ]
         subprocess.run(cmd, check=True)
 
-        expected_r1 = tmp_path / f"{stem_without_fastq_suffix(args.r1.name)}_val_1.fq.gz"
-        expected_r2 = tmp_path / f"{stem_without_fastq_suffix(args.r2.name)}_val_2.fq.gz"
+        expected_r1 = tmp_path / f"{stem_without_fastq_suffix(args.r1.name)}_val_1.fq"
+        expected_r2 = tmp_path / f"{stem_without_fastq_suffix(args.r2.name)}_val_2.fq"
 
         shutil.move(expected_r1, args.output_r1)
         shutil.move(expected_r2, args.output_r2)

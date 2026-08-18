@@ -15,7 +15,7 @@ def get_qual_sorted_idx(qual):
                 key=lambda x: x[1],
                 algorithm="insertion",
                 reverse=False
-            ) 
+            )
         )
     )
 
@@ -201,7 +201,7 @@ def correct_bc_by_qual_order_with_whitelist_or_correct_bc_with_Ns_with_whitelist
 
     """
     assert len(str(bc_seq)) == bc_length, "The barcodes are not the expected length..."
-    
+
     if "N" in str(bc_seq):
         corrected_bc = correct_bc_with_Ns_with_whitelist(
                 bc_whitelist,

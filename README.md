@@ -3,48 +3,54 @@
 [![Nextflow](https://img.shields.io/badge/version-%E2%89%A524.10.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)
 [![nf-core template version](https://img.shields.io/badge/nf--core_template-3.5.2-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.5.2)
 
-TrESFlow is a Nextflow DSL2 pipeline for the preprocessing of TrES-seq data from FASTQs to cell by feature matrices.
+TrESFlow is a Nextflow DSL2 pipeline for preprocessing TrES-seq RNA and DNA sequencing data, including barcode assignment, read splitting, alignment, duplicate handling, coverage tracks, and quality control.
 
-## Install
+## Installation
 
-Install your conda/mamba/micromamba env as follows (conda-forge & bioconda channels):
+Create and activate a conda/mamba/micromamba environment with the required tools:
+
 ```bash
-micromamba env create -n tres
+micromamba create -n tres
 micromamba activate tres
-micromamba install pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn snapatac2
-micromamba install screen samtools bwa-mem2 star fastqc multiqc trim-galore deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
+
+micromamba install \
+  pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy \
+  pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
+  snapatac2 screen samtools bwa-mem2 star fastqc multiqc trim-galore \
+  deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
 ```
 
-Download the repo and cd in it:
+Clone TrESFlow:
+
 ```bash
 git clone git@github.com:CSOgroup/TrESFlow.git
 cd TrESFlow
 ```
 
-Install codon in your env:
+Install Codon in the same environment:
+
 ```bash
 ./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix
 ```
 
-## Samplesheet Contract
+## Inputs
 
-The only supported public input contract is one hierarchical YAML samplesheet.
+TrESFlow uses one hierarchical YAML samplesheet describing the runtime environment, references, biological groups, barcodes, and FASTQ inputs.
 
 ```yaml
-# Generic hierarchical samplesheet template.
-# Keep one biological sample entry per sample under `samples:`.
-# Omit the `rna:` or `dna:` block if that modality is not present.
-
 library_name: Isa
 
 runtime:
   env_prefix: /path/to/env/prefix
+  # tmpdir: /path/to/large/tmp
 
 references:
   species: human
   root: /path/to/TrESFlow_References
   ligation_barcode_whitelist: /path/to/TrESFlow_References/ligation_barcode_whitelist.txt
+
   rna_ref_dir: /path/to/TrESFlow_References/rna/human/star
+
   dna_ref_dir: /path/to/TrESFlow_References/dna/human/bwa
   dna_blacklist_bed: /path/to/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
   dna_chrom_sizes: /path/to/TrESFlow_References/dna/human/hg38.chrom.sizes
@@ -56,129 +62,180 @@ samples:
       group_a:
         rna_sb_barcodes: [AAAA, CCCC]
         dna_sb_barcodes: [AAA, CCC]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
+
       group_b:
         rna_sb_barcodes: [GGGG, TTTT]
         dna_sb_barcodes: [GGG, TTT]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K9me3: GCCTCTAT
 
     rna:
       reads:
-        i1: /path/to/sample_I1.fq.gz
-        r1: /path/to/sample_R1.fq.gz
-        r2: /path/to/sample_R2.fq.gz
+        i1: /path/to/sample_RNA_I1.fastq.gz
+        r1: /path/to/sample_RNA_R1.fastq.gz
+        r2: /path/to/sample_RNA_R2.fastq.gz
 
     dna:
-      # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
-      # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
-      # required for single tagmentation and optional for dual tagmentation.
-      # Ligation starts are 15,53,91 from i1 in single mode and 41,79,117 from
-      # i1 in dual mode.
+      # Both `single` and `dual` tagmentation modes are supported.
+      #
+      # Single tagmentation uses 4 nt DNA sample barcodes.
+      # Dual tagmentation uses 3 nt DNA sample barcodes.
+      #
+      # `reads.i2` is required for single tagmentation, not for dual.
+      #
+      # DNA ligation barcodes are read from i1 at positions:
+      #   single: 15,53,91
+      #   dual:   41,79,117
       tagmentation: dual
       reads:
-        i1: /path/to/sample_DNA_I1.fq.gz
-        r1: /path/to/sample_DNA_R1.fq.gz
-        r2: /path/to/sample_DNA_R2.fq.gz
-      mark_barcodes:
-        H3K27me3: AGGCTATA
-        H3K27ac: GCCTCTAT
+        i1: /path/to/sample_DNA_I1.fastq.gz
+        r1: /path/to/sample_DNA_R1.fastq.gz
+        r2: /path/to/sample_DNA_R2.fastq.gz
 ```
 
-Notes:
+### Samplesheet notes
 
-- Omit the `rna:` or `dna:` block when a sample has only one modality. At least one modality block must be present for each sample.
-- `runtime.env_prefix`, `references.species`, `references.root`, and `references.ligation_barcode_whitelist` are required. `runtime.tmpdir` is optional and defaults to `--outdir`. Runtime and reference paths are no longer accepted as normal CLI parameters.
-- `groups.<group>.sb_barcodes` remains supported for single-tagmentation samples. Use `rna_sb_barcodes` and `dna_sb_barcodes` when RNA and DNA sample barcodes differ; `dna.tagmentation: dual` requires explicit 3 nt `dna_sb_barcodes`.
-- `dna.reads.i2` is required for single tagmentation and optional for dual tagmentation.
-- DNA ligation tagging uses `reads.i1` starts `15,53,91` for single tagmentation and `reads.i1` starts `41,79,117` for dual tagmentation.
-- `references.rna_ref_dir` is required when RNA samples are present and must point directly to the STAR index directory.
-- `references.dna_ref_dir`, `references.dna_blacklist_bed`, and `references.dna_effective_genome_size` are required when DNA samples are present.
-- `dna.mark_barcodes` is the source of truth for DNA modality barcodes.
+- A sample may contain RNA, DNA, or both.
+- FASTQs are defined once at sample level. Groups define how reads are assigned downstream.
+- Groups may independently participate in RNA and/or DNA.
+- RNA groups use `rna_sb_barcodes`.
+- DNA groups use `dna_sb_barcodes` together with `mark_barcodes`.
+- The same DNA modality barcode may represent different marks in different groups.
+- `dna.reads.i2` is required for `single` tagmentation and optional for `dual`.
+- `runtime.tmpdir` is optional and defaults to `--outdir`.
+- `references.rna_ref_dir` must point to a STAR index when RNA is present.
+- DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
 
-Committed examples:
+An example samplesheet is available above and a template in: [`assets/samplesheet.template.yaml`](assets/samplesheet.template.yaml)
 
-- smoke test: [`assets/samplesheet.example.yaml`](assets/samplesheet.example.yaml)
-- canonical real example: [`assets/samplesheet.real.example.yaml`](assets/samplesheet.real.example.yaml)
-- generic template: [`assets/samplesheet.template.yaml`](assets/samplesheet.template.yaml)
+## Running TrESFlow
 
-## Workflow Summary
-
-- [`docs/architecture/implemented_pipeline.md`](docs/architecture/implemented_pipeline.md)
-
-## Outputs
-
-RNA publishes:
-
-- `rna_split_fastqs/`
-- `rna_align/`
-- `TrES_Stats/`
-- `pipeline_info/`
-
-DNA publishes:
-
-- `dna_split_fastqs/`
-- `dna_align/`
-- `TrES_Stats/`
-- `pipeline_info/`
-
-`TrES_Stats/` includes RNA and DNA sequencing-efficiency UpSet PDF plots. Sankey plots, HTML reports, count tables, combined RNA+DNA reports, and sequencing-efficiency warning TSVs are not produced. Optional unavailable BAM-derived categories are skipped with warnings in the process log.
-
-## Runtime Contract
-
-The runtime contract comes from the samplesheet `runtime:` block. `runtime.tmpdir`
-is optional; when omitted, `--outdir` is exported as `TMPDIR` for pipeline tasks.
-This directory can become very large on real runs. The pipeline creates the directory
-if it is missing and fails if it is not writable.
-
-Reference paths are explicit in the samplesheet:
-
-```text
-references:
-  species: human
-  root: /path/to/TrESFlow_References
-  ligation_barcode_whitelist: /path/to/TrESFlow_References/ligation_barcode_whitelist.txt
-  rna_ref_dir: /path/to/TrESFlow_References/rna/human/star
-  dna_ref_dir: /path/to/TrESFlow_References/dna/human/bwa
-  dna_blacklist_bed: /path/to/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
-  dna_chrom_sizes: /path/to/TrESFlow_References/dna/human/hg38.chrom.sizes
-  dna_effective_genome_size: 2913022398
-```
-
-`references.rna_ref_dir` is passed directly to STAR as `--genomeDir`. The directory must contain `Genome`, `SA`, `SAindex`, `chrName.txt`, `chrLength.txt`, `chrStart.txt`, `chrNameLength.txt`, and `genomeParameters.txt`.
-
-`references.dna_ref_dir` must contain exactly one complete bwa-mem2 sidecar set. The pipeline infers the prefix from files such as `hg38.fa.0123`, `hg38.fa.amb`, `hg38.fa.ann`, `hg38.fa.bwt.2bit.64`, and `hg38.fa.pac`.
-
-The main remaining runtime CLI parameter is `--max_cpus`, with optional process-bucket CPU overrides for local execution.
-
-Default local CPU budget:
-
-- `--max_cpus 64`
-- `--cleanup_work true`, which removes successful task work directories after a successful run.
-- `RNA_STARSOLO_ALIGN` defaults to `--rna_starsolo_cpus 16`.
-- `ALIGN_DNA` defaults to `--dna_align_cpus 16` and passes that value to bwa-mem2 and samtools.
-- `RNA_COVERAGE` and `BAM_COVERAGE_DNA` default to `--coverage_cpus 8`.
-- `RNA_FILTERED_BAM`, trim, split, and duplicate-filter helper steps default to `--helper_cpus 4`.
-- tagging processes default to `--tagging_cpus 4` and `--tagging_memory '32 GB'`.
-- `FQ_TO_SAM` and `MARK_DUPLICATES_DNA` stay at `1` core.
-- These are scheduler reservations capped by `--max_cpus`; users can override them with CLI params or Nextflow config.
-
-Work-directory cleanup is intentionally aggressive: `--cleanup_work true` uses Nextflow's successful-run cleanup to remove task work directories after outputs have been published and downstream tasks have completed. This substantially reduces retained `work/` storage, but cleaned tasks are not expected to be usable with `--resume`. Set `--cleanup_work false` when you need the previous resume-friendly behavior for debugging or iterative development.
-
-DNA alignment no longer removes low-count cell barcodes during `ALIGN_DNA`. The aligned BAM still keeps proper-pair mapped, non-blacklisted reads; duplicate removal is represented later by `*_NoDup.bam`, and duplicate status appears in DNA sequencing-efficiency plots as `Unique +`.
-
-Every run writes:
-
-- `${outdir}/pipeline_info/execution_report.html`
-- `${outdir}/pipeline_info/execution_timeline.html`
-- `${outdir}/pipeline_info/execution_trace.tsv`
-- `${outdir}/pipeline_info/flowchart.html`
-- `${outdir}/pipeline_info/runtime_contract.tsv`
-
-The active runtime scripts live under [`scripts/core_runtime/`](scripts/core_runtime/). `upstream/source_scripts/` is kept only as provenance for the vendored core code.
-
-## Quick Start
+A typical run is:
 
 ```bash
 NXF_OFFLINE=true nextflow run . \
   --samplesheet /path/to/samplesheet.yaml \
-  --outdir /path/to/TrESFlow_results \
-  --max_cpus 32
+  --outdir /path/to/results \
+  --max_cpus 80
 ```
+
+Useful options include:
+
+- `--max_cpus`: maximum CPU budget available to the pipeline.
+- `--cleanup_work false`: retain successful Nextflow work directories when debugging or when `-resume` is important.
+- `--publish_split_fastqs true`: also publish gzip-compressed per-group split FASTQs.
+- `--filter_dual_tag_artifacts false`: disable the dual-tagmentation DNA artifact filter.
+
+`NXF_OFFLINE=true` prevents loading optional remote nf-core configuration and is suitable for normal local TrESFlow runs.
+
+## Outputs
+
+The main output structure is:
+
+```text
+<outdir>/
+├── rna_align/
+│   ├── STARsolo outputs
+│   ├── *.filtered_cells.bam
+│   └── *.bw
+│
+├── dna_align/
+│   ├── aligned BAMs
+│   ├── *_MarkedDup.bam
+│   ├── *_NoDup.bam
+│   └── *_NoDup.bw
+│
+├── TrES_Stats/
+│   ├── tres_report.html
+│   ├── read_retention.tsv
+│   ├── qc_metrics.tsv
+│   ├── barcode_composition.tsv
+│   ├── library_complexity.tsv
+│   └── qc/
+│       ├── fastqc/
+│       ├── samtools/
+│       └── multiqc/
+│
+└── pipeline_info/
+    ├── execution_report.html
+    ├── execution_timeline.html
+    ├── execution_trace.tsv
+    ├── flowchart.html
+    └── derived_contract/
+```
+
+The main QC report is:
+
+```text
+TrES_Stats/tres_report.html
+```
+
+It summarizes read retention, barcode composition, DNA duplicate/library-complexity metrics, and RNA sequencing metrics.
+
+MultiQC is written to:
+
+```text
+TrES_Stats/qc/multiqc/multiqc_report.html
+```
+
+When `--publish_split_fastqs true` is used, the pipeline additionally creates:
+
+```text
+rna_split_fastqs/
+dna_split_fastqs/
+```
+
+## Important information
+
+### Work directory cleanup
+
+`--cleanup_work true` is the default. After a successful run, completed task work directories are removed to save disk space.
+
+Use:
+
+```bash
+--cleanup_work false
+```
+
+when you need to preserve the work directory for debugging or reliable reuse with `-resume`.
+
+### Temporary disk space
+
+`runtime.tmpdir` defaults to `--outdir`. Large datasets can require substantial temporary disk space, so set `runtime.tmpdir` explicitly when a larger or faster filesystem is available.
+
+### Canonical chromosomes
+
+TrESFlow derives canonical chromosomes directly from the supplied references. UCSC and Ensembl chromosome naming conventions are supported.
+
+Final canonical RNA and DNA outputs exclude alternative loci, patches, random/unplaced contigs, decoys, and other noncanonical sequences.
+
+### DNA duplicates
+
+DNA duplicate marking uses the corrected cell barcode and AVITI read coordinates. The default optical-duplicate distance is:
+
+```text
+--aviti_optical_duplicate_distance 10
+```
+
+Final `*_NoDup.bam` files and DNA BigWig tracks exclude reads marked as duplicates.
+
+### Dual-tagmentation artifact filtering
+
+Dual-tagmentation DNA libraries are filtered after trimming for known residual linker signatures. If either mate contains one of these signatures, the pair is discarded.
+
+This filter:
+
+- is enabled by default;
+- applies only to `dual` DNA libraries;
+- does not affect RNA or `single` DNA libraries.
+
+## Further documentation
+
+More detailed documentation is available in:
+
+- [Usage documentation](docs/usage.md)
+- [Pipeline architecture](docs/architecture/implemented_pipeline.md)

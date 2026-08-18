@@ -81,7 +81,7 @@ def tag_fastq(
     corrected_bc_stats_tsv_filename = f'Barcode_Statistics_{sample}_{tag}.tsv'
     reads_per_barcode_tsv_filename = f'Reads_Per_Barcode_{sample}_{tag}.tsv'
     Tag_records_filename = f'Tag_Records_{sample}.tsv'
-    
+
     # Initialize file readers/writers
     # Process barcode  reader
     if I2.endswith('.gz'):
@@ -112,7 +112,7 @@ def tag_fastq(
     # Handle Tag records output paths
     Tag_records_outpath = f"{out_folder}/{Tag_records_filename}"
     Tag_records_outpath_fh = open(Tag_records_outpath, 'w')
-    
+
     # Initialize barcode and stats lists
     corr_bcs = List[str](capacity=500000000)
     # Store number of reads which have hamming distance of 0, 1, 2 or 3 from barcodes whitelist.
@@ -136,14 +136,14 @@ def tag_fastq(
         else:
             # Forward
             bc_seq_l1, bc_qual_l1 = (recordI2.seq[l_bc_start_list[0]:l_bc_start_list[0]+BC_LEN], recordI2.qual[l_bc_start_list[0]:l_bc_start_list[0]+BC_LEN])
-                    
+
         corrected_bc_l1 = correct_bc_by_qual_order_with_whitelist_or_correct_bc_with_Ns_with_whitelist(
         bc_whitelist=bc_whitelist,
         bc_length=BC_LEN,
         bc_seq=bc_seq_l1,
         bc_qual=bc_qual_l1,
         max_hamming_dist=HD)
-        
+
         if corrected_bc_l1:
             bc_mismatches_stats_l1[corrected_bc_l1.hamming_dist] += 1
         else:
@@ -156,14 +156,14 @@ def tag_fastq(
         else:
             # Forward
             bc_seq_l2, bc_qual_l2 = (recordI2.seq[l_bc_start_list[1]:l_bc_start_list[1]+BC_LEN], recordI2.qual[l_bc_start_list[1]:l_bc_start_list[1]+BC_LEN])
-                    
+
         corrected_bc_l2 = correct_bc_by_qual_order_with_whitelist_or_correct_bc_with_Ns_with_whitelist(
         bc_whitelist=bc_whitelist,
         bc_length=BC_LEN,
         bc_seq=bc_seq_l2,
         bc_qual=bc_qual_l2,
         max_hamming_dist=HD)
-        
+
         if corrected_bc_l2:
             bc_mismatches_stats_l2[corrected_bc_l2.hamming_dist] += 1
         else:
@@ -177,14 +177,14 @@ def tag_fastq(
         else:
             # Forward
             bc_seq_l3, bc_qual_l3 = (recordI2.seq[l_bc_start_list[2]:l_bc_start_list[2]+BC_LEN], recordI2.qual[l_bc_start_list[2]:l_bc_start_list[2]+BC_LEN])
-                    
+
         corrected_bc_l3 = correct_bc_by_qual_order_with_whitelist_or_correct_bc_with_Ns_with_whitelist(
         bc_whitelist=bc_whitelist,
         bc_length=BC_LEN,
         bc_seq=bc_seq_l3,
         bc_qual=bc_qual_l3,
         max_hamming_dist=HD)
-        
+
         if n_reads == 1:
             assert recordI2.name == recordR1.name == recordR2.name, f"I2 ({I2}) & R1 ({R1}) & R2 ({R2}) read names don't match."
 
@@ -192,16 +192,16 @@ def tag_fastq(
             bc_mismatches_stats_l3[corrected_bc_l3.hamming_dist] += 1
         else:
             corrected_bc_l3 = (8,'NoMatch')
-        
+
         sb_start = recordR1.comment.find("SB:Z:")
         sb_tag = recordR1.comment[sb_start+5:].split()[0]
 
         corrs = [sb_tag,corrected_bc_l1.corrected_bc,corrected_bc_l2.corrected_bc,corrected_bc_l3.corrected_bc]
         # Check for NoMatch and build the final_bc
         final_bc = 'NoMatch' if 'NoMatch' in corrs else ''.join(corrs)
-        
+
         corr_bcs.append(final_bc)
-        
+
         record_name_tagged = recordR1.name + f' {tag}:Z:{final_bc}' + f'\tRG:Z:{final_bc}' + f'\t{recordR1.comment}'
         R1_tagged_outpath_fh.write(f'@{record_name_tagged}\n{recordR1.read}\n+\n{recordR1.qual}\n')
         R2_tagged_outpath_fh.write(f'@{record_name_tagged}\n{recordR2.read}\n+\n{recordR2.qual}\n')
@@ -220,7 +220,7 @@ def tag_fastq(
     sys.stdout.flush()
     sys.stdout.write(f"Preparing BCs lists...DONE\n")
     sys.stdout.flush()
-    
+
     # Close the corrected read files
     R1_tagged_outpath_fh.close()
     R2_tagged_outpath_fh.close()
@@ -238,7 +238,7 @@ def tag_fastq(
         frac_bcs_found = bc_reads / n_reads
         # Reads in barcode with less than required amount of reads
         reads_in_too_small_bc = bc_reads - n_passing_reads #in this case reads_in_too_small_bc are the reads with at least 1 valid ligation but not all 3 ligations
-        
+
         # stats
         stats_tsv = (
             f"reads\t{n_reads}\t100.00%\n" +
@@ -254,9 +254,9 @@ def tag_fastq(
             f"reads_with_L{li}\t{bc_reads}\t" + f"{(bc_reads / n_reads * 100.0)}%\n" +
             f"reads_with_L{li}_with_all_ligations\t{n_passing_reads}\t" + f"{(n_passing_reads / bc_reads * 100.0)}%\n" +
             f"reads_with_L{li}_missing_other_ligation\t{reads_in_too_small_bc}\t" + f"{(reads_in_too_small_bc / bc_reads * 100.0)}%\n"
-            f"reads_with_all_ligations\t{n_passing_reads}\t" + f"{(n_passing_reads / n_reads * 100.0)}%\n"        
+            f"reads_with_all_ligations\t{n_passing_reads}\t" + f"{(n_passing_reads / n_reads * 100.0)}%\n"
         )
-        
+
         #Writing log files and sam header
         # write the stats to corrected_bc_stats_tsv_filename
         with open(out_folder + f"{corrected_bc_stats_tsv_filename.rsplit('.', 1)[0]}_L{li}.{corrected_bc_stats_tsv_filename.rsplit('.', 1)[1]}", 'w') as file:
@@ -273,7 +273,7 @@ def tag_fastq(
     sys.stdout.write(f'DONE\n')
 
     return frac_bcs_found
-    
+
 
 def main():
     START_LIST = [15,53,91]
@@ -297,7 +297,7 @@ def main():
                 sys.stderr.write(f"\nExiting...\nExpected exactly three comma-separated ligation start positions, got: {sys.argv[8]}\n")
                 sys.exit(1)
             START_LIST = [int(start_tokens[0]), int(start_tokens[1]), int(start_tokens[2])]
-        
+
     # Check that the max_mismatches is 0, 1, 2 or 3
     if HD not in [0,1,2,3]:
         sys.stderr.write(f"\nExiting...\nMaximum Hamming Distance (HD) must be 0, 1, 2 or 3\n")
@@ -307,7 +307,7 @@ def main():
     bc_whitelist = read_barcode_whitelist_from_file(bc_whitelist_filename=bc_whitelist_filename)
 
     # Read FASTQ with Forward barcodes and write R1 R2 FASTQs tagging them in the read comment
-    # with a tag and a barcode that match the whitelist closely enough, 
+    # with a tag and a barcode that match the whitelist closely enough,
     # Output stats
     frac_bcs_found = tag_fastq(
         I2 = I2,
@@ -319,7 +319,7 @@ def main():
         sample=sample_name,
         out_folder=out+'/',
         rev_comp=False)
-    
+
     sys.stdout.write(f"{frac_bcs_found * 100.00}% of the reads had a valid barcode.\n")
 
 if __name__ == "__main__":
