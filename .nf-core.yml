@@ -13,7 +13,14 @@ lint:
   rocrate_readme_sync: false
   files_unchanged: false
 
-  # TrESFlow's self-contained report contains JavaScript "{{...}}" sequences
+  # nf-core derives these logo filenames from the custom repository name.
+  # TrESFlow does not ship nf-core-branded copies under those derived names.
+  files_exist:
+    - assets/nf-core-TrESFlow_logo_light.png
+    - docs/images/nf-core-TrESFlow_logo_light.png
+    - docs/images/nf-core-TrESFlow_logo_dark.png
+
+  # TrESFlow's self-contained report contains JavaScript double-brace sequences
   # that are not unresolved Jinja template placeholders.
   template_strings:
     - lib/tresflow_qc/html_report.py

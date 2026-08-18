@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/CSOgroup/TrESFlow/main/nextflow_schema.json",
-    "title": "TrESFlow pipeline parameters",
+    "title": "CSOgroup/TrESFlow pipeline parameters",
     "description": "Repo-owned Nextflow DSL2 implementation of the TrES core RNA and DNA workflows",
     "type": "object",
     "$defs": {
