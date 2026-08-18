@@ -6,19 +6,37 @@ lint:
   nextflow_config:
     - params.input
     - params.max_cpus
+    - manifest.name
+    - manifest.homePage
   schema_params: false
   modules_json: false
   rocrate_readme_sync: false
   files_unchanged: false
 
+  # TrESFlow's self-contained report contains JavaScript "{{...}}" sequences
+  # that are not unresolved Jinja template placeholders.
+  template_strings:
+    - lib/tresflow_qc/html_report.py
+    - tests/test_tresflow_qc.py
+
+  # Bespoke integration test: it validates the canonical-BAM filtering
+  # contract rather than an nf-core module versions.yml snapshot.
+  nf_test_content:
+    - tests/canonical_bam_filter.nf.test
+
+  # TrESFlow is not hosted under nf-core, so its report_comment intentionally
+  # links to CSOgroup/TrESFlow instead of an nf-core release/documentation URL.
+  multiqc_config:
+    - report_comment
+
 template:
-  org: nf-core
-  name: tres
+  org: CSOgroup
+  name: tresflow
   description: nf-core-style TrES DNA/RNA pipeline with one hierarchical YAML samplesheet contract, map-derived splitting, DNA alignment, and RNA STARsolo quantification.
   author: Ahrmad Annan, Nikita Miroshnichenko
   version: 1.0.0
   force: true
-  outdir: /mnt/pdata/nikita/TrESFlow
+  outdir: .
   skip_features:
     - gpu
-  is_nfcore: true
+  is_nfcore: false

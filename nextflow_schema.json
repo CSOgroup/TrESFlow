@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/tres/main/nextflow_schema.json",
-    "title": "nf-core/tres pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/CSOgroup/TrESFlow/main/nextflow_schema.json",
+    "title": "TrESFlow pipeline parameters",
     "description": "Repo-owned Nextflow DSL2 implementation of the TrES core RNA and DNA workflows",
     "type": "object",
     "$defs": {
@@ -28,7 +28,8 @@
                     "type": "string",
                     "format": "directory-path",
                     "description": "Output directory for published pipeline results and pipeline_info artifacts. Relative paths are resolved from the Nextflow launch directory; the default is <launch-directory>/results.",
-                    "fa_icon": "fas fa-folder-open"
+                    "fa_icon": "fas fa-folder-open",
+                    "default": "results"
                 },
                 "publish_split_fastqs": {
                     "type": "boolean",

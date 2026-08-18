@@ -1,6 +1,6 @@
 {
-    "name": "nf-core/tres",
-    "homePage": "",
+    "name": "CSOgroup/TrESFlow",
+    "homePage": "https://github.com/CSOgroup/TrESFlow",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {
