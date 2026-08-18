@@ -16,7 +16,7 @@ template:
   name: tres
   description: nf-core-style TrES DNA/RNA pipeline with one hierarchical YAML samplesheet contract, map-derived splitting, DNA alignment, and RNA STARsolo quantification.
   author: Ahrmad Annan, Nikita Miroshnichenko
-  version: 1.0.0dev
+  version: 1.0.0
   force: true
   outdir: /mnt/pdata/nikita/TrESFlow
   skip_features:
