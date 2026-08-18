@@ -1,0 +1,118 @@
+Changes in component 'nf-core/deeptools/bamcoverage'
+'modules/nf-core/deeptools/bamcoverage/environment.yml' is unchanged
+Changes in 'deeptools/bamcoverage/main.nf':
+--- modules/nf-core/deeptools/bamcoverage/main.nf
++++ modules/nf-core/deeptools/bamcoverage/main.nf
+@@ -14,7 +14,7 @@
+     tuple val(meta2), path(blacklist)
+ 
+     output:
+-    tuple val(meta), path("*.bigWig")  , emit: bigwig  , optional: true
++    tuple val(meta), path("*.bw")      , emit: bigwig  , optional: true
+     tuple val(meta), path("*.bedgraph"), emit: bedgraph, optional: true
+     tuple val("${task.process}"), val('deeptools'), eval('bamCoverage --version | sed "s/bamCoverage //g"') , emit: versions_deeptools, topic: versions
+     tuple val("${task.process}"), val('samtools'), eval("samtools version | sed '1!d;s/.* //'") , emit: versions_samtools, topic: versions
+@@ -26,13 +26,19 @@
+     def args      = task.ext.args ?: ''
+     def prefix    = task.ext.prefix ?: "${meta.id}"
+     def blacklist_cmd = blacklist ? "--blackListFileName ${blacklist}" : ""
+-    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bigWig"
++    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bw"
+ 
+     // cram_input is currently not working with deeptools
+     // therefore it's required to convert cram to bam first
+     def is_cram = input.Extension == "cram" ? true : false
+     def input_out = is_cram ? input.BaseName + ".bam" : "${input}"
+     def fai_reference = fasta_fai ? "--fai-reference ${fasta_fai}" : ""
++
++    if( task.ext.mock ) {
++        return """
++        touch ${prefix}.${extension}
++        """
++    }
+ 
+     if (is_cram){
+         """
+@@ -60,7 +66,7 @@
+ 
+     stub:
+     def prefix    = task.ext.prefix ?: "${meta.id}"
+-    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bigWig"
++    def extension = args.contains("--outFileFormat bedgraph") || args.contains("-of bedgraph") ? "bedgraph" : "bw"
+     """
+     touch ${prefix}.${extension}
+     """
+
+Changes in 'deeptools/bamcoverage/meta.yml':
+--- modules/nf-core/deeptools/bamcoverage/meta.yml
++++ modules/nf-core/deeptools/bamcoverage/meta.yml
+@@ -63,10 +63,10 @@
+           description: |
+             Groovy Map containing sample information
+             e.g. [ id:'test', single_end:false ]
+-      - "*.bigWig":
++      - "*.bw":
+           type: file
+           description: BigWig file
+-          pattern: "*.bigWig"
++          pattern: "*.bw"
+           ontologies: []
+   bedgraph:
+     - - meta:
+
+'modules/nf-core/deeptools/bamcoverage/tests/main.nf.test' is unchanged
+Changes in 'deeptools/bamcoverage/tests/main.nf.test.snap':
+--- modules/nf-core/deeptools/bamcoverage/tests/main.nf.test.snap
++++ modules/nf-core/deeptools/bamcoverage/tests/main.nf.test.snap
+@@ -7,7 +7,7 @@
+                         "id": "test",
+                         "single_end": false
+                     },
+-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
++                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
+                 ]
+             ],
+             {
+@@ -41,7 +41,7 @@
+                         "id": "test",
+                         "single_end": false
+                     },
+-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
++                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
+                 ]
+             ],
+             {
+@@ -76,7 +76,7 @@
+                             "id": "test",
+                             "single_end": false
+                         },
+-                        "test.bigWig:md5,d41d8cd98f00b204e9800998ecf8427e"
++                        "test.bw:md5,d41d8cd98f00b204e9800998ecf8427e"
+                     ]
+                 ],
+                 "1": [
+@@ -105,7 +105,7 @@
+                             "id": "test",
+                             "single_end": false
+                         },
+-                        "test.bigWig:md5,d41d8cd98f00b204e9800998ecf8427e"
++                        "test.bw:md5,d41d8cd98f00b204e9800998ecf8427e"
+                     ]
+                 ],
+                 "versions_deeptools": [
+@@ -138,7 +138,7 @@
+                         "id": "test",
+                         "single_end": false
+                     },
+-                    "test.bigWig:md5,95fe9383a9e6c02aea6b785cf074274f"
++                    "test.bw:md5,95fe9383a9e6c02aea6b785cf074274f"
+                 ]
+             ],
+             {
+@@ -164,4 +164,4 @@
+             "nextflow": "25.10.4"
+         }
+     }
+-}+}
+
+************************************************************
