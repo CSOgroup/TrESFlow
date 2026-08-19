@@ -185,7 +185,7 @@ workflow TRESEQ {
         .mix(DNA_CORE.out.split_retention_metrics.map { sampleId, meta, metrics -> metrics })
         .mix(DNA_CORE.out.alignment_retention_metrics.map { splitName, meta, metrics -> metrics })
         .mix(DNA_CORE.out.dual_tag_artifact_filter_qc.map { _sampleId, _meta, _cutadaptJson, summary -> summary })
-        .mix(RNA_CORE.out.aligned_solo_summaries.map { splitName, meta, soloSummary -> soloSummary })
+        .mix(RNA_CORE.out.aligned_solo_report_summaries.map { splitName, meta, reportSoloSummary -> reportSoloSummary })
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
         .mix(SAMTOOLS_BAM_QC.out.flagstat.map { meta, flagstat -> flagstat })

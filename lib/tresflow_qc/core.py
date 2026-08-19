@@ -764,7 +764,13 @@ def build_report_model(
             artifacts[match.group(1)] = read_artifact_summary(path)
         elif name.endswith(".Log.final.out"):
             star_logs[name.removesuffix(".Log.final.out")] = (read_star_log(path), path)
+        elif match := re.match(r"^(.+)\.Solo\.summary\.csv$", name):
+            # Pipeline-integrated report carrier: split identity is encoded in
+            # the filename so it survives Nextflow's inputs/?/* staging.
+            summaries[match.group(1)] = (read_summary(path), path)
         elif name == "Summary.csv" and path.parent.name.endswith(".Solo.outGeneFull"):
+            # Standalone assessment of a completed output tree retains the
+            # canonical STARsolo directory layout.
             summaries[path.parent.name.removesuffix(".Solo.outGeneFull")] = (read_summary(path), path)
         elif match := re.match(r"^(rna|dna)\.(.+)\.(filtered_cells|aligned|markeddup|nodup)\.flagstat$", name):
             flagstats[(match.group(1), match.group(2), match.group(3))] = (read_flagstat(path), path)

@@ -230,6 +230,7 @@ workflow RNA_CORE {
     usam_files       = FQ_TO_SAM.out.usam
     aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
     aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
+    aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
     aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
     internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
     filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
