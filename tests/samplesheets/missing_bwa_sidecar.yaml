@@ -21,6 +21,7 @@ samples:
           H3K27me3: AGGCTATA
 
     dna:
+      tagmentation: single
       reads:
         i1: ../../assets/testdata/test_dna_I1.fastq
         i2: ../../assets/testdata/test_dna_I2_dummy.fastq

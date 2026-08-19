@@ -514,7 +514,10 @@ class SamplesheetParser {
     }
 
     private static String parseDnaTagmentation(final Map dnaConfig, final String sampleId) {
-        final String mode = (dnaConfig.tagmentation ?: TAGMENTATION_SINGLE).toString().trim().toLowerCase()
+        final String mode = requireString(
+            dnaConfig.tagmentation,
+            "samples.${sampleId}.dna.tagmentation"
+        ).toLowerCase()
         if( !(mode in DNA_TAGMENTATION_MODES) ) {
             throw new IllegalArgumentException(
                 "samples.${sampleId}.dna.tagmentation must be one of: single, dual"

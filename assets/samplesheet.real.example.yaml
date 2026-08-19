@@ -34,6 +34,7 @@ samples:
         r2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_RNA_S4_R2_001.fastq.gz
 
     dna:
+      tagmentation: single
       reads:
         i1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_I1_001.fastq.gz
         i2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_I2_001.fastq.gz

@@ -166,6 +166,7 @@ The RNA block is optional, but if present it must contain:
 
 The DNA block is optional, but if present it must contain:
 
+- `tagmentation`: either `single` or `dual` (required; there is no implicit default)
 - `reads.i1`
 - `reads.r1`
 - `reads.r2`

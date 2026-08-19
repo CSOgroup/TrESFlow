@@ -623,6 +623,7 @@ def _complexity_figure(
             roi[branch].append(row)
     branches = sorted(first)
     has_roi = bool(roi)
+    roi_branches = [branch for branch in branches if roi.get(branch)]
     branch_label_width = max((_text_width(branch, 16, weight=650) for branch in branches), default=80.0)
     branch_area = min(360.0, max(120.0, branch_label_width + 18.0))
     bar_left, bar_width = 24.0 + branch_area, max(360.0, 48.0 * max(8, len(branches)))
@@ -642,7 +643,10 @@ def _complexity_figure(
     relevant_roi_depths = [depth for depth in roi_depths if depth <= 10] or roi_depths
     roi_width = max(480.0, 72.0 * max(6, len(_representative_ticks(relevant_roi_depths)))) if has_roi else 0.0
     width = int(math.ceil(left_panel_width + (roi_width + 72.0 if has_roi else 30.0)))
-    height = int(max(310.0, 125.0 + 88.0 * len(branches)))
+    height = int(
+        max(310.0, 125.0 + 88.0 * len(branches))
+        + (22.0 * len(roi_branches) if has_roi else 0.0)
+    )
     parts = [f'<text class="panel-title" x="20" y="28">Observed duplicate composition</text>']
     for index, branch in enumerate(branches):
         row = first[branch]
@@ -679,7 +683,8 @@ def _complexity_figure(
         parts.append(f'<rect x="{x}" y="{legend_y}" width="14" height="14" fill="{color}"/><text class="legend" x="{x + 21}" y="{legend_y + 12}">{label}</text>')
     if has_roi:
         plot_left, plot_right = left_panel_width + 48.0, width - 34.0
-        plot_top, plot_bottom = 58, height - 58
+        roi_legend_height = 22.0 * len(roi_branches)
+        plot_top, plot_bottom = 66.0 + roi_legend_height, height - 58
         all_points = [point for values in roi.values() for point in values if float(point["roi_depth_multiplier"]) <= 10]
         if not all_points:
             all_points = [point for values in roi.values() for point in values]
@@ -688,7 +693,22 @@ def _complexity_figure(
         max_y = max(float(point["roi_estimated_unique_pairs"]) for point in all_points) or 1.0
         log_min = math.log10(max(min_depth, 1e-9))
         log_max = math.log10(max_depth) if max_depth > min_depth else log_min + 1
-        parts.append(f'<text class="panel-title" x="{plot_left}" y="28">Picard ROI estimate (actual histogram points)</text>')
+        parts.append(
+            f'<text class="panel-title" x="{plot_left}" y="28">'
+            'Predicted unique pairs with deeper sequencing</text>'
+        )
+        for index, branch in enumerate(roi_branches):
+            legend_y_roi = 50.0 + index * 22.0
+            color = mark_colors[branch]
+            parts.append(
+                f'<line data-roi-legend-branch="{escape(branch, quote=True)}" '
+                f'x1="{plot_left}" y1="{legend_y_roi - 4:.1f}" '
+                f'x2="{plot_left + 22}" y2="{legend_y_roi - 4:.1f}" '
+                f'stroke="{color}" stroke-width="3"/>'
+                f'<text class="legend" '
+                f'data-roi-legend-label="{escape(branch, quote=True)}" '
+                f'x="{plot_left + 30}" y="{legend_y_roi:.1f}">{escape(branch)}</text>'
+            )
         for fraction_value in (0.0, 0.5, 1.0):
             y = plot_bottom - (plot_bottom - plot_top) * fraction_value
             parts.append(f'<line x1="{plot_left}" y1="{y:.1f}" x2="{plot_right}" y2="{y:.1f}" stroke="{GRID}"/>')

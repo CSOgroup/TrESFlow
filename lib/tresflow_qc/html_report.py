@@ -221,14 +221,22 @@ def _overview(model: ReportModel) -> str:
         if sample.get("modality") == "dna":
             dna_modes.append(f"{sample.get('id')}: {sample.get('dna_tagmentation') or 'unspecified'}")
     if not dna_modes:
-        dt_parents = sorted(
+        dna_parents = sorted(
             {
-                str(row["parent_sample"])
-                for row in model.qc_metrics
-                if row["metric"] == "dual_tag_filter_input_pairs"
+                str(branch.parent)
+                for branch in model.branches
+                if branch.modality == "DNA"
             }
         )
-        dna_modes = [f"{parent}: dual" for parent in dt_parents]
+        dt_parents = {
+            str(row["parent_sample"])
+            for row in model.qc_metrics
+            if row["metric"] == "dual_tag_filter_input_pairs"
+        }
+        dna_modes = [
+            f"{parent}: {'dual' if parent in dt_parents else 'unspecified'}"
+            for parent in dna_parents
+        ]
     return f'''<section id="overview"><h2>Run overview</h2><p class="library-name">{esc(model.library_name)}</p>
       <div class="overview-strip">
         <div><span>Independent runs</span><strong>{esc(", ".join(groups) or "unavailable")}</strong></div>
@@ -306,6 +314,12 @@ def _dna_complexity_section(plots: list[dict[str, object]]) -> str:
         'canonical-chromosome normalization occurs after MarkDuplicates, and TrESFlow applies no MAPQ threshold before this metric. '
         'Optical duplicates are the spatially classified subset of total duplicates. PCR/library duplicates are total duplicate pairs minus optical duplicate pairs. '
         'The denominator is the pairs Picard reports as examined after Picard’s own eligibility rules. Duplication reflects both sequencing depth and library complexity.</p></details>'
+        '<details class="metric-explanation"><summary>Predicted unique pairs with deeper sequencing</summary>'
+        '<p>Picard MarkDuplicates estimates the return on investment from sequencing the same library more deeply. '
+        'For each sequencing-depth multiplier, Picard reports an estimated unique-yield multiplier; TrESFlow converts '
+        'that value to predicted unique read pairs using the currently observed unique pairs. '
+        'Curves are shown separately for each DNA mark. A curve that progressively flattens indicates diminishing '
+        'recovery of new unique molecules as additional sequencing increasingly revisits molecules already observed.</p></details>'
     )
     return f'<section id="complexity"><h2>DNA library complexity</h2>{explanation}<div class="run-plots">{cards}</div></section>'
 

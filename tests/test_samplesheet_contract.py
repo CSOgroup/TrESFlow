@@ -62,3 +62,62 @@ def test_group_specific_modalities_derive_independent_maps():
             ("DNA_only_2", "MarkB", "AGGCTATA"),
         }
         assert set(whitelist) == {"AGGCTATA", "GCCTCTAT"}
+
+def test_dna_tagmentation_is_required():
+    nextflow = shutil.which("nextflow")
+    if not nextflow:
+        pytest.skip("nextflow is not installed")
+
+    source = FIXTURE.read_text()
+    explicit = "      tagmentation: dual\n"
+    assert explicit in source
+    source = source.replace(explicit, "", 1)
+
+    with tempfile.NamedTemporaryFile(
+        "w",
+        suffix=".yaml",
+        prefix="missing_tagmentation_",
+        dir=FIXTURE.parent,
+        delete=False,
+    ) as handle:
+        handle.write(source)
+        temporary_sheet = Path(handle.name)
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="tresflow_missing_tagmentation_") as tmp:
+            outdir = Path(tmp) / "output"
+            env = os.environ.copy()
+            env["NXF_HOME"] = str(Path(tmp) / "nxf_home")
+            env.setdefault("NXF_OFFLINE", "true")
+
+            result = subprocess.run(
+                [
+                    nextflow,
+                    "run",
+                    str(REPO),
+                    "-preview",
+                    "-ansi-log",
+                    "false",
+                    "--samplesheet",
+                    str(temporary_sheet),
+                    "--outdir",
+                    str(outdir),
+                ],
+                cwd=REPO,
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+
+            combined = result.stdout + result.stderr
+            if result.returncode != 0 and "Could not resolve host" in combined:
+                pytest.skip("configured nextflow launcher is unavailable offline")
+
+            assert result.returncode != 0
+            assert (
+                "Missing required field: "
+                "samples.shared_reads.dna.tagmentation"
+            ) in combined
+    finally:
+        temporary_sheet.unlink(missing_ok=True)

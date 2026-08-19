@@ -1109,6 +1109,70 @@ class SharedQcTests(unittest.TestCase):
                 stems.setdefault(stem, set()).add(suffix)
             self.assertTrue(all(formats == {"svg", "png"} for formats in stems.values()))
 
+    def test_roi_plot_has_clear_title_and_branch_legend(self):
+        model = synthetic_plot_model(
+            run_count=1,
+            modalities=("DNA",),
+            mark_count=3,
+            barcode_counts=(5, 5),
+            no_match_count=1,
+            roi=True,
+        )
+        plot = next(
+            item for item in generate_inline_plots(model)
+            if item["kind"] == "complexity"
+        )
+        root = ET.fromstring(plot["svg"])
+        rendered_text = "".join(root.itertext())
+
+        self.assertIn(
+            "Predicted unique pairs with deeper sequencing",
+            rendered_text,
+        )
+        self.assertNotIn(
+            "Picard ROI estimate (actual histogram points)",
+            rendered_text,
+        )
+
+        legend_labels = sorted(
+            element.attrib["data-roi-legend-label"]
+            for element in root.iter()
+            if "data-roi-legend-label" in element.attrib
+        )
+        expected = sorted(
+            {
+                branch.branch
+                for branch in model.branches
+                if branch.modality == "DNA"
+            }
+        )
+        self.assertEqual(legend_labels, expected)
+
+    def test_overview_uses_unspecified_when_dna_mode_metadata_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model = synthetic_plot_model(
+                run_count=1,
+                modalities=("DNA",),
+                mark_count=1,
+                barcode_counts=(5,),
+                no_match_count=1,
+                roi=False,
+            )
+            self.assertEqual(model.run_metadata, {})
+
+            report = Path(tmp) / "report.html"
+            render_report(model, generate_inline_plots(model), report)
+            document = report.read_text(encoding="utf-8")
+            overview = document.split(
+                '<section id="overview"', 1
+            )[1].split("</section>", 1)[0]
+
+            self.assertIn("parent-1: unspecified", overview)
+            self.assertNotIn(
+                "DNA tagmentation</span><strong>not present",
+                overview,
+            )
+
     def test_duplicate_explanation_matches_the_audited_pipeline_order(self):
         align_script = (REPO_ROOT / "scripts" / "core_runtime" / "AlignDNA.sh").read_text(encoding="utf-8")
         dna_workflow = (REPO_ROOT / "subworkflows" / "local" / "dna_core" / "main.nf").read_text(encoding="utf-8")
