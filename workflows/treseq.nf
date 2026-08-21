@@ -27,9 +27,9 @@ def toRnaCoreInput(row) {
     tuple(
         row.id,
         row,
-        file(row.i1),
-        file(row.r1),
-        file(row.r2),
+        row.i1.collect { path -> file(path) },
+        row.r1.collect { path -> file(path) },
+        row.r2.collect { path -> file(path) },
         file(row.cell_whitelist),
         file(row.sb_group_map)
     )
@@ -39,10 +39,10 @@ def toDnaCoreInput(row) {
     tuple(
         row.id,
         row,
-        file(row.i1),
-        file(row.i2),
-        file(row.r1),
-        file(row.r2),
+        row.i1.collect { path -> file(path) },
+        row.i2.collect { path -> file(path) },
+        row.r1.collect { path -> file(path) },
+        row.r2.collect { path -> file(path) },
         file(row.modality_whitelist),
         file(row.cell_whitelist),
         file(row.mo_map),
@@ -67,13 +67,14 @@ def qcMeta(meta, id, modality, stage, splitName) {
 }
 
 def toFastqcInput(row) {
-    def reads = row.modality == 'dna'
-        ? [row.i1, row.i2, row.r1, row.r2]
+    def readRoles = row.modality == 'dna'
+        ? (row.i2_implicit ? [row.i1, row.r1, row.r2] : [row.i1, row.i2, row.r1, row.r2])
         : [row.i1, row.r1, row.r2]
+    def reads = readRoles.collectMany { roleReads -> roleReads as List }
 
     return tuple(
         qcMeta(row, "${row.modality}.${row.id}.raw", row.modality as String, 'raw_fastq', row.id as String),
-        reads.findAll { it }.collect { file(it) }
+        reads.collect { file(it) }
     )
 }
 

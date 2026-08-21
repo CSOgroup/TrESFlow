@@ -2,7 +2,7 @@
  * Subworkflow: RNA_CORE
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
- *   - raw RNA I1 / R1 / R2 FASTQs
+ *   - ordered raw RNA I1 / R1 / R2 FASTQ collections (one logical library row)
  *   - RNA cell-barcode whitelist
  *   - internally derived sample-barcode group map TSV, used both to derive the
  *     effective RNA sample-barcode whitelist and to split grouped RNA reads
@@ -79,8 +79,8 @@ workflow RNA_CORE {
 
     ch_umi_input = ch_raw_r2
         .join(TAG_RNA_SAMPLE_BARCODE.out.tagged)
-        .map { sampleId, metaFromInput, rawR2, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, rawR2, taggedR1, taggedR2)
+        .map { sampleId, metaFromInput, rawR2, metaFromTag, taggedR1, taggedR2, readSetCounts ->
+            tuple(sampleId, metaFromInput, rawR2, taggedR1, taggedR2, readSetCounts)
         }
 
     TAG_RNA_UMI(ch_umi_input)
@@ -93,8 +93,8 @@ workflow RNA_CORE {
 
     ch_cb_input = ch_cb_meta
         .join(TAG_RNA_UMI.out.tagged)
-        .map { sampleId, metaFromInput, i1, cellWhitelist, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, i1, taggedR1, taggedR2, cellWhitelist)
+        .map { sampleId, metaFromInput, i1, cellWhitelist, metaFromTag, taggedR1, taggedR2, readSetCounts ->
+            tuple(sampleId, metaFromInput, i1, taggedR1, taggedR2, cellWhitelist, readSetCounts)
         }
 
     TAG_RNA_CELL_BARCODE(ch_cb_input)

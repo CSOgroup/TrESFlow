@@ -8,7 +8,7 @@ process FASTQC {
         : 'quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0'}"
 
     input:
-    tuple val(meta), path(reads, stageAs: '?/*')
+    tuple val(meta), path(reads, stageAs: 'raw???/*')
 
     output:
     tuple val(meta), path("*.html"), emit: html
@@ -23,8 +23,7 @@ process FASTQC {
     def prefix = task.ext.prefix ?: "${meta.id}"
     // Make list of old name and new name pairs to use for renaming in the bash while loop
     def old_new_pairs = reads instanceof Path || reads.size() == 1 ? [[reads, "${prefix}.${reads.extension}"]] : reads.withIndex().collect { entry, index -> [entry, "${prefix}_${index + 1}.${entry.extension}"] }
-    def rename_to = old_new_pairs*.join(' ').join(' ')
-    def renamed_files = old_new_pairs.collect { _old_name, new_name -> new_name }.join(' ')
+    def renameManifest = (old_new_pairs.collect { oldName, newName -> "${oldName}\t${newName}" }.join('\n') + '\n').bytes.encodeBase64().toString()
 
     // The total amount of allocated RAM by FastQC is equal to the number of threads defined (--threads) time the amount of RAM defined (--memory)
     // https://github.com/s-andrews/FastQC/blob/1faeea0412093224d7f6a07f777fad60a5650795/fastqc#L211-L222
@@ -37,15 +36,17 @@ process FASTQC {
     def fastqc_memory_arg = fastqc_memory ? "--memory ${fastqc_memory}" : ''
 
     """
-    printf "%s %s\\n" ${rename_to} | while read old_name new_name; do
-        [ -f "\${new_name}" ] || ln -s \$old_name \$new_name
-    done
+    renamed_files=()
+    while IFS=\$'\\t' read -r old_name new_name; do
+        [ -f "\${new_name}" ] || ln -s -- "\${old_name}" "\${new_name}"
+        renamed_files+=("\${new_name}")
+    done < <(printf '%s' '${renameManifest}' | base64 --decode)
 
     fastqc \\
         ${args} \\
         --threads ${task.cpus} \\
         ${fastqc_memory_arg} \\
-        ${renamed_files}
+        "\${renamed_files[@]}"
     """
 
     stub:

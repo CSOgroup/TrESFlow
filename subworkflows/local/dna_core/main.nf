@@ -2,7 +2,7 @@
  * Subworkflow: DNA_CORE
  * Inputs:
  *   - sample metadata parsed from params.samplesheet
- *   - raw DNA I1 / I2 / R1 / R2 FASTQs
+ *   - ordered raw DNA I1 / I2 / R1 / R2 FASTQ collections (one logical library row)
  *   - internally derived DNA sample-barcode group map TSV used to derive the effective DNA SB whitelist
  *   - internally derived DNA modality-barcode whitelist plus the configured ligation whitelist
  *   - internally derived DNA modality map TSV and shared sample-barcode group map TSV for Split_ReadsV2 dna mode
@@ -141,8 +141,8 @@ workflow DNA_CORE {
 
     ch_mo_input = ch_mo_meta
         .join(TAG_DNA_SAMPLE_BARCODE.out.tagged)
-        .map { sampleId, metaFromInput, indexRead, modalityWhitelist, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, indexRead, taggedR1, taggedR2, modalityWhitelist)
+        .map { sampleId, metaFromInput, indexRead, modalityWhitelist, metaFromTag, taggedR1, taggedR2, readSetCounts ->
+            tuple(sampleId, metaFromInput, indexRead, taggedR1, taggedR2, modalityWhitelist, readSetCounts)
         }
 
     TAG_DNA_MODALITY_BARCODE(ch_mo_input)
@@ -161,8 +161,8 @@ workflow DNA_CORE {
 
     ch_cb_input = ch_cb_meta
         .join(TAG_DNA_MODALITY_BARCODE.out.tagged)
-        .map { sampleId, metaFromInput, ligationRead, cellWhitelist, metaFromTag, taggedR1, taggedR2 ->
-            tuple(sampleId, metaFromInput, ligationRead, taggedR1, taggedR2, cellWhitelist)
+        .map { sampleId, metaFromInput, ligationRead, cellWhitelist, metaFromTag, taggedR1, taggedR2, readSetCounts ->
+            tuple(sampleId, metaFromInput, ligationRead, taggedR1, taggedR2, cellWhitelist, readSetCounts)
         }
 
     TAG_DNA_CELL_BARCODE(ch_cb_input)

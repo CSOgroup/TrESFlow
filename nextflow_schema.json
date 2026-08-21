@@ -22,7 +22,7 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. A relative path is resolved from the Nextflow launch directory."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. Each read role accepts one path, a comma-separated scalar, or an ordered YAML sequence of synchronized technical chunks from the same logical library. Samplesheet-internal relative paths resolve from the samplesheet directory; the --samplesheet path itself resolves from the Nextflow launch directory."
                 },
                 "outdir": {
                     "type": "string",

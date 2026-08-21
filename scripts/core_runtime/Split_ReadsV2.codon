@@ -113,7 +113,21 @@ def is_decimal(value: str) -> bool:
 	return True
 
 
-def parse_aviti_lane(read_name: str) -> int:
+def is_sam_safe_physical_unit_token(value: str) -> bool:
+	if not value:
+		return False
+	for char in value:
+		if not (
+			(char >= 'A' and char <= 'Z') or
+			(char >= 'a' and char <= 'z') or
+			(char >= '0' and char <= '9') or
+			char == '_' or char == '-' or char == '.'
+		):
+			return False
+	return True
+
+
+def aviti_physical_unit(read_name: str) -> str:
 	parts = read_name.split(":")
 	if (
 		len(parts) != 8 or
@@ -126,11 +140,14 @@ def parse_aviti_lane(read_name: str) -> int:
 			"instrument:run:flowcell:lane:tile:x:y:UMI: " + read_name + "\n"
 		)
 		sys.exit(1)
-	return int(parts[3])
-
-
-def aviti_lane_read_group(lane: int) -> str:
-	return "L" + str(lane)
+	for i in range(3):
+		if not is_sam_safe_physical_unit_token(parts[i]):
+			sys.stderr.write(
+				"ERROR: Unsupported character in AVITI physical-unit field for SAM read-group ID: " +
+				parts[i] + " (" + read_name + ")\n"
+			)
+			sys.exit(1)
+	return parts[0] + ":" + parts[1] + ":" + parts[2] + ":L" + parts[3]
 
 
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
@@ -204,7 +221,7 @@ def canonicalize_dna_fastq_comment(
 	read_name: str,
 	comment: str
 	) -> str:
-	lane = parse_aviti_lane(read_name)
+	physical_unit = aviti_physical_unit(read_name)
 	cb, _, sb = get_cb_mo_sb(comment)
 	if not cb:
 		cb, sb = get_cb_sb(comment)
@@ -215,8 +232,7 @@ def canonicalize_dna_fastq_comment(
 		)
 		sys.exit(1)
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-	read_group = aviti_lane_read_group(lane)
-	return canonicalize_fastq_comment(sample, group_name, comment, read_group)
+	return canonicalize_fastq_comment(sample, group_name, comment, physical_unit)
 
 
 # -----------------------------
@@ -373,8 +389,8 @@ def load_mo_map_tsv(map_path: str, sample: str, group_to_gid: Dict[str, int], us
 
 def write_SAM_RG_Header(sample: str, lib: str, out_path: str, read_groups: Set[str]) -> None:
 	with open(out_path, "w") as fh:
-		# A shared LB keeps genomic duplicate grouping cross-lane; CB provides cell
-		# identity and the small lane RG namespace separates physical locations.
+		# A shared LB keeps genomic duplicate grouping cross-unit; CB provides cell
+		# identity and RG/PU isolate optical comparisons by physical unit.
 		for read_group in read_groups:
 			fh.write("@RG\tID:")
 			fh.write(read_group)
@@ -382,6 +398,8 @@ def write_SAM_RG_Header(sample: str, lib: str, out_path: str, read_groups: Set[s
 			fh.write(sample)
 			fh.write("\tLB:")
 			fh.write(lib)
+			fh.write("\tPU:")
+			fh.write(read_group)
 			fh.write("\tPL:ELEMENT\tPM:AVITI_500MIO\n")
 
 
@@ -589,10 +607,10 @@ def MakeRecordNameList_DNA(
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
 		group_counts[gid] += 1
 		group_name = idx_to_group[gid] if use_sb else sample
-		lane1 = parse_aviti_lane(rec1.name)
-		lane2 = parse_aviti_lane(rec2.name)
-		if lane1 != lane2:
-			sys.stderr.write("ERROR: Paired DNA reads resolve to different AVITI lanes\n")
+		physical_unit1 = aviti_physical_unit(rec1.name)
+		physical_unit2 = aviti_physical_unit(rec2.name)
+		if physical_unit1 != physical_unit2:
+			sys.stderr.write("ERROR: Paired DNA reads resolve to different AVITI physical units\n")
 			sys.exit(1)
 
 		midx = find_mark_for_mo(mo, gid, mo_list, mo_gid, mo_mark_idx)
@@ -608,7 +626,7 @@ def MakeRecordNameList_DNA(
 				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
 				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
 				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
-				unknown_read_groups.add(aviti_lane_read_group(lane1))
+				unknown_read_groups.add(physical_unit1)
 				continue
 			else:
 				sys.stderr.write("ERROR: MO barcode not found for sample " + sample + ": " + mo + "\n")
@@ -625,7 +643,7 @@ def MakeRecordNameList_DNA(
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
 		write_fastq_record(r2_fhs[slot], rec2.name, comment2, seq2, qual2)
-		rg_sets[slot].add(aviti_lane_read_group(lane1))
+		rg_sets[slot].add(physical_unit1)
 		branch_counts[slot] += 1
 
 	sys.stdout.write("\rFinished processing ")

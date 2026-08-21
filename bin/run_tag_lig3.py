@@ -10,7 +10,7 @@ from collections import Counter
 from pathlib import Path
 
 from tresflow_fastq_utils import (
-    fastq_iter,
+    fastq_input_spec,
     find_existing_output,
     find_tag_value,
     load_whitelist,
@@ -18,10 +18,14 @@ from tresflow_fastq_utils import (
     open_maybe_gzip,
     parse_header,
     percent,
+    read_read_set_counts,
     resolve_codon_bin,
+    resolve_fastq_paths,
     resolve_temp_root,
     strict_move_fastq,
+    synchronized_fastq_iter,
     tagged_fastq_candidates,
+    write_read_set_counts,
 )
 
 
@@ -61,23 +65,19 @@ def mock_tag(args):
     lig_stats = [[0 for _ in range(args.hd + 1)] for _ in range(3)]
     barcode_counts = Counter()
     total_reads = 0
+    observed_read_set_counts = []
 
     with open_maybe_gzip(args.output_r1, "wt") as out_r1, \
         open_maybe_gzip(args.output_r2, "wt") as out_r2, \
         open(args.output_tag_records, "wt", encoding="utf-8") as tag_records:
-        for i1_rec, r1_rec, r2_rec in zip(
-            fastq_iter(args.i1),
-            fastq_iter(args.r1),
-            fastq_iter(args.r2),
+        for i1_rec, r1_rec, r2_rec in synchronized_fastq_iter(
+            {"i1": args.i1_paths, "r1": args.r1_paths, "r2": args.r2_paths},
+            args.read_set_counts_values,
+            observed_read_set_counts,
         ):
             total_reads += 1
 
             r1_name, r1_comment = parse_header(r1_rec[0])
-            r2_name, _ = parse_header(r2_rec[0])
-            i1_name, _ = parse_header(i1_rec[0])
-            if len({i1_name, r1_name, r2_name}) != 1:
-                raise ValueError(f"Read name mismatch: {i1_name}, {r1_name}, {r2_name}")
-
             sb_tag = find_tag_value(r1_comment, "SB")
             if not sb_tag:
                 raise ValueError(f"Missing SB tag in FASTQ comment for {r1_name}")
@@ -105,6 +105,11 @@ def mock_tag(args):
                 f"{r1_name}\t{args.tag}:Z:{final_bc}\tL1:Z:{ligation_values[0]}\tL2:Z:{ligation_values[1]}\tL3:Z:{ligation_values[2]}\t{r1_comment}\n"
             )
 
+    if total_reads == 0:
+        raise ValueError("Synchronized FASTQ streams contain no records")
+    if args.output_read_set_counts is not None:
+        write_read_set_counts(args.output_read_set_counts, observed_read_set_counts)
+
     with open(args.output_counts, "wt", encoding="utf-8") as handle:
         for barcode, count in barcode_counts.items():
             handle.write(f"{count}\t{barcode}\n")
@@ -130,28 +135,35 @@ def real_tag(args):
             "-D",
             f"HD={args.hd}",
             str(args.script),
-            str(args.i1),
-            str(args.r1),
-            str(args.r2),
+            fastq_input_spec(args.i1, args.i1_manifest),
+            fastq_input_spec(args.r1, args.r1_manifest),
+            fastq_input_spec(args.r2, args.r2_manifest),
             str(args.whitelist),
             args.sample,
             args.tag,
             str(tmp_path),
             ",".join(str(position) for position in args.start_positions),
+            "tresflow_tag_lig3.R1.fastq",
+            "tresflow_tag_lig3.R2.fastq",
+            str(args.read_set_counts.resolve()) if args.read_set_counts is not None else "-",
         ]
         codon_start = time.monotonic()
-        log_event("Starting Codon Tag_Lig3.codon", args.i1, args.r1, args.r2)
+        log_event("Starting Codon Tag_Lig3.codon", *(args.i1_paths + args.r1_paths + args.r2_paths))
         subprocess.run(cmd, check=True)
-        log_event("Finished Codon Tag_Lig3.codon", args.i1, args.r1, args.r2, elapsed=time.monotonic() - codon_start)
+        log_event(
+            "Finished Codon Tag_Lig3.codon",
+            *(args.i1_paths + args.r1_paths + args.r2_paths),
+            elapsed=time.monotonic() - codon_start,
+        )
 
         expected_r1 = find_existing_output(
             tmp_path,
-            tagged_fastq_candidates(args.r1.name, args.tag),
+            ["tresflow_tag_lig3.R1.fastq"] + tagged_fastq_candidates(args.r1_paths[0].name, args.tag),
             "tagged R1 FASTQ",
         )
         expected_r2 = find_existing_output(
             tmp_path,
-            tagged_fastq_candidates(args.r2.name, args.tag),
+            ["tresflow_tag_lig3.R2.fastq"] + tagged_fastq_candidates(args.r2_paths[0].name, args.tag),
             "tagged R2 FASTQ",
         )
         expected_counts = tmp_path / f"Reads_Per_Barcode_{args.sample}_{args.tag}.tsv"
@@ -161,6 +173,7 @@ def real_tag(args):
             tmp_path / f"Barcode_Statistics_{args.sample}_{args.tag}_L2.tsv",
             tmp_path / f"Barcode_Statistics_{args.sample}_{args.tag}_L3.tsv",
         ]
+        expected_read_set_counts = tmp_path / "technical_read_set_counts.tsv"
 
         strict_move_fastq(expected_r1, args.output_r1)
         strict_move_fastq(expected_r2, args.output_r2)
@@ -168,14 +181,22 @@ def real_tag(args):
         shutil.move(expected_tag_records, args.output_tag_records)
         for expected, output in zip(expected_stats, args.output_stats):
             shutil.move(expected, output)
+        if args.output_read_set_counts is not None:
+            shutil.move(expected_read_set_counts, args.output_read_set_counts)
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", required=True, choices=["real", "mock"])
     parser.add_argument("--script", required=True, type=Path)
-    parser.add_argument("--i1", required=True, type=Path)
-    parser.add_argument("--r1", required=True, type=Path)
-    parser.add_argument("--r2", required=True, type=Path)
+    i1_group = parser.add_mutually_exclusive_group(required=True)
+    i1_group.add_argument("--i1", type=Path)
+    i1_group.add_argument("--i1-manifest", type=Path)
+    r1_group = parser.add_mutually_exclusive_group(required=True)
+    r1_group.add_argument("--r1", type=Path)
+    r1_group.add_argument("--r1-manifest", type=Path)
+    r2_group = parser.add_mutually_exclusive_group(required=True)
+    r2_group.add_argument("--r2", type=Path)
+    r2_group.add_argument("--r2-manifest", type=Path)
     parser.add_argument("--whitelist", required=True, type=Path)
     parser.add_argument("--sample", required=True)
     parser.add_argument("--tag", required=True)
@@ -187,11 +208,19 @@ def parse_args():
     parser.add_argument("--output-counts", required=True, type=Path)
     parser.add_argument("--output-tag-records", required=True, type=Path)
     parser.add_argument("--output-stats", action="append", required=True, type=Path)
+    parser.add_argument("--read-set-counts", type=Path)
+    parser.add_argument("--output-read-set-counts", type=Path)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    args.i1_paths = resolve_fastq_paths(args.i1, args.i1_manifest)
+    args.r1_paths = resolve_fastq_paths(args.r1, args.r1_manifest)
+    args.r2_paths = resolve_fastq_paths(args.r2, args.r2_manifest)
+    args.read_set_counts_values = (
+        read_read_set_counts(args.read_set_counts) if args.read_set_counts is not None else None
+    )
     if len(args.output_stats) != 3:
         raise ValueError("Expected exactly three --output-stats arguments")
     if args.mode == "mock":

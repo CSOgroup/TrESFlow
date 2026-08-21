@@ -1,6 +1,9 @@
 # Generic hierarchical samplesheet template.
 # Keep one biological sample entry per sample under `samples:`.
 # Omit the `rna:` or `dna:` block if that modality is not present.
+# Every read role accepts one path, a comma-separated scalar, or a YAML list.
+# Equal list positions are synchronized technical chunks of the same library;
+# use YAML lists when a filename contains a comma.
 
 library_name: Isa
 
@@ -36,9 +39,15 @@ samples:
 
     rna:
       reads:
-        i1: /path/to/sample_I1.fq.gz
-        r1: /path/to/sample_R1.fq.gz
-        r2: /path/to/sample_R2.fq.gz
+        i1:
+          - /run1/sample_I1.fq.gz
+          - /run2/sample_I1.fq.gz
+        r1:
+          - /run1/sample_R1.fq.gz
+          - /run2/sample_R1.fq.gz
+        r2:
+          - /run1/sample_R2.fq.gz
+          - /run2/sample_R2.fq.gz
 
     dna:
       # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
@@ -48,6 +57,6 @@ samples:
       # i1 in dual mode.
       tagmentation: dual
       reads:
-        i1: /path/to/sample_DNA_I1.fq.gz
-        r1: /path/to/sample_DNA_R1.fq.gz
-        r2: /path/to/sample_DNA_R2.fq.gz
+        i1: /run1/sample_DNA_I1.fq.gz, /run2/sample_DNA_I1.fq.gz
+        r1: /run1/sample_DNA_R1.fq.gz, /run2/sample_DNA_R1.fq.gz
+        r2: /run1/sample_DNA_R2.fq.gz, /run2/sample_DNA_R2.fq.gz

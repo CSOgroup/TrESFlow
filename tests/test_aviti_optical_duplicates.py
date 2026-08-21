@@ -44,9 +44,12 @@ def read_picard_metrics(path):
 class AvitiReadGroupTests(unittest.TestCase):
     def test_aviti_qname_parsing(self):
         qname = "AV240401:AVT0507:2528453125:1:11104:5031:3419:ACGTACGT"
-        self.assertEqual(FASTQ_UTILS.parse_aviti_qname(qname), (1, 11104, 5031, 3419))
+        self.assertEqual(
+            FASTQ_UTILS.parse_aviti_qname(qname),
+            ("AV240401", "AVT0507", "2528453125", 1, 11104, 5031, 3419),
+        )
 
-    def test_dna_read_groups_are_lane_only_while_cb_is_unchanged(self):
+    def test_dna_read_groups_use_full_physical_unit_while_cb_is_unchanged(self):
         comment = (
             f"CB:Z:AAA{CELL_BARCODE}\tRG:Z:AAA{CELL_BARCODE}"
             "\tMO:Z:AGGCTATA\tSB:Z:AAA"
@@ -60,10 +63,52 @@ class AvitiReadGroupTests(unittest.TestCase):
 
         self.assertEqual(FASTQ_UTILS.find_tag_value(lane1, "CB"), CELL_BARCODE)
         self.assertEqual(FASTQ_UTILS.find_tag_value(lane2, "CB"), CELL_BARCODE)
-        self.assertEqual(FASTQ_UTILS.find_tag_value(lane1, "RG"), "L1")
-        self.assertEqual(FASTQ_UTILS.find_tag_value(lane2, "RG"), "L2")
+        self.assertEqual(
+            FASTQ_UTILS.find_tag_value(lane1, "RG"), "AV240401:AVT0507:FC:L1"
+        )
+        self.assertEqual(
+            FASTQ_UTILS.find_tag_value(lane2, "RG"), "AV240401:AVT0507:FC:L2"
+        )
 
-    def test_many_cells_produce_only_one_read_group_per_lane(self):
+    def test_run_flowcell_and_lane_each_distinguish_physical_units(self):
+        comment = f"CB:Z:AAA{CELL_BARCODE}\tRG:Z:old\tMO:Z:AGGCTATA\tSB:Z:AAA"
+        qnames = [
+            "INST:RUN1:FC1:1:11104:5031:3419:U1",
+            "INST:RUN1:FC1:1:11105:6031:4419:U2",
+            "INST:RUN1:FC1:2:11104:5031:3419:U3",
+            "INST:RUN2:FC1:1:11104:5031:3419:U4",
+            "INST:RUN1:FC2:1:11104:5031:3419:U5",
+        ]
+        groups = [
+            FASTQ_UTILS.find_tag_value(
+                FASTQ_UTILS.canonicalize_dna_fastq_comment(
+                    "sample", "group", qname, comment
+                ),
+                "RG",
+            )
+            for qname in qnames
+        ]
+        self.assertEqual(groups[0], groups[1])
+        self.assertEqual(len(set(groups)), 4)
+
+    def test_unsupported_physical_unit_characters_fail(self):
+        comment = f"CB:Z:AAA{CELL_BARCODE}\tRG:Z:old\tMO:Z:AGGCTATA\tSB:Z:AAA"
+        with self.assertRaisesRegex(ValueError, "Unsupported character"):
+            FASTQ_UTILS.canonicalize_dna_fastq_comment(
+                "sample",
+                "group",
+                "INST/unsafe:RUN1:FC1:1:11104:5031:3419:U1",
+                comment,
+            )
+
+    def test_physical_unit_field_boundaries_cannot_collapse(self):
+        first = FASTQ_UTILS.aviti_physical_unit("INST.RUN", "R1", "FC", 1)
+        second = FASTQ_UTILS.aviti_physical_unit("INST", "RUN.R1", "FC", 1)
+        self.assertEqual(first, "INST.RUN:R1:FC:L1")
+        self.assertEqual(second, "INST:RUN.R1:FC:L1")
+        self.assertNotEqual(first, second)
+
+    def test_many_cells_produce_only_one_read_group_per_physical_unit(self):
         read_groups = set()
         observed_cells = set()
         for index in range(100):
@@ -91,11 +136,13 @@ class AvitiReadGroupTests(unittest.TestCase):
                     for line in header.read_text(encoding="utf-8").splitlines()]
 
         self.assertEqual(len(observed_cells), 100)
-        self.assertEqual(read_groups, {"L1", "L2"})
-        self.assertEqual({row["ID"] for row in rows}, {"L1", "L2"})
+        expected_units = {"AV240401:AVT0507:FC:L1", "AV240401:AVT0507:FC:L2"}
+        self.assertEqual(read_groups, expected_units)
+        self.assertEqual({row["ID"] for row in rows}, expected_units)
+        self.assertEqual({row["PU"] for row in rows}, expected_units)
         self.assertEqual({row["LB"] for row in rows}, {"logical_library"})
 
-    def test_codon_dna_splitter_emits_two_lane_headers_for_many_cells(self):
+    def test_codon_dna_splitter_emits_two_physical_unit_headers_for_many_cells(self):
         codon = shutil.which("codon")
         if not codon:
             self.skipTest("codon is required for the production splitter test")
@@ -156,11 +203,11 @@ class AvitiReadGroupTests(unittest.TestCase):
         self.assertEqual(len(header_lines), 2)
         self.assertEqual(
             {line.split("\t")[1] for line in header_lines},
-            {"ID:L1", "ID:L2"},
+            {"ID:AV240401:AVT0507:FC:L1", "ID:AV240401:AVT0507:FC:L2"},
         )
         self.assertEqual(
             {FASTQ_UTILS.find_tag_value(line.split(" ", 1)[1], "RG") for line in split_headers},
-            {"L1", "L2"},
+            {"AV240401:AVT0507:FC:L1", "AV240401:AVT0507:FC:L2"},
         )
         self.assertEqual(
             len({FASTQ_UTILS.find_tag_value(line.split(" ", 1)[1], "CB") for line in split_headers}),
@@ -224,12 +271,12 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
         lines = [
             "@HD\tVN:1.6\tSO:unsorted",
             "@SQ\tSN:chr1\tLN:100000",
-            "@RG\tID:L1\tSM:sample\tLB:logical_library\tPL:ELEMENT",
-            "@RG\tID:L2\tSM:sample\tLB:logical_library\tPL:ELEMENT",
+            "@RG\tID:AV240401:AVT0507:FC:L1\tSM:sample\tLB:logical_library\tPU:AV240401:AVT0507:FC:L1\tPL:ELEMENT",
+            "@RG\tID:AV240401:AVT0507:FC:L2\tSM:sample\tLB:logical_library\tPU:AV240401:AVT0507:FC:L2\tPL:ELEMENT",
         ]
 
         def add_pair(qname, lane, first_position, mate_position, cell_barcode=CELL_BARCODE):
-            rg = f"L{lane}"
+            rg = f"AV240401:AVT0507:FC:L{lane}"
             template_length = mate_position + 49 - first_position + 1
             tags = f"RG:Z:{rg}\tCB:Z:{cell_barcode}"
             lines.append(
@@ -247,7 +294,7 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
         add_pair("AV240401:AVT0507:FC:1:11104:105:106:UMI2", 1, 101, 201)
         add_pair("AV240401:AVT0507:FC:2:11104:105:106:UMI3", 2, 101, 201)
         # A different cell at the same genomic and physical coordinates is not
-        # part of this duplicate family even though it shares lane RG L1.
+        # part of this duplicate family even though it shares a physical-unit RG.
         add_pair(
             "AV240401:AVT0507:FC:1:11104:105:106:OTHER",
             1,
@@ -305,7 +352,7 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
         subprocess.run(command, check=True, capture_output=True, text=True)
         return output, read_picard_metrics(metrics)
 
-    def test_picard_groups_genomic_duplicates_cross_lane_but_optical_duplicates_within_lane(self):
+    def test_picard_groups_genomic_duplicates_cross_unit_but_optical_duplicates_within_unit(self):
         if not self.gatk or not self.samtools:
             self.skipTest("gatk and samtools are required for the targeted integration test")
 
@@ -335,10 +382,10 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
             ).stdout.splitlines()
 
         # Shared LB + CB keeps all three coordinate-identical molecules in one
-        # genomic family, so two read pairs are marked duplicate across lanes.
+        # genomic family, so two read pairs are marked duplicate across units.
         self.assertEqual(int(metrics10["READ_PAIR_DUPLICATES"]), 2)
         self.assertEqual(int(duplicate_pairs.stdout.strip()), 2)
-        # RG separates lanes physically: only the two lane-1 members cluster.
+        # RG separates physical units: only the two lane-1 members cluster.
         self.assertEqual(int(metrics10["READ_PAIR_OPTICAL_DUPLICATES"]), 1)
         self.assertEqual(int(metrics0["READ_PAIR_OPTICAL_DUPLICATES"]), 0)
         other_cell_flags = [

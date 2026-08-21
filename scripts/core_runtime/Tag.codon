@@ -1,6 +1,7 @@
 import sys
 import bio # codon (seq) library
 from collections import Counter
+from typing import List
 from utils import *
 
 ## Run script like this:
@@ -12,6 +13,114 @@ from utils import *
 # NSSTF1 MO .
 
 ## Functions
+def read_fastq_paths(input_spec: str) -> List[str]:
+    paths: List[str] = []
+    if input_spec.startswith("manifest:"):
+        manifest_path = input_spec[len("manifest:"):]
+        last_slash = manifest_path.rfind("/")
+        manifest_dir = manifest_path[:last_slash + 1] if last_slash >= 0 else ""
+        with open(manifest_path, "r") as manifest:
+            for line in manifest:
+                path = line.rstrip("\r\n")
+                if not path:
+                    sys.stderr.write("ERROR: Empty FASTQ manifest entry in " + manifest_path + "\n")
+                    sys.exit(1)
+                if not path.startswith("/") and manifest_dir:
+                    path = manifest_dir + path
+                paths.append(path)
+        if not paths:
+            sys.stderr.write("ERROR: FASTQ manifest contains no paths: " + manifest_path + "\n")
+            sys.exit(1)
+    else:
+        paths.append(input_spec)
+    return paths
+
+
+def read_read_set_counts(path: str) -> List[int]:
+    counts: List[int] = []
+    if path == "-":
+        return counts
+    with open(path, "r") as handle:
+        line_number = 0
+        for line in handle:
+            line_number += 1
+            if line_number == 1:
+                if line.rstrip("\r\n") != "read_set_index\trecord_count":
+                    sys.stderr.write("ERROR: Invalid technical read-set count header in " + path + "\n")
+                    sys.exit(1)
+                continue
+            fields = line.rstrip("\r\n").split("\t")
+            if len(fields) != 2 or int(fields[0]) != len(counts) + 1 or int(fields[1]) < 0:
+                sys.stderr.write("ERROR: Invalid technical read-set count row in " + path + "\n")
+                sys.exit(1)
+            counts.append(int(fields[1]))
+    if line_number == 0 or not counts:
+        sys.stderr.write("ERROR: Technical read-set count file contains no rows: " + path + "\n")
+        sys.exit(1)
+    return counts
+
+
+def write_read_set_counts(path: str, counts: List[int]) -> None:
+    with open(path, "w") as handle:
+        handle.write("read_set_index\trecord_count\n")
+        for index in range(len(counts)):
+            handle.write(str(index + 1) + "\t" + str(counts[index]) + "\n")
+
+
+def virtual_fastq_paths(paths: List[str], expected_counts: List[int]):
+    if expected_counts and len(paths) != 1 and len(paths) != len(expected_counts):
+        sys.stderr.write("ERROR: FASTQ manifest path count does not match technical read-set boundaries\n")
+        sys.exit(1)
+    if expected_counts and len(paths) == 1:
+        records = iter(bio.FASTQ(paths[0], gzip=paths[0].lower().endswith('.gz'), validate=True, copy=True))
+        for read_set_index in range(len(expected_counts)):
+            for _ in range(expected_counts[read_set_index]):
+                try:
+                    record = next(records)
+                except StopIteration:
+                    sys.stderr.write("ERROR: Combined FASTQ ended before technical read set " + str(read_set_index + 1) + "\n")
+                    sys.exit(1)
+                yield read_set_index, record
+        has_extra = False
+        try:
+            next(records)
+            has_extra = True
+        except StopIteration:
+            pass
+        if has_extra:
+            sys.stderr.write("ERROR: Combined FASTQ has records beyond the technical read-set boundaries\n")
+            sys.exit(1)
+        return
+    for read_set_index in range(len(paths)):
+        records = iter(bio.FASTQ(paths[read_set_index], gzip=paths[read_set_index].lower().endswith('.gz'), validate=True, copy=True))
+        if expected_counts:
+            for _ in range(expected_counts[read_set_index]):
+                try:
+                    record = next(records)
+                except StopIteration:
+                    sys.stderr.write("ERROR: FASTQ ended early in technical read set " + str(read_set_index + 1) + "\n")
+                    sys.exit(1)
+                yield read_set_index, record
+            has_extra = False
+            try:
+                next(records)
+                has_extra = True
+            except StopIteration:
+                pass
+            if has_extra:
+                sys.stderr.write("ERROR: FASTQ has extra records in technical read set " + str(read_set_index + 1) + "\n")
+                sys.exit(1)
+        else:
+            for record in records:
+                yield read_set_index, record
+
+
+def normalize_qname(name: str) -> str:
+    if name.endswith("/1") or name.endswith("/2"):
+        return name[:-2]
+    return name
+
+
 def read_barcode_whitelist_from_file(bc_whitelist_filename: str):
     """
     Read whitelisted barcodes from file and convert to a set of Kmers.
@@ -54,7 +163,10 @@ def tag_fastq(
     corrected_bc_stats_tsv_filename: str,
     reads_per_barcode_tsv_filename: str,
     out_folder: str,
-    rev_comp: bool
+    rev_comp: bool,
+    output_r1_name: str = "",
+    output_r2_name: str = "",
+    read_set_counts_path: str = "-"
 ) -> float:
     """
     Read BC FASTQ
@@ -81,30 +193,29 @@ def tag_fastq(
 
     """
 
-    # Initialize FASTQ readers
-    if I2.endswith('.gz'):
-        I2_gen = bio.FASTQ(I2, gzip=True, validate=False, copy=True)
-    else:
-        I2_gen = bio.FASTQ(I2, gzip=False, validate=False, copy=True)
-
-    # Process R1
-    if R1.endswith('.gz'):
-        R1_gen = bio.FASTQ(R1, gzip=True, validate=False, copy=True)
-    else:
-        R1_gen = bio.FASTQ(R1, gzip=False, validate=False, copy=True)
-
-    # Process R2
-    if R2.endswith('.gz'):
-        R2_gen = bio.FASTQ(R2, gzip=True, validate=False, copy=True)
-    else:
-        R2_gen = bio.FASTQ(R2, gzip=False, validate=False, copy=True)
+    # Each argument may be a legacy FASTQ path or manifest:<path>. Manifest paths
+    # form one ordered virtual stream and may mix gzip/plain FASTQs.
+    I2_paths = read_fastq_paths(I2)
+    R1_paths = read_fastq_paths(R1)
+    R2_paths = read_fastq_paths(R2)
+    expected_read_set_counts = read_read_set_counts(read_set_counts_path)
+    if not expected_read_set_counts and (len(I2_paths) != len(R1_paths) or len(I2_paths) != len(R2_paths)):
+        sys.stderr.write(
+            "ERROR: Synchronized FASTQ manifests have conflicting read-set counts: i2=" +
+            str(len(I2_paths)) + ", r1=" + str(len(R1_paths)) + ", r2=" + str(len(R2_paths)) + "\n"
+        )
+        sys.exit(1)
+    I2_gen = virtual_fastq_paths(I2_paths, expected_read_set_counts)
+    R1_gen = virtual_fastq_paths(R1_paths, expected_read_set_counts)
+    R2_gen = virtual_fastq_paths(R2_paths, expected_read_set_counts)
+    observed_read_set_counts = expected_read_set_counts[:] if expected_read_set_counts else [0 for _ in I2_paths]
 
     # Initialize FASTQ writers
-    R1_fname, R1_ext = split_filename(R1)
-    R2_fname, R2_ext = split_filename(R2)
-    R1_tagged_outpath = f"{out_folder}/{R1_fname}_{tag}.{R1_ext}"
+    R1_fname, R1_ext = split_filename(R1_paths[0])
+    R2_fname, R2_ext = split_filename(R2_paths[0])
+    R1_tagged_outpath = f"{out_folder}/{output_r1_name}" if output_r1_name else f"{out_folder}/{R1_fname}_{tag}.{R1_ext}"
     R1_tagged_outpath_fh = open(R1_tagged_outpath, 'w')
-    R2_tagged_outpath = f"{out_folder}/{R2_fname}_{tag}.{R2_ext}"
+    R2_tagged_outpath = f"{out_folder}/{output_r2_name}" if output_r2_name else f"{out_folder}/{R2_fname}_{tag}.{R2_ext}"
     R2_tagged_outpath_fh = open(R2_tagged_outpath, 'w')
 
     # Initialize barcode and stats lists
@@ -115,8 +226,61 @@ def tag_fastq(
 
     sys.stdout.write(f"Tagging reads...\n")
 
-    for recordI2,recordR1,recordR2 in zip(I2_gen,R1_gen, R2_gen):
-        #assert recordI2.name == recordR1.name == recordR2.name, f"I2 ({I2}) & R1 ({R1}) & R2 ({R2}) read names don't match."
+    I2_it = iter(I2_gen)
+    R1_it = iter(R1_gen)
+    R2_it = iter(R2_gen)
+    while True:
+        i2_done = False
+        try:
+            I2_set, recordI2 = next(I2_it)
+        except StopIteration:
+            i2_done = True
+        if i2_done:
+            r1_remaining = False
+            r2_remaining = False
+            try:
+                next(R1_it)
+                r1_remaining = True
+            except StopIteration:
+                pass
+            try:
+                next(R2_it)
+                r2_remaining = True
+            except StopIteration:
+                pass
+            if r1_remaining or r2_remaining:
+                sys.stderr.write(
+                    "ERROR: Synchronized FASTQ streams have unequal EOF after " + str(n_reads) + " records\n"
+                )
+                sys.exit(1)
+            break
+        try:
+            R1_set, recordR1 = next(R1_it)
+        except StopIteration:
+            sys.stderr.write("ERROR: Synchronized r1 FASTQ stream ended before i2\n")
+            sys.exit(1)
+        try:
+            R2_set, recordR2 = next(R2_it)
+        except StopIteration:
+            sys.stderr.write("ERROR: Synchronized r2 FASTQ stream ended before i2\n")
+            sys.exit(1)
+
+        if I2_set != R1_set or I2_set != R2_set:
+            sys.stderr.write(
+                "ERROR: Synchronized FASTQ streams have unequal EOF at technical read-set boundary: i2=" +
+                str(I2_set + 1) + ", r1=" + str(R1_set + 1) + ", r2=" + str(R2_set + 1) + "\n"
+            )
+            sys.exit(1)
+
+        qI2 = normalize_qname(recordI2.name)
+        qR1 = normalize_qname(recordR1.name)
+        qR2 = normalize_qname(recordR2.name)
+        if qI2 != qR1 or qI2 != qR2:
+            sys.stderr.write(
+                "ERROR: Synchronized FASTQ QNAME mismatch at record " + str(n_reads + 1) +
+                ": i2=" + qI2 + ", r1=" + qR1 + ", r2=" + qR2 + "\n"
+            )
+            sys.exit(1)
 
         # Get barcode sequence and associated quality from FASTQ record
         if rev_comp:
@@ -156,6 +320,8 @@ def tag_fastq(
         R2_tagged_outpath_fh.write(f'@{record_name_tagged}\n{recordR2.read}\n+\n{recordR2.qual}\n')
 
         n_reads += 1
+        if not expected_read_set_counts:
+            observed_read_set_counts[I2_set] += 1
         if n_reads % 20000 == 0:
             sys.stdout.write(f"\r{n_reads} reads processed ...")
             sys.stdout.flush()
@@ -164,8 +330,16 @@ def tag_fastq(
     sys.stdout.flush()
     sys.stdout.write(f"Finished processing {n_reads} reads...\n")
 
+    if n_reads == 0:
+        sys.stderr.write("ERROR: Synchronized FASTQ streams contain no records\n")
+        sys.exit(1)
+
+    write_read_set_counts(out_folder + "technical_read_set_counts.tsv", observed_read_set_counts)
+
     BC_Counter = Counter(corr_bcs)
-    n_nomatch = BC_Counter.pop('NoMatch')
+    n_nomatch = 0
+    if 'NoMatch' in BC_Counter:
+        n_nomatch = BC_Counter.pop('NoMatch')
 
     # Close the corrected read files
     R1_tagged_outpath_fh.close()
@@ -210,7 +384,7 @@ def tag_fastq(
 
 def main():
     # Check that the correct number of arguments are passed
-    if not (isinstance(BC_LEN, int) and isinstance(BC_START, int) and isinstance(HD, int) and len(sys.argv) == 10):
+    if not (isinstance(BC_LEN, int) and isinstance(BC_START, int) and isinstance(HD, int) and len(sys.argv) in [10, 12, 13]):
         sys.stderr.write(
             f"Wrong call, exiting...\nUsage: codon run -plugin seq -release -D BC_LEN=<Barcode Length> -D BC_START=<Start Position Barcode> -D HD=<Maximum Hamming Distance> {sys.argv[0]} <Path I2> <Path R1> <Path R2> <Path Whitelist> <Sample Name> <2-letter Tag> <Output Folder> <first_pass_arg> <rev_comp_arg>\n\n")
         sys.exit(1)
@@ -224,6 +398,9 @@ def main():
         out = sys.argv[7]
         first_pass_arg = sys.argv[8]
         rev_comp_arg = sys.argv[9]
+        output_r1_name = sys.argv[10] if len(sys.argv) >= 12 else ""
+        output_r2_name = sys.argv[11] if len(sys.argv) >= 12 else ""
+        read_set_counts_path = sys.argv[12] if len(sys.argv) == 13 else "-"
 
     # Check that the max_mismatches is 0, 1, 2 or 3
     if HD not in [0,1,2,3]:
@@ -272,7 +449,10 @@ def main():
         corrected_bc_stats_tsv_filename=f'Barcode_Statistics_{sample_name}_{tag_name}.tsv',
         reads_per_barcode_tsv_filename=f'Reads_Per_Barcode_{sample_name}_{tag_name}.tsv',
         out_folder=out,
-        rev_comp=REV_COMP)
+        rev_comp=REV_COMP,
+        output_r1_name=output_r1_name,
+        output_r2_name=output_r2_name,
+        read_set_counts_path=read_set_counts_path)
 
     sys.stdout.write(f"\n{frac_bcs_found * 100.00}% of the reads had a valid barcode.\n")
 

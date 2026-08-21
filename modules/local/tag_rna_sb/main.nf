@@ -10,11 +10,12 @@
  *
  * Inputs:
  *   - sample metadata
- *   - raw RNA R1 FASTQ
- *   - raw RNA R2 FASTQ (used both as read 2 and as the barcode source for this RNA step)
+ *   - ordered raw RNA R1 FASTQ collection
+ *   - ordered raw RNA R2 collection (used both as read 2 and barcode source)
  *   - RNA SB-group map TSV used as the single source of truth for experiment-used sample barcodes
  * Outputs:
  *   - sample-barcode-tagged R1 / R2 FASTQs
+ *   - internal technical-read-set record counts used to preserve boundaries downstream
  *   - barcode counts and summary stats
  */
 
@@ -27,10 +28,10 @@ process TAG_RNA_SAMPLE_BARCODE {
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_sample_barcode.*.tsv"
 
     input:
-    tuple val(sampleId), val(meta), path(r1), path(r2), path(sbGroupMap)
+    tuple val(sampleId), val(meta), path(r1, stageAs: 'r1???/*'), path(r2, stageAs: 'r2???/*'), path(sbGroupMap)
 
     output:
-    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), emit: tagged
+    tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), path("${sampleId}.rna.read_set_counts.tsv"), emit: tagged
     tuple val(sampleId), path("${sampleId}.sample_barcode.counts.tsv"), path("${sampleId}.sample_barcode.stats.tsv"), emit: metrics
     path("${sampleId}.rna_sample_barcode.*.tsv"), emit: tres_stats
     path("versions.yml"), emit: versions
@@ -39,18 +40,23 @@ process TAG_RNA_SAMPLE_BARCODE {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def r1Manifest = (((r1 instanceof List ? r1 : [r1]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
+    def r2Manifest = (((r2 instanceof List ? r2 : [r2]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
 
     """
     ${runtimeExports}
+
+    printf '%s' '${r1Manifest}' | base64 --decode > r1.fastq.manifest
+    printf '%s' '${r2Manifest}' | base64 --decode > r2.fastq.manifest
 
     echo "RNA SB source=${meta.rna_sb_barcode_source}; RNA SB length=${meta.rna_sb_barcode_len}; index_read=r2; BC_LEN=${meta.sample_bc_len}; BC_START=${meta.sample_bc_start}; HD=${meta.sample_hd}; rev_comp_arg=${meta.sample_reverse_complement}" >&2
 
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag.codon" \\
-      --i2 "${r2}" \\
-      --r1 "${r1}" \\
-      --r2 "${r2}" \\
+      --i2-manifest r2.fastq.manifest \\
+      --r1-manifest r1.fastq.manifest \\
+      --r2-manifest r2.fastq.manifest \\
       --sb-group-map "${sbGroupMap}" \\
       --sample "${sampleId}" \\
       --tag "${meta.sample_tag}" \\
@@ -62,7 +68,8 @@ process TAG_RNA_SAMPLE_BARCODE {
       --output-r1 "${sampleId}.sample_barcode.R1.fastq" \\
       --output-r2 "${sampleId}.sample_barcode.R2.fastq" \\
       --output-counts "${sampleId}.sample_barcode.counts.tsv" \\
-      --output-stats "${sampleId}.sample_barcode.stats.tsv"
+      --output-stats "${sampleId}.sample_barcode.stats.tsv" \\
+      --output-read-set-counts "${sampleId}.rna.read_set_counts.tsv"
 
     cp "${sampleId}.sample_barcode.counts.tsv" "${sampleId}.rna_sample_barcode.counts.tsv"
     cp "${sampleId}.sample_barcode.stats.tsv" "${sampleId}.rna_sample_barcode.stats.tsv"

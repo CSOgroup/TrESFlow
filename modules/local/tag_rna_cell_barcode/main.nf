@@ -6,8 +6,9 @@
  *
  * Inputs:
  *   - sample metadata
- *   - raw RNA I1 FASTQ as the ligation barcode source
+ *   - ordered raw RNA I1 FASTQs as one virtual ligation-barcode stream
  *   - sample-barcode and UMI-tagged R1 / R2 FASTQs
+ *   - internal technical-read-set boundary counts from the first tag stage
  *   - cell-barcode whitelist
  * Outputs:
  *   - RNA FASTQs tagged with SB, UM, CB, and RG comments
@@ -24,7 +25,7 @@ process TAG_RNA_CELL_BARCODE {
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_tag_records.tsv.gz"
 
     input:
-    tuple val(sampleId), val(meta), path(i1), path(taggedR1), path(taggedR2), path(cellWhitelist)
+    tuple val(sampleId), val(meta), path(i1, stageAs: 'i1???/*'), path(taggedR1), path(taggedR2), path(cellWhitelist), path(readSetCounts)
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
@@ -37,16 +38,23 @@ process TAG_RNA_CELL_BARCODE {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def i1Manifest = (((i1 instanceof List ? i1 : [i1]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
+    def taggedR1Manifest = (taggedR1.toString() + '\n').bytes.encodeBase64().toString()
+    def taggedR2Manifest = (taggedR2.toString() + '\n').bytes.encodeBase64().toString()
 
     """
     ${runtimeExports}
 
+    printf '%s' '${i1Manifest}' | base64 --decode > i1.fastq.manifest
+    printf '%s' '${taggedR1Manifest}' | base64 --decode > tagged_r1.fastq.manifest
+    printf '%s' '${taggedR2Manifest}' | base64 --decode > tagged_r2.fastq.manifest
+
     "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/Tag_Lig3.codon" \\
-      --i1 "${i1}" \\
-      --r1 "${taggedR1}" \\
-      --r2 "${taggedR2}" \\
+      --i1-manifest i1.fastq.manifest \\
+      --r1-manifest tagged_r1.fastq.manifest \\
+      --r2-manifest tagged_r2.fastq.manifest \\
       --whitelist "${cellWhitelist}" \\
       --sample "${sampleId}" \\
       --tag "${meta.cell_tag}" \\
@@ -56,6 +64,7 @@ process TAG_RNA_CELL_BARCODE {
       --output-r2 "${sampleId}.sample_barcode_umi_cell.R2.fastq" \\
       --output-counts "${sampleId}.cell.counts.tsv" \\
       --output-tag-records "${sampleId}.rna_tag_records.tsv" \\
+      --read-set-counts "${readSetCounts}" \\
       --output-stats "${sampleId}.cell.stats_L1.tsv" \\
       --output-stats "${sampleId}.cell.stats_L2.tsv" \\
       --output-stats "${sampleId}.cell.stats_L3.tsv"

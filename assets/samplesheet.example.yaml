@@ -18,6 +18,8 @@ samples:
         sb_barcodes: [ACGT]
 
     rna:
+      # Legacy scalars remain valid. For technical chunks of this same library,
+      # use ordered comma scalars or YAML sequences with matching role lengths.
       reads:
         i1: testdata/test_rna_I1.fastq
         r1: testdata/test_rna_R1.fastq

@@ -29,14 +29,20 @@ samples:
 
     rna:
       reads:
-        i1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_RNA_S4_I1_001.fastq.gz
-        r1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_RNA_S4_R1_001.fastq.gz
-        r2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_RNA_S4_R2_001.fastq.gz
+        i1:
+          - /mnt/pdata/TreS_TESTDATA/run1/day15_RNA_I1.fastq.gz
+          - /mnt/pdata/TreS_TESTDATA/run2/day15_RNA_I1.fastq.gz
+        r1:
+          - /mnt/pdata/TreS_TESTDATA/run1/day15_RNA_R1.fastq.gz
+          - /mnt/pdata/TreS_TESTDATA/run2/day15_RNA_R1.fastq.gz
+        r2:
+          - /mnt/pdata/TreS_TESTDATA/run1/day15_RNA_R2.fastq.gz
+          - /mnt/pdata/TreS_TESTDATA/run2/day15_RNA_R2.fastq.gz
 
     dna:
       tagmentation: single
       reads:
-        i1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_I1_001.fastq.gz
-        i2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_I2_001.fastq.gz
-        r1: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_R1_001.fastq.gz
-        r2: /mnt/pdata/TreS_TESTDATA/260109_TreSeq_251121_Bcell_Tonsil_day15_DNA_S3_R2_001.fastq.gz
+        i1: /mnt/pdata/TreS_TESTDATA/run1/day15_DNA_I1.fastq.gz, /mnt/pdata/TreS_TESTDATA/run2/day15_DNA_I1.fastq.gz
+        i2: /mnt/pdata/TreS_TESTDATA/run1/day15_DNA_I2.fastq.gz, /mnt/pdata/TreS_TESTDATA/run2/day15_DNA_I2.fastq.gz
+        r1: /mnt/pdata/TreS_TESTDATA/run1/day15_DNA_R1.fastq.gz, /mnt/pdata/TreS_TESTDATA/run2/day15_DNA_R1.fastq.gz
+        r2: /mnt/pdata/TreS_TESTDATA/run1/day15_DNA_R2.fastq.gz, /mnt/pdata/TreS_TESTDATA/run2/day15_DNA_R2.fastq.gz

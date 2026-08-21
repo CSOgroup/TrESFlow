@@ -186,7 +186,7 @@ def mock_split(args):
             r2_rg = find_tag_value(r2_comment, "RG")
             if r1_rg != r2_rg:
                 raise ValueError(
-                    f"Paired DNA reads resolve to different AVITI lane read groups: {r1_rg} != {r2_rg}"
+                    f"Paired DNA reads resolve to different AVITI physical units: {r1_rg} != {r2_rg}"
                 )
             write_fastq_record(r1_handles[key], r1_name, r1_comment, r1_rec[1], r1_rec[3])
             write_fastq_record(r2_handles[key], r2_name, r2_comment, r2_rec[1], r2_rec[3])

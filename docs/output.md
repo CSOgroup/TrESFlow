@@ -31,6 +31,12 @@ Shared reporting outputs:
 - `TrES_Stats/qc/samtools/`
 - `TrES_Stats/qc/multiqc/`
 
+`pipeline_info/derived_contract/input_fastq_provenance.tsv` records every
+normalized input position with sample, modality, read-set index, read role,
+canonical path, and whether it was explicit or the implicit dual-DNA I2
+fallback. The fallback appears in provenance for transparency but is not sent
+to FastQC a second time.
+
 ## RNA outputs
 
 ### Optional `rna_split_fastqs/`

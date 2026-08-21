@@ -58,6 +58,26 @@ and the default `scripts/core_runtime` remain based on the pipeline project
 directory. Relative paths written inside a samplesheet continue to resolve
 from that samplesheet's directory.
 
+Every modality read field accepts a legacy scalar, a comma-separated scalar, or
+an ordered YAML sequence:
+
+```yaml
+reads:
+  i1: /run1/I1.fastq.gz, /run2/I1.fastq.gz
+  r1:
+    - /run1/R1.fastq.gz
+    - /path/with,a,comma/run2_R1.fastq.gz
+  r2: [/run1/R2.fastq.gz, /run2/R2.fastq.gz]
+```
+
+YAML sequences preserve commas inside filenames; comma scalars are trimmed and
+may not contain empty entries. Positions synchronize roles: all files at index
+1 are technical read set 1, all files at index 2 are set 2, and so on. The
+lists must describe chunks of the same biological library with the same
+chemistry, tagmentation mode, and barcode layout. They do not create additional
+samples. TrESFlow does not scan directories, expand globs, or infer mates from
+filenames.
+
 ## Samplesheet Contract
 
 The supported YAML structure is:
@@ -173,6 +193,18 @@ The DNA block is optional, but if present it must contain:
 
 `reads.i2` is required for `dna.tagmentation: single` and optional for `dna.tagmentation: dual`.
 
+All RNA `i1/r1/r2`, single-DNA `i1/i2/r1/r2`, and dual-DNA `i1/r1/r2`
+collections must have matching lengths. If dual DNA explicitly supplies `i2`,
+it must match too. If it omits `i2`, each `i1` entry is used as the internal
+positional fallback. The fallback is not treated as another raw file by
+FastQC.
+
+At parse time, each entry must be a regular `.fastq`, `.fq`, `.fastq.gz`, or
+`.fq.gz` file. Empty entries, control characters, duplicate canonical paths
+within a role, and reuse of one physical file by two explicit roles in the same
+technical set are rejected. Relative paths resolve from the samplesheet
+directory. Identical basenames from different directories are supported.
+
 DNA ligation tagging uses the same `Tag_Lig3` correction and output format for both modes, but with mode-specific barcode-source reads and start positions:
 
 - `single`: ligation source `reads.i1`, L1/L2/L3 starts `15,53,91`
@@ -195,9 +227,11 @@ The parser in [`lib/SamplesheetParser.groovy`](../lib/SamplesheetParser.groovy) 
 
 These derived files include:
 
-- `sb_group_map.tsv`
+- `rna_sb_group_map.tsv` and/or `dna_sb_group_map.tsv`
 - `dna_mo_map.tsv` when DNA is present
 - per-sample DNA modality whitelist files
+- `input_fastq_provenance.tsv`, with one row per sample, modality, technical
+  read-set index, role, canonical path, and explicit/implicit origin
 
 `dna_mo_map.tsv` retains the four columns `sample`, `sb_group`, `mark`, and
 `mo_bc`; mappings are group-specific, so one MO barcode may identify different
@@ -264,13 +298,16 @@ not an Illumina pixel-distance setting or a universal Element-defined value.
 Override it only for an independently calibrated dataset.
 
 DNA duplicate grouping remains cell-aware through the corrected 24-base `CB`
-tag. AVITI read names preserve `lane:tile:x:y`; TrESFlow parses those names with
-an AVITI-specific Picard regex and writes a compact lane-level DNA read-group
-namespace (`L1`, `L2`, ...). All lane read groups for a logical library have the
-same `LB`, so ordinary genomic/PCR duplicate families can span lanes for the same
-cell while Picard's physical comparison cannot collide coordinates from two
-different lanes. Cell identity is not encoded in DNA `RG`; it remains in `CB`.
-RNA read-group behavior is unchanged.
+tag. From the complete AVITI identifier
+`instrument:run:flowcell:lane:tile:x:y:UMI`, TrESFlow constructs the SAM-safe
+physical unit `instrument:run:flowcell:L<lane>` and writes it as both DNA `RG`
+and `PU`. Chunks from the same run/flowcell/lane therefore share an RG, while a
+different run, flowcell, or lane cannot collide. Unsupported characters in the
+three textual fields are fatal. Every physical-unit header for a logical
+library has the same `LB`, so ordinary genomic/PCR duplicate families can span
+physical units for the same cell while optical comparisons remain unit-local.
+Cell identity is not encoded in DNA `RG`; it remains in `CB`. RNA read-group
+behavior is unchanged.
 
 The standalone assessor uses the same repository-owned parser, validation,
 normalized model, plots, and HTML renderer as the pipeline:

@@ -10,6 +10,9 @@ class SamplesheetParser {
     private static final int RNA_SB_BARCODE_LENGTH = 4
     private static final int DNA_SINGLE_SB_BARCODE_LENGTH = 4
     private static final int DNA_DUAL_SB_BARCODE_LENGTH = 3
+    private static final List<String> FASTQ_SUFFIXES = ['.fastq.gz', '.fq.gz', '.fastq', '.fq']
+    private static final java.util.regex.Pattern CONTROL_CHARACTER_PATTERN =
+        java.util.regex.Pattern.compile('[\\x00-\\x1F\\x7F]')
 
     static List<Map> parse(final String samplesheetPath, final Map options = [:]) {
         return parseContract(samplesheetPath, options).samples as List<Map>
@@ -205,6 +208,7 @@ class SamplesheetParser {
             dna_tagmentation            : tagmentation,
             i1                          : reads.i1,
             i2                          : reads.i2,
+            i2_implicit                 : reads.i2_implicit,
             r1                          : reads.r1,
             r2                          : reads.r2,
             sample_bc_len               : dnaTagDefaults.sample.bc_len as int,
@@ -246,6 +250,7 @@ class SamplesheetParser {
         final File dnaSbGroupMapFile = dnaRows ? writeSbGroupMap(derivedDir, dnaRows, MODALITY_DNA) : null
         final File dnaMoMapFile = dnaRows ? writeDnaMoMap(derivedDir, dnaRows) : null
         final Map<String, String> dnaWhitelistPaths = dnaRows ? writeDnaModalityWhitelists(derivedDir, dnaRows) : [:]
+        writeInputFastqProvenance(derivedDir, samples)
 
         samples.each { row ->
             row.sb_group_map = row.modality == MODALITY_RNA
@@ -265,6 +270,30 @@ class SamplesheetParser {
         }
 
         return samples
+    }
+
+    private static File writeInputFastqProvenance(final File derivedDir, final List<Map> samples) {
+        final File file = new File(derivedDir, 'input_fastq_provenance.tsv')
+        final List<String> lines = [
+            'sample\tmodality\tread_set_index\tread_role\tcanonical_input_path\tinput_origin'
+        ]
+
+        samples.each { row ->
+            final List<String> roles = row.modality == MODALITY_DNA
+                ? ['i1', 'i2', 'r1', 'r2']
+                : ['i1', 'r1', 'r2']
+            roles.each { role ->
+                (row[role] as List<String>).eachWithIndex { path, index ->
+                    final String origin = row.modality == MODALITY_DNA && role == 'i2' && row.i2_implicit
+                        ? 'implicit_i1_fallback'
+                        : 'explicit'
+                    lines << "${row.id}\t${row.modality}\t${index + 1}\t${role}\t${path}\t${origin}"
+                }
+            }
+        }
+
+        file.text = lines.join('\n') + '\n'
+        return file
     }
 
     private static Map parseGroups(
@@ -626,10 +655,12 @@ class SamplesheetParser {
         final List<String> readNames
     ) {
         final Map reads = asMap(modalityConfig.reads, "samples.${sampleId}.${modality}.reads")
-        return readNames.collectEntries { readName ->
+        final Map resolved = readNames.collectEntries { readName ->
             final String fieldName = "samples.${sampleId}.${modality}.reads.${readName}"
-            [(readName): resolveExistingPath(baseDir, requireString(reads[readName], fieldName))]
+            [(readName): resolveFastqPaths(baseDir, reads[readName], fieldName)]
         }
+        validateReadSetContract(sampleId, modality, resolved, false)
+        return resolved
     }
 
     private static Map resolveDnaReads(
@@ -641,17 +672,138 @@ class SamplesheetParser {
         final List<String> requiredReadNames = tagmentation == TAGMENTATION_DUAL
             ? ['i1', 'r1', 'r2']
             : ['i1', 'i2', 'r1', 'r2']
-        final Map resolved = resolveReads(baseDir, dnaConfig, sampleId, MODALITY_DNA, requiredReadNames)
-
-        if( tagmentation == TAGMENTATION_DUAL ) {
-            final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
-            final String i2Path = reads.i2?.toString()?.trim()
-            resolved.i2 = i2Path
-                ? resolveExistingPath(baseDir, i2Path)
-                : resolved.i1
+        final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
+        final Map resolved = requiredReadNames.collectEntries { readName ->
+            final String fieldName = "samples.${sampleId}.dna.reads.${readName}"
+            [(readName): resolveFastqPaths(baseDir, reads[readName], fieldName)]
         }
 
+        if( tagmentation == TAGMENTATION_DUAL ) {
+            final boolean i2Explicit = reads.containsKey('i2')
+            resolved.i2 = i2Explicit
+                ? resolveFastqPaths(baseDir, reads.i2, "samples.${sampleId}.dna.reads.i2")
+                : new ArrayList<String>(resolved.i1 as List<String>)
+            resolved.i2_implicit = !i2Explicit
+        }
+        else {
+            resolved.i2_implicit = false
+        }
+
+        validateReadSetContract(sampleId, MODALITY_DNA, resolved, resolved.i2_implicit as boolean)
+
         return resolved
+    }
+
+    private static List<String> resolveFastqPaths(
+        final File baseDir,
+        final Object rawValue,
+        final String fieldName
+    ) {
+        final List rawEntries
+        if( rawValue instanceof List ) {
+            if( rawValue.isEmpty() ) {
+                throw new IllegalArgumentException("${fieldName} must contain at least one FASTQ path")
+            }
+            rawEntries = rawValue as List
+        }
+        else {
+            if( rawValue == null ) {
+                throw new IllegalArgumentException("Missing required field: ${fieldName}")
+            }
+            final String scalar = rawValue.toString()
+            rawEntries = Arrays.asList(scalar.split(',', -1))
+        }
+
+        final List<String> resolved = []
+        rawEntries.eachWithIndex { rawEntry, index ->
+            if( rawEntry == null || rawEntry instanceof Map || rawEntry instanceof List ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} entry ${index + 1} must be a FASTQ path string"
+                )
+            }
+            final String rawPath = rawEntry.toString()
+            if( CONTROL_CHARACTER_PATTERN.matcher(rawPath).find() ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} entry ${index + 1} contains a control character"
+                )
+            }
+            final String path = rawPath.trim()
+            if( !path ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} contains an empty FASTQ path at entry ${index + 1}"
+                )
+            }
+            final File candidate = new File(path).isAbsolute() ? new File(path) : new File(baseDir, path)
+            if( !candidate.exists() ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} entry ${index + 1} FASTQ not found: ${candidate}"
+                )
+            }
+            if( !candidate.isFile() ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} entry ${index + 1} is not a regular file: ${candidate}"
+                )
+            }
+            final String canonicalPath = candidate.canonicalPath
+            final String lowercaseName = candidate.name.toLowerCase()
+            if( !FASTQ_SUFFIXES.any { suffix -> lowercaseName.endsWith(suffix) } ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} entry ${index + 1} has an invalid FASTQ suffix: ${candidate}; " +
+                    "expected .fastq, .fq, .fastq.gz, or .fq.gz"
+                )
+            }
+            resolved << canonicalPath
+        }
+
+        if( resolved.toSet().size() != resolved.size() ) {
+            throw new IllegalArgumentException(
+                "${fieldName} contains duplicate canonical FASTQ paths"
+            )
+        }
+        return resolved
+    }
+
+    private static void validateReadSetContract(
+        final String sampleId,
+        final String modality,
+        final Map reads,
+        final boolean implicitDualI2
+    ) {
+        final List<String> roles = modality == MODALITY_DNA
+            ? ['i1', 'i2', 'r1', 'r2']
+            : ['i1', 'r1', 'r2']
+        final Map<String, Integer> counts = roles.collectEntries { role ->
+            [(role): (reads[role] as List).size()]
+        }
+        if( counts.values().toSet().size() != 1 ) {
+            final String countSummary = roles.collect { role -> "${role}=${counts[role]}" }.join(', ')
+            throw new IllegalArgumentException(
+                "samples.${sampleId}.${modality}.reads has conflicting technical read-set counts: ${countSummary}"
+            )
+        }
+
+        final int readSetCount = counts[roles[0]]
+        (0..<readSetCount).each { index ->
+            final List<Map<String, String>> seenPaths = []
+            roles.each { role ->
+                if( !(implicitDualI2 && role == 'i2') ) {
+                    final String path = (reads[role] as List<String>)[index]
+                    final Map<String, String> conflict = seenPaths.find { seen ->
+                        java.nio.file.Files.isSameFile(
+                            new File(seen.path).toPath(),
+                            new File(path).toPath()
+                        )
+                    }
+                    if( conflict ) {
+                        throw new IllegalArgumentException(
+                            "samples.${sampleId}.${modality}.reads reuses one physical FASTQ in technical " +
+                            "read set ${index + 1} for roles ${conflict.role} and ${role}: ${path}"
+                        )
+                    }
+                    seenPaths << [role: role, path: path]
+                }
+            }
+        }
     }
 
     private static Map resolveRuntime(final Map parsed, final File baseDir, final Map options) {
@@ -728,14 +880,6 @@ class SamplesheetParser {
         throw new IllegalArgumentException(
             "${fieldName} must be a boolean or one of: rev, fw, reverse, forward"
         )
-    }
-
-    private static String resolveExistingPath(final File baseDir, final String rawPath) {
-        final File resolved = new File(rawPath).isAbsolute() ? new File(rawPath) : new File(baseDir, rawPath)
-        if( !resolved.exists() ) {
-            throw new IllegalArgumentException("Referenced file not found: ${resolved}")
-        }
-        return resolved.canonicalPath
     }
 
     private static String resolvePath(final File baseDir, final String rawPath) {

@@ -1,0 +1,93 @@
+nextflow_pipeline {
+
+    name "TrESFlow multi-FASTQ integration"
+    script "../main.nf"
+    tag "multi-fastq"
+
+    test("comma-separated RNA technical chunks remain one logical library") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/multi_rna_comma.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "multi_rna"
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def fastqcDir = new File(statsDir, "qc/fastqc")
+            def sampleStats = new File(statsDir, "${sampleId}.rna_sample_barcode.stats.tsv")
+            def provenance = new File(outputDir, "pipeline_info/derived_contract/input_fastq_provenance.tsv")
+            def retention = new File(statsDir, "read_retention.tsv")
+
+            assertAll(
+                { assert workflow.success },
+                { assert sampleStats.readLines()[0].split('\t')[1] == "3" },
+                { assert fastqcDir.listFiles().count { it.name.endsWith("_fastqc.html") } == 6 },
+                { assert provenance.readLines().count { it.startsWith("${sampleId}\trna\t") } == 6 },
+                { assert new File(outputDir, "rna_align/${sampleId}_Normal.filtered_cells.bam").exists() },
+                { assert new File(outputDir, "rna_align/${sampleId}_Co2.filtered_cells.bam").exists() },
+                { assert retention.readLines().drop(1).every { it.split('\t')[1] == sampleId } }
+            )
+        }
+    }
+
+    test("YAML-sequence single-DNA technical chunks aggregate once") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/multi_dna_single_sequence.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "multi_dna_single"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def fastqcDir = new File(statsDir, "qc/fastqc")
+            def sampleStats = new File(statsDir, "${sampleId}.dna_sample_barcode.stats.tsv")
+            def provenance = new File(outputDir, "pipeline_info/derived_contract/input_fastq_provenance.tsv")
+
+            assertAll(
+                { assert workflow.success },
+                { assert sampleStats.readLines()[0].split('\t')[1] == "2" },
+                { assert fastqcDir.listFiles().count { it.name.endsWith("_fastqc.html") } == 8 },
+                { assert provenance.readLines().count { it.startsWith("${sampleId}\tdna\t") } == 8 },
+                { assert !provenance.text.contains("implicit_i1_fallback") },
+                { assert new File(outputDir, "dna_align/${splitName}_MarkedDup.bam").exists() },
+                { assert new File(outputDir, "dna_align/${splitName}_NoDup.bam").exists() }
+            )
+        }
+    }
+
+    test("YAML-sequence dual-DNA chunks skip implicit I2 in FastQC") {
+
+        when {
+            params {
+                samplesheet = "$projectDir/tests/samplesheets/multi_dna_dual_sequence.yaml"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def sampleId = "multi_dna_dual"
+            def splitName = "${sampleId}_Normal_H3K27ac"
+            def statsDir = new File(outputDir, "TrES_Stats")
+            def fastqcDir = new File(statsDir, "qc/fastqc")
+            def sampleStats = new File(statsDir, "${sampleId}.dna_sample_barcode.stats.tsv")
+            def provenance = new File(outputDir, "pipeline_info/derived_contract/input_fastq_provenance.tsv")
+
+            assertAll(
+                { assert workflow.success },
+                { assert sampleStats.readLines()[0].split('\t')[1] == "2" },
+                { assert fastqcDir.listFiles().count { it.name.endsWith("_fastqc.html") } == 6 },
+                { assert provenance.readLines().count { it.startsWith("${sampleId}\tdna\t") } == 8 },
+                { assert provenance.readLines().count { it.endsWith("implicit_i1_fallback") } == 2 },
+                { assert new File(outputDir, "dna_align/${splitName}_MarkedDup.bam").exists() },
+                { assert new File(outputDir, "dna_align/${splitName}_NoDup.bam").exists() }
+            )
+        }
+    }
+}
