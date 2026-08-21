@@ -140,6 +140,156 @@ def write_sheet(path, samples):
     path.write_text(json.dumps(base_contract(samples), indent=2), encoding="utf-8")
 
 
+def yaml_quote(value):
+    return json.dumps(str(value))
+
+
+def render_yaml_read_value(paths, syntax):
+    quoted = [yaml_quote(path) for path in paths]
+    if syntax == "singleton":
+        assert len(quoted) == 1
+        return quoted[0]
+    if syntax == "comma":
+        return yaml_quote(",".join(str(path) for path in paths))
+    if syntax == "comma_whitespace":
+        return yaml_quote("  " + " ,  ".join(str(path) for path in paths) + "  ")
+    if syntax == "comma_empty":
+        assert len(paths) == 2
+        return yaml_quote(f"{paths[0]}, ,{paths[1]}")
+    if syntax == "inline":
+        return f"[{', '.join(quoted)}]"
+    if syntax == "block":
+        return "\n" + "\n".join(f"          - {entry}" for entry in quoted)
+    raise AssertionError(f"unsupported test YAML syntax: {syntax}")
+
+
+def write_rna_yaml_sheet(path, reads, syntax_by_role):
+    references = base_contract({})["references"]
+    read_lines = "\n".join(
+        f"        {role}: {render_yaml_read_value(reads[role], syntax_by_role[role])}"
+        for role in ("i1", "r1", "r2")
+    )
+    path.write_text(
+        f"""library_name: MULTI_TEST
+runtime:
+  env_prefix: /tmp/tresflow-test-env
+  tmpdir: /tmp
+references:
+  species: human
+  root: {yaml_quote(references['root'])}
+  ligation_barcode_whitelist: {yaml_quote(references['ligation_barcode_whitelist'])}
+  rna_ref_dir: {yaml_quote(references['rna_ref_dir'])}
+  dna_ref_dir: {yaml_quote(references['dna_ref_dir'])}
+  dna_blacklist_bed: {yaml_quote(references['dna_blacklist_bed'])}
+  dna_chrom_sizes: {yaml_quote(references['dna_chrom_sizes'])}
+  dna_effective_genome_size: 12
+samples:
+  yaml_sample:
+    groups:
+      group:
+        rna_sb_barcodes: [CAGT]
+    rna:
+      reads:
+{read_lines}
+""",
+        encoding="utf-8",
+    )
+
+
+def normalized_read_sets(row):
+    return [
+        {role: row[role][index] for role in ("i1", "r1", "r2")}
+        for index in range(len(row["i1"]))
+    ]
+
+
+def make_rna_read_paths(root, count=3):
+    reads = {role: [] for role in ("i1", "r1", "r2")}
+    for role in reads:
+        for index in range(count):
+            path = root / "reads" / f"{role}.part{index + 1}.fastq.gz"
+            write_fastq(path, names=(f"read{index + 1}",), compressed=True)
+            reads[role].append(path)
+    return reads
+
+
+def test_yaml_slurper_normalizes_singleton_scalar_to_ordered_lists(tmp_path):
+    paths = make_rna_read_paths(tmp_path, count=1)
+    relative = {role: [path.relative_to(tmp_path) for path in role_paths] for role, role_paths in paths.items()}
+    sheet = tmp_path / "singleton.yaml"
+    write_rna_yaml_sheet(sheet, relative, {role: "singleton" for role in relative})
+
+    result = parse_sheet(sheet, tmp_path / "out-singleton")
+    row = json.loads(result.stdout.strip().splitlines()[-1])[0]
+
+    assert all(isinstance(row[role], list) for role in ("i1", "r1", "r2"))
+    assert normalized_read_sets(row) == [
+        {role: str(paths[role][0].resolve()) for role in ("i1", "r1", "r2")}
+    ]
+
+
+def test_yaml_slurper_comma_block_and_inline_lists_have_identical_read_sets(tmp_path):
+    paths = make_rna_read_paths(tmp_path, count=3)
+    relative = {role: [path.relative_to(tmp_path) for path in role_paths] for role, role_paths in paths.items()}
+    representations = {}
+
+    for syntax in ("comma", "comma_whitespace", "block", "inline"):
+        sheet = tmp_path / f"{syntax}.yaml"
+        write_rna_yaml_sheet(sheet, relative, {role: syntax for role in relative})
+        result = parse_sheet(sheet, tmp_path / f"out-{syntax}")
+        row = json.loads(result.stdout.strip().splitlines()[-1])[0]
+        representations[syntax] = normalized_read_sets(row)
+
+    expected = [
+        {role: str(paths[role][index].resolve()) for role in ("i1", "r1", "r2")}
+        for index in range(3)
+    ]
+    assert representations["comma"] == expected
+    assert representations["comma_whitespace"] == expected
+    assert representations["block"] == expected
+    assert representations["inline"] == expected
+
+
+def test_yaml_slurper_rejects_empty_comma_member(tmp_path):
+    paths = make_rna_read_paths(tmp_path, count=2)
+    relative = {role: [path.relative_to(tmp_path) for path in role_paths] for role, role_paths in paths.items()}
+    sheet = tmp_path / "empty-comma.yaml"
+    syntax = {"i1": "comma_empty", "r1": "comma", "r2": "comma"}
+    write_rna_yaml_sheet(sheet, relative, syntax)
+
+    result = parse_sheet(sheet, tmp_path / "out-empty", check=False)
+
+    assert result.returncode != 0
+    assert "samples.yaml_sample.rna.reads.i1 contains an empty FASTQ path at entry 2" in result.stderr
+
+
+def test_yaml_slurper_reports_the_missing_list_member(tmp_path):
+    paths = make_rna_read_paths(tmp_path, count=3)
+    relative = {role: [path.relative_to(tmp_path) for path in role_paths] for role, role_paths in paths.items()}
+    relative["i1"][1] = Path("reads/missing.part2.fastq.gz")
+    sheet = tmp_path / "missing-list-member.yaml"
+    write_rna_yaml_sheet(sheet, relative, {role: "block" for role in relative})
+
+    result = parse_sheet(sheet, tmp_path / "out-missing", check=False)
+
+    assert result.returncode != 0
+    assert "samples.yaml_sample.rna.reads.i1 entry 2 FASTQ not found" in result.stderr
+    assert str(tmp_path / "reads" / "missing.part2.fastq.gz") in result.stderr
+
+
+def test_yaml_slurper_reports_rna_read_set_cardinality_mismatch(tmp_path):
+    paths = make_rna_read_paths(tmp_path, count=3)
+    relative = {role: [path.relative_to(tmp_path) for path in role_paths] for role, role_paths in paths.items()}
+    relative["r1"] = relative["r1"][:2]
+    sheet = tmp_path / "cardinality-mismatch.yaml"
+    write_rna_yaml_sheet(sheet, relative, {role: "inline" for role in relative})
+
+    result = parse_sheet(sheet, tmp_path / "out-cardinality", check=False)
+
+    assert result.returncode != 0
+    assert "conflicting technical read-set counts: i1=3, r1=2, r2=3" in result.stderr
+
+
 def test_parser_accepts_legacy_comma_and_yaml_lists_with_path_edge_cases(tmp_path):
     legacy = {}
     for role in ("i1", "r1", "r2"):

@@ -657,7 +657,7 @@ class SamplesheetParser {
         final Map reads = asMap(modalityConfig.reads, "samples.${sampleId}.${modality}.reads")
         final Map resolved = readNames.collectEntries { readName ->
             final String fieldName = "samples.${sampleId}.${modality}.reads.${readName}"
-            [(readName): resolveFastqPaths(baseDir, reads[readName], fieldName)]
+            [(readName): resolveReadPaths(baseDir, reads[readName], fieldName)]
         }
         validateReadSetContract(sampleId, modality, resolved, false)
         return resolved
@@ -675,13 +675,13 @@ class SamplesheetParser {
         final Map reads = asMap(dnaConfig.reads, "samples.${sampleId}.dna.reads")
         final Map resolved = requiredReadNames.collectEntries { readName ->
             final String fieldName = "samples.${sampleId}.dna.reads.${readName}"
-            [(readName): resolveFastqPaths(baseDir, reads[readName], fieldName)]
+            [(readName): resolveReadPaths(baseDir, reads[readName], fieldName)]
         }
 
         if( tagmentation == TAGMENTATION_DUAL ) {
             final boolean i2Explicit = reads.containsKey('i2')
             resolved.i2 = i2Explicit
-                ? resolveFastqPaths(baseDir, reads.i2, "samples.${sampleId}.dna.reads.i2")
+                ? resolveReadPaths(baseDir, reads.i2, "samples.${sampleId}.dna.reads.i2")
                 : new ArrayList<String>(resolved.i1 as List<String>)
             resolved.i2_implicit = !i2Explicit
         }
@@ -694,7 +694,7 @@ class SamplesheetParser {
         return resolved
     }
 
-    private static List<String> resolveFastqPaths(
+    private static List<String> resolveReadPaths(
         final File baseDir,
         final Object rawValue,
         final String fieldName
@@ -710,7 +710,15 @@ class SamplesheetParser {
             if( rawValue == null ) {
                 throw new IllegalArgumentException("Missing required field: ${fieldName}")
             }
+            if( !(rawValue instanceof CharSequence) ) {
+                throw new IllegalArgumentException(
+                    "${fieldName} must be a FASTQ path string or a list of FASTQ path strings"
+                )
+            }
             final String scalar = rawValue.toString()
+            if( !scalar.trim() ) {
+                throw new IllegalArgumentException("${fieldName} must contain at least one FASTQ path")
+            }
             rawEntries = Arrays.asList(scalar.split(',', -1))
         }
 
