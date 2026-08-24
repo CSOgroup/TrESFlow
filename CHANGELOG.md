@@ -3,6 +3,21 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.1 - 2026-08-24
+
+### Added
+
+- Multi-FASTQ input support for ordered technical sequencing chunks using YAML sequences or comma-separated paths.
+- Input FASTQ provenance tracking for multi-file libraries.
+
+### Changed
+
+- DNA read groups distinguish AVITI run, flowcell, and lane while preserving the logical library across sequencing units.
+
+### Fixed
+
+- Multi-FASTQ samplesheet normalization and validation for YAML lists and comma-separated inputs.
+
 ## v1.0.0 - 2026-08-18
 
 First public TrESFlow release.
