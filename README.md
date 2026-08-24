@@ -106,24 +106,21 @@ samples:
 - DNA groups use `dna_sb_barcodes` together with `mark_barcodes`.
 - The same DNA modality barcode may represent different marks in different groups.
 - `dna.reads.i2` is required for `single` tagmentation and optional for `dual`.
-- Every `reads.i1`, `reads.i2`, `reads.r1`, and `reads.r2` value may be one path, a comma-separated scalar, or a YAML sequence. Lists are only for ordered technical FASTQ chunks of the same biological library, chemistry, tagmentation mode, and barcode layout.
-- Entry 1 in each read role is one synchronized technical read set, entry 2 is the next set, and so on. Required roles must have equal lengths; TrESFlow does not scan directories, expand globs, or infer mates from filenames.
-- Use a YAML sequence when a filename itself contains a comma. Sequence order is preserved. Relative entries resolve from the samplesheet directory.
+- FASTQ inputs may be a single path, a comma-separated list, or a YAML sequence. Multiple entries represent ordered technical FASTQ chunks from the same library, and corresponding read roles must contain the same number of entries.
+- YAML sequences are recommended for multi-FASTQ inputs and are required when a path itself contains a comma. Relative paths resolve from the samplesheet directory.
 - `runtime.tmpdir` is optional and defaults to `--outdir`.
 - `references.rna_ref_dir` must point to a STAR index when RNA is present.
 - DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
 
-For example, two RNA run chunks can be written as comma-separated scalars:
+For example:
 
 ```yaml
 rna:
   reads:
-    i1: /run1/I1.fastq.gz, /run2/I1.fastq.gz
-    r1: /run1/R1.fastq.gz, /run2/R1.fastq.gz
-    r2: /run1/R2.fastq.gz, /run2/R2.fastq.gz
+    i1: [/run1/I1.fastq.gz, /run2/I1.fastq.gz]
+    r1: [/run1/R1.fastq.gz, /run2/R1.fastq.gz]
+    r2: [/run1/R2.fastq.gz, /run2/R2.fastq.gz]
 ```
-
-The equivalent YAML-sequence form is the escape hatch for paths containing commas. TrESFlow stages all sources collision-safely, streams them in configured order into one set of tagged outputs, and keeps downstream filenames and reports at one logical-library level. Every explicitly supplied raw FASTQ reaches FastQC once; an omitted dual-DNA `i2` uses the internal `i1` fallback without a duplicate FastQC run.
 
 An example samplesheet is available above and a template in: [`assets/samplesheet.template.yaml`](assets/samplesheet.template.yaml)
 
@@ -230,7 +227,7 @@ Final canonical RNA and DNA outputs exclude alternative loci, patches, random/un
 
 ### DNA duplicates
 
-DNA duplicate marking uses the corrected cell barcode and AVITI read coordinates. DNA `RG` and `PU` identify the full physical unit (`instrument:run:flowcell:L<lane>`), while all units retain the same logical `LB`. This allows PCR/library duplicate families to span units but keeps optical comparisons unit-local. Unsupported identifier characters fail instead of being normalized into a colliding ID. The default optical-duplicate distance is:
+DNA duplicate marking uses the corrected cell barcode and AVITI read coordinates. Read groups identify AVITI run, flowcell, and lane while retaining the same logical library across sequencing units. The default optical-duplicate distance is:
 
 ```text
 --aviti_optical_duplicate_distance 10
