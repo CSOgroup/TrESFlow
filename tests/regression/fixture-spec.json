@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "fixture_generator": "tests/regression/generate_fixture.py",
+  "fixture_generator_version": "1.0.0",
+  "assembly": {
+    "id": "tresflow-phase0-synthetic-v1",
+    "kind": "deterministic artificial test sequence",
+    "license": "CC0-1.0",
+    "source_assembly": null,
+    "source_annotation": null,
+    "chromosome_naming": "UCSC-style artificial chr1, chrX, chrY, and chrM",
+    "effective_genome_size": 62000
+  },
+  "index_builds": {
+    "STAR": {
+      "required_version": "2.7.11b",
+      "arguments": [
+        "--runMode", "genomeGenerate",
+        "--runThreadN", "2",
+        "--sjdbOverhang", "99",
+        "--genomeSAindexNbases", "6",
+        "--genomeChrBinNbits", "12"
+      ]
+    },
+    "bwa-mem2": {
+      "required_package_version": "2.3",
+      "observed_binary_version": "2.2.1",
+      "arguments": ["index", "genome.fa"]
+    }
+  },
+  "scenarios": {
+    "rna_only": {
+      "sample_id": "phase0_rna",
+      "read_pairs": 64,
+      "mocks": false
+    },
+    "dna_single": {
+      "sample_id": "phase0_dna_single",
+      "read_pairs": 64,
+      "tagmentation": "single",
+      "mocks": false
+    },
+    "dna_dual": {
+      "sample_id": "phase0_dna_dual",
+      "read_pairs": 64,
+      "tagmentation": "dual",
+      "dual_tag_artifact_pairs": 1,
+      "mocks": false
+    }
+  }
+}

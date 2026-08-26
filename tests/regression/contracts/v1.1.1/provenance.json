@@ -1,0 +1,11 @@
+{
+  "release": "v1.1.1",
+  "tag_object": "043fc873f9af89af49bf51203571d79a49ee1f01",
+  "commit": "40a383e80d945618952f8e5bfddb73ed3dc63af6",
+  "tree": "3b2991fadcff797213f28375fa896df6871a8e97",
+  "parent": "428b4aa6b4d67f9c020dc0c38c3c47902527ba87",
+  "tagger_date": "2026-08-26T10:47:43+02:00",
+  "commit_date": "2026-08-26T10:47:39+02:00",
+  "subject": "Release v1.1.1",
+  "capture_policy": "Golden contracts must be captured from this exact commit and may not be overwritten in place."
+}
