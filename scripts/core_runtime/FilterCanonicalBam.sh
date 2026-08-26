@@ -233,7 +233,7 @@ if (( invalid_mate_reference_records == 0 )); then
   header_file="$(mktemp "${TMPDIR:-/tmp}/canonical-header.XXXXXX.sam")"
   reheadered_bam="$(mktemp "${TMPDIR:-/tmp}/canonical-reheader.XXXXXX.bam")"
 
-  "${SAMTOOLS_BIN}" view -H "${output_bam}" | awk -v allowlist="${allowlist}" '
+  "${SAMTOOLS_BIN}" view --no-PG -H "${output_bam}" | awk -v allowlist="${allowlist}" '
     BEGIN {
       FS = OFS = "\t"
       while ((getline line < allowlist) > 0) {
@@ -256,7 +256,22 @@ if (( invalid_mate_reference_records == 0 )); then
     { print }
   ' > "${header_file}"
 
-  "${SAMTOOLS_BIN}" reheader -P "${header_file}" "${output_bam}" > "${reheadered_bam}"
+  # BAM stores RNAME/RNEXT as numeric indexes into the ordered @SQ dictionary.
+  # Removing interspersed @SQ entries with `samtools reheader` would leave the
+  # retained records encoded with stale tid/mtid values. Decode the records
+  # against the original dictionary and re-encode them against the reduced one
+  # so both indexes are remapped by reference name. Reuse the requested output
+  # compression mode and retain the existing @PG chain without adding another
+  # entry for this implementation detail.
+  {
+    cat "${header_file}"
+    "${SAMTOOLS_BIN}" view "${output_bam}"
+  } | "${SAMTOOLS_BIN}" view \
+    --no-PG \
+    --threads "${threads}" \
+    "${output_option[@]}" \
+    --output "${reheadered_bam}" \
+    -
   mv "${reheadered_bam}" "${output_bam}"
 
   rm -f "${header_file}"
