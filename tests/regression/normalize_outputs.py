@@ -8,6 +8,7 @@ remain part of the path contract but their volatile contents are not compared.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import difflib
 import gzip
@@ -35,6 +36,11 @@ CONTENT_PATH_ONLY = {
     "pipeline_info/execution_trace.tsv",
     "pipeline_info/flowchart.html",
 }
+STAR_MAPPING_SPEED_FIELD = "Mapping speed, Million of reads per hour"
+STAR_MAPPING_SPEED_LINE = re.compile(
+    rf"^(?P<prefix>\s*{re.escape(STAR_MAPPING_SPEED_FIELD)}\s*\|\s*)\S+\s*$"
+)
+PICARD_STARTED_ON_LINE = re.compile(r"^# Started on:\s+.+$")
 
 
 def normalize_scalar_text(text: str, roots: tuple[Path, ...] = ()) -> str:
@@ -51,6 +57,27 @@ def normalize_lines(text: str, roots: tuple[Path, ...] = (), sort_lines: bool = 
     while lines and not lines[-1]:
         lines.pop()
     return sorted(lines) if sort_lines else lines
+
+
+def normalize_scoped_runtime_line(relative_path: str, line: str) -> str:
+    """Canonicalize only known runtime fields in their owning tool outputs."""
+    if relative_path.endswith(".Log.final.out"):
+        match = STAR_MAPPING_SPEED_LINE.fullmatch(line)
+        if match:
+            return f"{match.group('prefix')}<RUNTIME>"
+    elif relative_path.endswith(".DuplicateMetrics.txt") and PICARD_STARTED_ON_LINE.fullmatch(line):
+        return "# Started on: <TIMESTAMP>"
+    return line
+
+
+def canonicalize_contract_runtime_metadata(contract: dict[str, Any]) -> dict[str, Any]:
+    """Return a comparison copy with narrowly scoped runtime metadata normalized."""
+    canonical = copy.deepcopy(contract)
+    for relative_path, lines in canonical.get("text", {}).items():
+        canonical["text"][relative_path] = [
+            normalize_scoped_runtime_line(relative_path, line) for line in lines
+        ]
+    return canonical
 
 
 def read_text(path: Path) -> str:
@@ -336,7 +363,7 @@ def capture_contract(root: Path, scenario: str, samtools: Path) -> dict[str, Any
             if path.stat().st_size <= 4096:
                 contract["text"][relative] = normalize_lines(read_text(path), roots)
 
-    return contract
+    return canonicalize_contract_runtime_metadata(contract)
 
 
 def validate_contract(contract: dict[str, Any]) -> None:
@@ -452,9 +479,11 @@ def write_capture(args: argparse.Namespace) -> None:
 
 def compare_capture(args: argparse.Namespace) -> None:
     expected_payload = json.loads(args.expected.read_text(encoding="utf-8"))
-    expected = expected_payload["contract"]
+    expected = canonicalize_contract_runtime_metadata(expected_payload["contract"])
     validate_contract(expected)
-    actual = capture_contract(args.root, expected["scenario"], args.samtools)
+    actual = canonicalize_contract_runtime_metadata(
+        capture_contract(args.root, expected["scenario"], args.samtools)
+    )
     validate_contract(actual)
     actual = remove_empty_sections(actual)
     if actual == expected:

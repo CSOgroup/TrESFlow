@@ -116,6 +116,109 @@ class Phase0NormalizerTests(unittest.TestCase):
                 normalizer.semantic_gzip_text(second_file, (second_root,)),
             )
 
+    def test_star_mapping_speed_inf_and_finite_values_are_runtime_metadata(self):
+        relative_path = "rna_align/sample.Log.final.out"
+        infinite = "       Mapping speed, Million of reads per hour |\tinf"
+        finite = "       Mapping speed, Million of reads per hour |\t0.23"
+        canonical_infinite = normalizer.normalize_scoped_runtime_line(
+            relative_path, infinite
+        )
+        canonical_finite = normalizer.normalize_scoped_runtime_line(
+            relative_path, finite
+        )
+        self.assertEqual(canonical_infinite, canonical_finite)
+        self.assertIn(normalizer.STAR_MAPPING_SPEED_FIELD, canonical_infinite)
+        self.assertTrue(canonical_infinite.endswith("<RUNTIME>"))
+
+    def test_picard_started_on_weekday_and_timestamp_are_runtime_metadata(self):
+        relative_path = "dna_align/sample.DuplicateMetrics.txt"
+        legacy_expected = "# Started on: Wed <TIMESTAMP> CEST 2026"
+        newly_observed = "# Started on: Thu Aug 27 10:27:22 CEST 2026"
+        self.assertEqual(
+            normalizer.normalize_scoped_runtime_line(relative_path, legacy_expected),
+            normalizer.normalize_scoped_runtime_line(relative_path, newly_observed),
+        )
+        self.assertEqual(
+            normalizer.normalize_scoped_runtime_line(relative_path, newly_observed),
+            "# Started on: <TIMESTAMP>",
+        )
+
+    def test_expected_and_observed_contracts_are_normalized_symmetrically(self):
+        expected = {
+            "text": {
+                "rna_align/sample.Log.final.out": [
+                    "       Mapping speed, Million of reads per hour |\tinf"
+                ],
+                "dna_align/sample.DuplicateMetrics.txt": [
+                    "# Started on: Wed <TIMESTAMP> CEST 2026"
+                ],
+            }
+        }
+        observed = {
+            "text": {
+                "rna_align/sample.Log.final.out": [
+                    "       Mapping speed, Million of reads per hour |\t0.23"
+                ],
+                "dna_align/sample.DuplicateMetrics.txt": [
+                    "# Started on: Thu Aug 27 10:27:22 CEST 2026"
+                ],
+            }
+        }
+        self.assertEqual(
+            normalizer.canonicalize_contract_runtime_metadata(expected),
+            normalizer.canonicalize_contract_runtime_metadata(observed),
+        )
+
+    def test_star_and_picard_biological_metric_differences_remain_visible(self):
+        stable_runtime_lines = {
+            "rna_align/sample.Log.final.out": [
+                "       Mapping speed, Million of reads per hour |\tinf"
+            ],
+            "dna_align/sample.DuplicateMetrics.txt": [
+                "# Started on: Wed <TIMESTAMP> CEST 2026"
+            ],
+        }
+        expected = {
+            "text": stable_runtime_lines
+            | {
+                "rna_align/sample.Log.final.out": [
+                    *stable_runtime_lines["rna_align/sample.Log.final.out"],
+                    "                          Number of input reads |\t64",
+                ],
+                "dna_align/sample.DuplicateMetrics.txt": [
+                    *stable_runtime_lines["dna_align/sample.DuplicateMetrics.txt"],
+                    "PHASE0_SYNTHETIC\t0\t64\t0\t0\t0\t63\t63\t0.984375",
+                ],
+            }
+        }
+        star_difference = {
+            "text": expected["text"]
+            | {
+                "rna_align/sample.Log.final.out": [
+                    *stable_runtime_lines["rna_align/sample.Log.final.out"],
+                    "                          Number of input reads |\t65",
+                ]
+            }
+        }
+        picard_difference = {
+            "text": expected["text"]
+            | {
+                "dna_align/sample.DuplicateMetrics.txt": [
+                    *stable_runtime_lines["dna_align/sample.DuplicateMetrics.txt"],
+                    "PHASE0_SYNTHETIC\t0\t64\t0\t0\t0\t62\t62\t0.968750",
+                ]
+            }
+        }
+        canonical_expected = normalizer.canonicalize_contract_runtime_metadata(expected)
+        self.assertNotEqual(
+            canonical_expected,
+            normalizer.canonicalize_contract_runtime_metadata(star_difference),
+        )
+        self.assertNotEqual(
+            canonical_expected,
+            normalizer.canonicalize_contract_runtime_metadata(picard_difference),
+        )
+
     def test_html_comparison_uses_visible_data_not_script_or_style(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "report.html"
