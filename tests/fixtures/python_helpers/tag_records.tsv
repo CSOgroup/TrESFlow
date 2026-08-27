@@ -1,0 +1,5 @@
+q1	CB:Z:recorded	L1:Z:A	L2:Z:B	L3:Z:C	SB:Z:AAA	MO:Z:MARKA
+q2	CB:Z:recorded	L1:Z:A	L2:Z:B	L3:Z:C	SB:Z:AAA	MO:Z:NoMatch
+q3	CB:Z:recorded	L1:Z:A	L2:Z:B	L3:Z:C	SB:Z:CCC	MO:Z:MARKC
+q4	CB:Z:recorded	L1:Z:A	L2:Z:B	L3:Z:NoMatch	SB:Z:AAA	MO:Z:MARKB
+q5	CB:Z:recorded	L1:Z:A	L2:Z:B	L3:Z:C	SB:Z:NoMatch	MO:Z:MARKA

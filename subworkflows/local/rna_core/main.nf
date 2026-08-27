@@ -120,7 +120,12 @@ workflow RNA_CORE {
             tuple(sampleId, trimMeta, 'rna', trimmedR1, trimmedR2, tagRecords, [sbGroupMap])
         }
 
-    BARCODE_GATE_METRICS(ch_rna_barcode_metric_input)
+    def barcodeMetricHelpers = [
+        file("${projectDir}/bin/write_barcode_gate_metrics.py", checkIfExists: true),
+        file("${projectDir}/bin/run_split_reads_dna.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    BARCODE_GATE_METRICS(ch_rna_barcode_metric_input, barcodeMetricHelpers)
     ch_versions = ch_versions.mix(BARCODE_GATE_METRICS.out.versions)
 
     // Split trimmed reads by sample-barcode group before FQ_TO_SAM.

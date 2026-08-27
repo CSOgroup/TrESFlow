@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "asset_type": "synthetic-test-only",
+  "provenance": "Authored for TrESFlow Phase 1; no external source data",
+  "license": "MIT",
+  "files": {
+    "R1.fastq": "ab1962039ffab76b56a6446613dcc04bef67f165f0228ad02e548dd2b95123d5",
+    "R2.fastq": "cb26cd6c0eacc91320820044cbc8e38f5640f4fe5692217b2dc186c7cfb4f1d9",
+    "dna_mo_map.tsv": "81bc99f694ce2cc07f32a77e83a2e2443f40fbdad3cd20425f2e4cb0947e70cd",
+    "dna_sb_group_map.tsv": "9de47c1cc6c1e9998f3bd7bc8f7165a91a420f1ba531ed6edf5ad5aebbe694ca",
+    "report_static/sample.dna_cell.stats_L1.tsv": "4629ff08839dfae30a73cc2e5a57eeccd80cc1412dea93ef41563886dcbf8691",
+    "report_static/sample.dna_cell.stats_L2.tsv": "7265d33bcb7f0cc9f04fedb6fc0b3778df246c7c5be9ac25526f5fb2d9ab6b0f",
+    "report_static/sample.dna_cell.stats_L3.tsv": "d4dac470a72eff3f0a52abb6d85003d0b415bc70c6b7ae8bbb25cf00d5834625",
+    "report_static/sample.dna_modality.stats.tsv": "a468322812bc8d33c430c9da53cdebfa6f910d37c3de1c5611f15e52738cef2c",
+    "report_static/sample.dna_read_retention.tsv": "0c30cfffbf902bfe25de37309c7574cab8b522b9d8942eee1540b57dff5039fd",
+    "report_static/sample.dna_sample_barcode.counts.tsv": "4b17f4755470bd19f6c91f99cc495e853a39294cfc2d6b0e41cfbe056560dc1d",
+    "report_static/sample.dna_sample_barcode.stats.tsv": "1356c29100bb32d0c000a83a9406ac812d58967d50f51d8f740e429c69899260",
+    "report_static/sample_run-alpha_mark-one.dna_alignment_retention.tsv": "681b45864df046d162915c8cd1760fcb37e3dd493c29b5ff2e015593bdd8f104",
+    "report_static/sample_run-beta_mark-three.dna_alignment_retention.tsv": "2a668c015b8ad34d74f67b9e18e18092f05bb695ac144046ffab6719d9341373",
+    "tag_records.tsv": "bdc8d31f46115da51e4317be92d897b0978a938bdc25a326d41f4921629f793c"
+  }
+}

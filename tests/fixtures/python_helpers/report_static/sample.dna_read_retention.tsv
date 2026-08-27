@@ -1,0 +1,5 @@
+sample_id	modality	group	branch	metric	pairs	unit
+sample	dna	__all__	__all__	split_input_pairs	5	read_pairs
+sample	dna	__all__	__all__	joint_barcode_accepted_pairs	2	read_pairs
+sample	dna	run-alpha	mark-one	routed_branch_pairs	1	read_pairs
+sample	dna	run-beta	mark-three	routed_branch_pairs	1	read_pairs

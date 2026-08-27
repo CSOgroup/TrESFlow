@@ -1,0 +1,46 @@
+nextflow_pipeline {
+
+    name "Portable Python helper process family"
+    script "tests/phase1_python_helpers.nf"
+    tag "phase1-python-helpers"
+
+    test("real barcode metrics and TrES report helpers") {
+
+        when {
+            params {
+                repo_root = "$projectDir"
+                fixture_dir = "$projectDir/tests/fixtures/python_helpers"
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def stats = new File(outputDir, "TrES_Stats")
+            def gates = new File(stats, "sample.dna_barcode_gates.tsv")
+            def composition = new File(stats, "sample.dna_barcode_composition.tsv")
+            def report = new File(stats, "tres_report.html")
+            def expectedGates = [
+                "split_input_pairs\t5",
+                "ligation_barcode_accepted_pairs\t4",
+                "sample_barcode_accepted_pairs\t3",
+                "modality_barcode_accepted_pairs\t2",
+            ]
+
+            assertAll(
+                { assert workflow.success },
+                { assert gates.exists() },
+                { assert expectedGates.every { expected -> gates.readLines().any { it.contains(expected) } } },
+                { assert composition.exists() },
+                { assert composition.text.contains("run-alpha\tdna_mark\tmark-one") },
+                { assert composition.text.contains("run-beta\tdna_mark\tmark-three") },
+                { assert report.exists() },
+                { assert report.text.contains("<title>Phase 1 portable helpers · TrESFlow QC</title>") },
+                { assert report.text.contains("<span>Pipeline version</span><strong>v1.1.1</strong>") },
+                { assert new File(stats, "read_retention.tsv").text.contains("Properly paired after blacklist") },
+                { assert new File(stats, "qc_metrics.tsv").text.contains("modality_barcode_accepted_pairs") },
+                { assert new File(stats, "barcode_composition.tsv").text.contains("mark-one") },
+                { assert new File(stats, "library_complexity.tsv").exists() }
+            )
+        }
+    }
+}

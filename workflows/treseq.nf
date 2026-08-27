@@ -222,7 +222,11 @@ workflow TRESEQ {
             )
         }
 
-    TRES_REPORT_HTML(ch_tres_report_input)
+    TRES_REPORT_HTML(
+        ch_tres_report_input,
+        file("${projectDir}/bin/render_tres_report.py", checkIfExists: true),
+        file("${projectDir}/lib/tresflow_qc", checkIfExists: true)
+    )
     MULTIQC(ch_multiqc_input)
 
     emit:

@@ -1,0 +1,2 @@
+sample_id	modality	group	branch	metric	pairs	unit
+sample	dna	run-alpha	mark-one	proper_pair_primary_pairs	1	read_pairs

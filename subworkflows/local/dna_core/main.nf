@@ -209,7 +209,12 @@ workflow DNA_CORE {
             tuple(sampleId, splitMeta, 'dna', splitR1, splitR2, tagRecords, [sbGroupMap, moMap])
         }
 
-    BARCODE_GATE_METRICS(ch_dna_barcode_metric_input)
+    def barcodeMetricHelpers = [
+        file("${projectDir}/bin/write_barcode_gate_metrics.py", checkIfExists: true),
+        file("${projectDir}/bin/run_split_reads_dna.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    BARCODE_GATE_METRICS(ch_dna_barcode_metric_input, barcodeMetricHelpers)
     ch_versions = ch_versions.mix(BARCODE_GATE_METRICS.out.versions)
 
     // Split post-trimming DNA reads by sample-barcode group and modality mark.
