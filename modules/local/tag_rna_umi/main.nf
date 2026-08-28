@@ -14,16 +14,20 @@
  *   - UMI counts table
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process TAG_RNA_UMI {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    conda "${moduleDir}/../codon_seq/environment.yml"
+
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_umi.counts.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(rawR2, stageAs: 'raw_r2???/*'), path(taggedR1), path(taggedR2), path(readSetCounts)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi.R1.fastq"), path("${sampleId}.sample_barcode_umi.R2.fastq"), path(readSetCounts), emit: tagged
@@ -33,22 +37,21 @@ process TAG_RNA_UMI {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
     def rawR2Manifest = (((rawR2 instanceof List ? rawR2 : [rawR2]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
     def taggedR1Manifest = (taggedR1.toString() + '\n').bytes.encodeBase64().toString()
     def taggedR2Manifest = (taggedR2.toString() + '\n').bytes.encodeBase64().toString()
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     printf '%s' '${rawR2Manifest}' | base64 --decode > raw_r2.fastq.manifest
     printf '%s' '${taggedR1Manifest}' | base64 --decode > tagged_r1.fastq.manifest
     printf '%s' '${taggedR2Manifest}' | base64 --decode > tagged_r2.fastq.manifest
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_umi.py" \\
+    python3 "tresflow/bin/run_tag_umi.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/Tag_UMI.codon" \\
+      --script "tresflow/codon/Tag_UMI.codon" \\
       --i2-manifest raw_r2.fastq.manifest \\
       --r1-manifest tagged_r1.fastq.manifest \\
       --r2-manifest tagged_r2.fastq.manifest \\

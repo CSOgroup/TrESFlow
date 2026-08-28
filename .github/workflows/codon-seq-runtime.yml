@@ -1,0 +1,35 @@
+name: Build Codon/Seq runtime
+
+on:
+  pull_request:
+    paths:
+      - "containers/codon-seq/**"
+      - ".github/workflows/codon-seq-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    name: linux/amd64 local build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      # Build only: do not publish while Seq v0.11.3 redistribution is unresolved.
+      - name: Build the checksum-pinned runtime
+        run: |
+          docker build --platform linux/amd64 \
+            --file containers/codon-seq/Dockerfile \
+            --tag tresflow-codon-seq:phase2-local .
+
+      - name: Verify versions and Seq import
+        run: |
+          test "$(docker run --rm --platform linux/amd64 tresflow-codon-seq:phase2-local codon --version)" = "0.16.3"
+          test "$(docker run --rm --platform linux/amd64 tresflow-codon-seq:phase2-local python3 --version)" = "Python 3.12.13"
+          printf 'import bio\nprint("seq-import-ok")\n' > "${RUNNER_TEMP}/seq-smoke.codon"
+          test "$(docker run --rm --platform linux/amd64 \
+            --mount type=bind,src="${RUNNER_TEMP}/seq-smoke.codon",dst=/tmp/seq-smoke.codon,readonly \
+            tresflow-codon-seq:phase2-local \
+            codon run -plugin seq -release /tmp/seq-smoke.codon)" = "seq-import-ok"

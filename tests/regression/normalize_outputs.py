@@ -41,6 +41,7 @@ STAR_MAPPING_SPEED_LINE = re.compile(
     rf"^(?P<prefix>\s*{re.escape(STAR_MAPPING_SPEED_FIELD)}\s*\|\s*)\S+\s*$"
 )
 PICARD_STARTED_ON_LINE = re.compile(r"^# Started on:\s+.+$")
+RUNTIME_CONTRACT_PATH = "pipeline_info/runtime_contract.tsv"
 
 
 def normalize_scalar_text(text: str, roots: tuple[Path, ...] = ()) -> str:
@@ -77,6 +78,27 @@ def canonicalize_contract_runtime_metadata(contract: dict[str, Any]) -> dict[str
         canonical["text"][relative_path] = [
             normalize_scoped_runtime_line(relative_path, line) for line in lines
         ]
+    runtime_contract = canonical.get("tables", {}).get(RUNTIME_CONTRACT_PATH)
+    if runtime_contract:
+        runtime_contract["rows"] = canonicalize_retired_codon_host_rows(
+            runtime_contract.get("rows", [])
+        )
+    return canonical
+
+
+def canonicalize_retired_codon_host_rows(rows: list[list[str]]) -> list[list[str]]:
+    """Remove only the retired host Codon/Seq preflight metadata.
+
+    Codon and Seq now belong to process environments. The remaining host-tool
+    rows and runtime paths are still compared as before.
+    """
+    canonical: list[list[str]] = []
+    for row in rows:
+        if row == ["[host_codon_seq_preflight]"]:
+            break
+        if row and row[0] in {"codon", "codon_home"}:
+            continue
+        canonical.append(row)
     return canonical
 
 

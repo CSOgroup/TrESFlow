@@ -12,7 +12,6 @@ class RuntimeSupport {
         [name: 'bwa-mem2', binary: 'bwa-mem2'],
         [name: 'bamCoverage', binary: 'bamCoverage'],
         [name: 'gatk', binary: 'gatk'],
-        [name: 'codon', binary: 'codon'],
         [name: 'pigz', binary: 'pigz'],
     ]
 
@@ -60,10 +59,6 @@ class RuntimeSupport {
     static String runtimeToolPath(final Map params, final String binary) {
         final String binDir = runtimeBinDir(params)
         return binDir ? "${binDir}/${binary}" : ''
-    }
-
-    static String runtimeCodonHome(final Map params) {
-        return runtimeEnvPrefix(params)
     }
 
     static String resolvePath(final String rawBaseDir, final Object rawPath) {
@@ -117,44 +112,6 @@ class RuntimeSupport {
                 "Unable to resolve the TrESFlow release version: ${output ?: 'no output'}"
             )
         }
-        return output
-    }
-
-    static String runCodonSeqPreflight(final Map runtimeParams, final String rawProjectDir) {
-        final File projectDirectory = new File(rawProjectDir).canonicalFile
-        final File preflight = new File(projectDirectory, 'bin/check_codon_seq_host.sh')
-        final String codonBin = runtimeToolPath(runtimeParams, 'codon')
-        final String codonHome = runtimeCodonHome(runtimeParams)
-
-        if( !preflight.exists() ) {
-            throw new IllegalStateException(
-                "Global pinned Codon/Seq preflight failed. Missing required preflight script: ${preflight}"
-            )
-        }
-
-        final ProcessBuilder processBuilder = new ProcessBuilder('bash', preflight.toString())
-            .directory(projectDirectory)
-            .redirectErrorStream(true)
-
-        final Map<String, String> env = processBuilder.environment()
-        if( codonBin ) {
-            env.put('CODON_BIN', codonBin)
-        }
-        if( codonHome ) {
-            env.put('CODON_HOME', codonHome)
-        }
-
-        final Process process = processBuilder.start()
-        final String output = process.inputStream.getText('UTF-8').trim()
-        final int exitCode = process.waitFor()
-
-        if( exitCode != 0 ) {
-            final String detail = output ? "\n${output}" : ''
-            throw new IllegalStateException(
-                "Global pinned Codon/Seq preflight failed. Every pipeline run requires codon 0.16.3 and Seq 0.11.3.${detail}"
-            )
-        }
-
         return output
     }
 
@@ -237,7 +194,6 @@ class RuntimeSupport {
         return [
             runtime_env_prefix: runtimeEnvPrefix(params),
             runtime_bin_dir   : runtimeBinDir(params),
-            codon_home        : runtimeCodonHome(params),
             runtime_tmpdir    : runtimeTmpdir(params),
         ]
     }
@@ -245,7 +201,6 @@ class RuntimeSupport {
     static void validateRuntimeContract(final Map params) {
         validateConfiguredDirectory('runtime env prefix', runtimeEnvPrefix(params))
         validateConfiguredDirectory('runtime bin dir', runtimeBinDir(params))
-        validateConfiguredDirectory('codon home', runtimeCodonHome(params))
         validateConfiguredWritableDirectory('runtime tmpdir', runtimeTmpdir(params), true)
 
         standardRuntimeTools(params).each { tool ->
@@ -301,9 +256,7 @@ class RuntimeSupport {
             BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
             BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
             GATK_BIN               : "${binDir}/gatk",
-            CODON_BIN              : "${binDir}/codon",
             PIGZ_BIN               : "${binDir}/pigz",
-            CODON_HOME             : envPrefix,
         ]
 
         return exports.collect { key, value ->
@@ -319,7 +272,6 @@ class RuntimeSupport {
     static void writeRuntimeContract(
         final String rawOutdir,
         final List<Map> configuredTools,
-        final String codonPreflightOutput,
         final Map runtimeContext = [:]
     ) {
         final File pipelineInfoDir = new File((rawOutdir ?: 'results').toString(), 'pipeline_info')
@@ -341,10 +293,6 @@ class RuntimeSupport {
         runtimeContext.each { key, value ->
             builder.append("${key}\t${(value ?: '').toString()}\n")
         }
-
-        builder.append("\n[host_codon_seq_preflight]\n")
-        builder.append(codonPreflightOutput ?: '')
-        builder.append('\n')
 
         reportFile.text = builder.toString()
     }

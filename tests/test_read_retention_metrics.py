@@ -512,7 +512,6 @@ class ReadRetentionMetricTests(unittest.TestCase):
             temp_root.mkdir()
 
             env = os.environ.copy()
-            env["CODON_BIN"] = codon
             env["TMPDIR"] = str(temp_root)
 
             subprocess.run(
@@ -626,7 +625,6 @@ class ReadRetentionMetricTests(unittest.TestCase):
             )
 
             env = os.environ.copy()
-            env["CODON_BIN"] = codon
             env["TMPDIR"] = str(temp_root)
             result = subprocess.run(
                 command,

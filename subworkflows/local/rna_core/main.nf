@@ -63,13 +63,51 @@ workflow RNA_CORE {
 
     main:
     ch_versions = channel.empty()
+    def codonScriptsRoot = java.lang.System.getProperty('tresflow.resolvedCoreScriptsDir')
+
+    def tagHelperScripts = [
+        file("${projectDir}/bin/run_tag.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def tagCodonScripts = [
+        file("${codonScriptsRoot}/Tag.codon", checkIfExists: true),
+        file("${codonScriptsRoot}/utils.codon", checkIfExists: true),
+    ]
+    def umiHelperScripts = [
+        file("${projectDir}/bin/run_tag_umi.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def umiCodonScripts = [
+        file("${codonScriptsRoot}/Tag_UMI.codon", checkIfExists: true),
+    ]
+    def cellHelperScripts = [
+        file("${projectDir}/bin/run_tag_lig3.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def cellCodonScripts = [
+        file("${codonScriptsRoot}/Tag_Lig3.codon", checkIfExists: true),
+        file("${codonScriptsRoot}/utils.codon", checkIfExists: true),
+    ]
+    def splitHelperScripts = [
+        file("${projectDir}/bin/run_split_reads_rna.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def splitCodonScripts = [
+        file("${codonScriptsRoot}/Split_ReadsV2.codon", checkIfExists: true),
+    ]
+    def fqToSamHelperScripts = [
+        file("${projectDir}/bin/run_fq_to_sam.py", checkIfExists: true),
+    ]
+    def fqToSamCodonScripts = [
+        file("${codonScriptsRoot}/FqToSAM.codon", checkIfExists: true),
+    ]
 
     // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
         tuple(sampleId, meta, r1, r2, sbGroupMap)
     }
 
-    TAG_RNA_SAMPLE_BARCODE(ch_sb_input)
+    TAG_RNA_SAMPLE_BARCODE(ch_sb_input, tagHelperScripts, tagCodonScripts)
     ch_versions = ch_versions.mix(TAG_RNA_SAMPLE_BARCODE.out.versions)
 
     // Add UMIs after sample-barcode tagging.
@@ -83,7 +121,7 @@ workflow RNA_CORE {
             tuple(sampleId, metaFromInput, rawR2, taggedR1, taggedR2, readSetCounts)
         }
 
-    TAG_RNA_UMI(ch_umi_input)
+    TAG_RNA_UMI(ch_umi_input, umiHelperScripts, umiCodonScripts)
     ch_versions = ch_versions.mix(TAG_RNA_UMI.out.versions)
 
     // Add ligation-derived cell barcodes from I1.
@@ -97,7 +135,7 @@ workflow RNA_CORE {
             tuple(sampleId, metaFromInput, i1, taggedR1, taggedR2, cellWhitelist, readSetCounts)
         }
 
-    TAG_RNA_CELL_BARCODE(ch_cb_input)
+    TAG_RNA_CELL_BARCODE(ch_cb_input, cellHelperScripts, cellCodonScripts)
     ch_versions = ch_versions.mix(TAG_RNA_CELL_BARCODE.out.versions)
     TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
     ch_versions = ch_versions.mix(TRIM_RNA_FASTQS.out.versions)
@@ -139,7 +177,7 @@ workflow RNA_CORE {
             tuple(sampleId, metaFromInput, trimmedR1, trimmedR2, sbGroupMap)
         }
 
-    SPLIT_RNA_READS(ch_split_input)
+    SPLIT_RNA_READS(ch_split_input, splitHelperScripts, splitCodonScripts)
     ch_versions = ch_versions.mix(SPLIT_RNA_READS.out.versions)
 
     // The plain split FASTQs branch independently: computation always consumes
@@ -164,7 +202,7 @@ workflow RNA_CORE {
             }
         }
 
-    FQ_TO_SAM(ch_fq_to_sam_input)
+    FQ_TO_SAM(ch_fq_to_sam_input, fqToSamHelperScripts, fqToSamCodonScripts)
     ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
 
     // Align each grouped unmapped SAM independently with STARsolo.

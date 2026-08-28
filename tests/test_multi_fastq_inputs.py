@@ -600,7 +600,6 @@ def test_production_codon_taggers_accept_ordered_manifests(tmp_path):
         sources[role] = manifest
 
     env = os.environ.copy()
-    env["CODON_BIN"] = codon
     env["TMPDIR"] = str(tmp_path)
     tag_whitelist = tmp_path / "tag_whitelist.txt"
     tag_whitelist.write_text("AAAA\nCCCC\n", encoding="utf-8")

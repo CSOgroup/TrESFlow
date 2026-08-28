@@ -123,6 +123,31 @@ workflow DNA_CORE {
 
     main:
     ch_versions = channel.empty()
+    def codonScriptsRoot = java.lang.System.getProperty('tresflow.resolvedCoreScriptsDir')
+
+    def tagHelperScripts = [
+        file("${projectDir}/bin/run_tag.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def tagCodonScripts = [
+        file("${codonScriptsRoot}/Tag.codon", checkIfExists: true),
+        file("${codonScriptsRoot}/utils.codon", checkIfExists: true),
+    ]
+    def cellHelperScripts = [
+        file("${projectDir}/bin/run_tag_lig3.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def cellCodonScripts = [
+        file("${codonScriptsRoot}/Tag_Lig3.codon", checkIfExists: true),
+        file("${codonScriptsRoot}/utils.codon", checkIfExists: true),
+    ]
+    def splitHelperScripts = [
+        file("${projectDir}/bin/run_split_reads_dna.py", checkIfExists: true),
+        file("${projectDir}/bin/tresflow_fastq_utils.py", checkIfExists: true),
+    ]
+    def splitCodonScripts = [
+        file("${codonScriptsRoot}/Split_ReadsV2.codon", checkIfExists: true),
+    ]
 
     // Tag sample barcodes from the tagmentation-specific DNA index stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
@@ -130,7 +155,7 @@ workflow DNA_CORE {
         tuple(sampleId, meta, sbIndexRead, r1, r2, sbGroupMap)
     }
 
-    TAG_DNA_SAMPLE_BARCODE(ch_sb_input)
+    TAG_DNA_SAMPLE_BARCODE(ch_sb_input, tagHelperScripts, tagCodonScripts)
     ch_versions = ch_versions.mix(TAG_DNA_SAMPLE_BARCODE.out.versions)
 
     // Add modality barcodes from the tagmentation-specific DNA index stream.
@@ -145,7 +170,7 @@ workflow DNA_CORE {
             tuple(sampleId, metaFromInput, indexRead, taggedR1, taggedR2, modalityWhitelist, readSetCounts)
         }
 
-    TAG_DNA_MODALITY_BARCODE(ch_mo_input)
+    TAG_DNA_MODALITY_BARCODE(ch_mo_input, tagHelperScripts, tagCodonScripts)
     ch_versions = ch_versions.mix(TAG_DNA_MODALITY_BARCODE.out.versions)
 
     // Add ligation-derived cell barcodes from DNA I1. Legacy single-tagmentation
@@ -165,7 +190,7 @@ workflow DNA_CORE {
             tuple(sampleId, metaFromInput, ligationRead, taggedR1, taggedR2, cellWhitelist, readSetCounts)
         }
 
-    TAG_DNA_CELL_BARCODE(ch_cb_input)
+    TAG_DNA_CELL_BARCODE(ch_cb_input, cellHelperScripts, cellCodonScripts)
     ch_versions = ch_versions.mix(TAG_DNA_CELL_BARCODE.out.versions)
 
     // Every DNA pair first undergoes ordinary adapter/quality trimming so
@@ -228,7 +253,7 @@ workflow DNA_CORE {
             tuple(sampleId, metaFromInput, trimmedR1, trimmedR2, moMap, sbGroupMap)
         }
 
-    SPLIT_DNA_READS(ch_split_input)
+    SPLIT_DNA_READS(ch_split_input, splitHelperScripts, splitCodonScripts)
     ch_versions = ch_versions.mix(SPLIT_DNA_READS.out.versions)
 
     // The plain split FASTQs branch independently: alignment always consumes

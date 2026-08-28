@@ -169,6 +169,69 @@ class Phase0NormalizerTests(unittest.TestCase):
             normalizer.canonicalize_contract_runtime_metadata(observed),
         )
 
+    def test_retired_codon_host_preflight_is_normalized_symmetrically(self):
+        expected = {
+            "tables": {
+                normalizer.RUNTIME_CONTRACT_PATH: {
+                    "delimiter": "tab",
+                    "rows": [
+                        ["tool", "configured_path", "exists", "currently_used"],
+                        ["python3", "<PATH>", "true", "yes"],
+                        ["codon", "<PATH>", "true", "yes"],
+                        ["pigz", "<PATH>", "true", "yes"],
+                        ["[runtime_environment]"],
+                        ["runtime_env_prefix", "<PATH>"],
+                        ["codon_home", "<PATH>"],
+                        ["runtime_tmpdir", "<PATH>"],
+                        ["[host_codon_seq_preflight]"],
+                        ["required_codon_version=0.16.3"],
+                        ["required_seq_version=0.11.3"],
+                    ],
+                }
+            }
+        }
+        observed = {
+            "tables": {
+                normalizer.RUNTIME_CONTRACT_PATH: {
+                    "delimiter": "tab",
+                    "rows": [
+                        ["tool", "configured_path", "exists", "currently_used"],
+                        ["python3", "<PATH>", "true", "yes"],
+                        ["pigz", "<PATH>", "true", "yes"],
+                        ["[runtime_environment]"],
+                        ["runtime_env_prefix", "<PATH>"],
+                        ["runtime_tmpdir", "<PATH>"],
+                    ],
+                }
+            }
+        }
+        self.assertEqual(
+            normalizer.canonicalize_contract_runtime_metadata(expected),
+            normalizer.canonicalize_contract_runtime_metadata(observed),
+        )
+
+    def test_non_codon_runtime_contract_changes_remain_visible(self):
+        expected = {
+            "tables": {
+                normalizer.RUNTIME_CONTRACT_PATH: {
+                    "delimiter": "tab",
+                    "rows": [["pigz", "<PATH>", "true", "yes"]],
+                }
+            }
+        }
+        observed = {
+            "tables": {
+                normalizer.RUNTIME_CONTRACT_PATH: {
+                    "delimiter": "tab",
+                    "rows": [["pigz", "<PATH>", "false", "yes"]],
+                }
+            }
+        }
+        self.assertNotEqual(
+            normalizer.canonicalize_contract_runtime_metadata(expected),
+            normalizer.canonicalize_contract_runtime_metadata(observed),
+        )
+
     def test_star_and_picard_biological_metric_differences_remain_visible(self):
         stable_runtime_lines = {
             "rna_align/sample.Log.final.out": [

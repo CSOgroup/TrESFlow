@@ -20,9 +20,7 @@ def runtimeShellExports(runtimeParams) {
         BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
         BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
         GATK_BIN               : "${binDir}/gatk",
-        CODON_BIN              : "${binDir}/codon",
         PIGZ_BIN               : "${binDir}/pigz",
-        CODON_HOME             : envPrefix,
     ]
 
     exports.collect { key, value ->

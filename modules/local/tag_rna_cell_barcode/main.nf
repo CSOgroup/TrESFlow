@@ -15,17 +15,21 @@
  *   - per-barcode counts, tag records, and ligation stats
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process TAG_RNA_CELL_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
+
+    conda "${moduleDir}/../codon_seq/environment.yml"
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_cell.*.tsv"
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_tag_records.tsv.gz"
 
     input:
     tuple val(sampleId), val(meta), path(i1, stageAs: 'i1???/*'), path(taggedR1), path(taggedR2), path(cellWhitelist), path(readSetCounts)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode_umi_cell.R1.fastq"), path("${sampleId}.sample_barcode_umi_cell.R2.fastq"), emit: tagged
@@ -36,22 +40,21 @@ process TAG_RNA_CELL_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
     def i1Manifest = (((i1 instanceof List ? i1 : [i1]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
     def taggedR1Manifest = (taggedR1.toString() + '\n').bytes.encodeBase64().toString()
     def taggedR2Manifest = (taggedR2.toString() + '\n').bytes.encodeBase64().toString()
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     printf '%s' '${i1Manifest}' | base64 --decode > i1.fastq.manifest
     printf '%s' '${taggedR1Manifest}' | base64 --decode > tagged_r1.fastq.manifest
     printf '%s' '${taggedR2Manifest}' | base64 --decode > tagged_r2.fastq.manifest
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_tag_lig3.py" \\
+    python3 "tresflow/bin/run_tag_lig3.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/Tag_Lig3.codon" \\
+      --script "tresflow/codon/Tag_Lig3.codon" \\
       --i1-manifest i1.fastq.manifest \\
       --r1-manifest tagged_r1.fastq.manifest \\
       --r2-manifest tagged_r2.fastq.manifest \\
@@ -74,11 +77,7 @@ process TAG_RNA_CELL_BARCODE {
     cp "${sampleId}.cell.stats_L2.tsv" "${sampleId}.rna_cell.stats_L2.tsv"
     cp "${sampleId}.cell.stats_L3.tsv" "${sampleId}.rna_cell.stats_L3.tsv"
 
-    if [[ ! -x "\$PIGZ_BIN" ]]; then
-      echo "Missing configured pigz executable for TrES_Stats tag record compression: \$PIGZ_BIN" >&2
-      exit 1
-    fi
-    "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
+    pigz -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

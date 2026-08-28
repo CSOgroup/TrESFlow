@@ -14,14 +14,16 @@
  *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
-
 process FQ_TO_SAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
+    conda "${moduleDir}/../codon_seq/environment.yml"
+
     input:
     tuple val(splitName), val(meta), path(splitR1), path(splitR2)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_tagged.usam"), emit: usam
@@ -29,15 +31,14 @@ process FQ_TO_SAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_fq_to_sam.py" \\
+    python3 "tresflow/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/FqToSAM.codon" \\
+      --script "tresflow/codon/FqToSAM.codon" \\
       --r1 "${splitR1}" \\
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"

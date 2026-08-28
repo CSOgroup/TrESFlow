@@ -1,0 +1,3 @@
+import bio
+
+print("seq-import-ok")

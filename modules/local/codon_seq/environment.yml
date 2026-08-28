@@ -1,0 +1,11 @@
+name: tresflow-codon-seq
+channels:
+  - conda-forge
+  - https://conda.anaconda.org/HCC
+  - nodefaults
+dependencies:
+  - conda-forge::python=3.12.13=h8ab3286_1_cpython
+  - HCC::codon=0.16.3=haac0b7c_0
+  - HCC::seq=0.11.3=hcb33b08_0
+  - conda-forge::pigz=2.8=h421ea60_2
+  - conda-forge::libxml2=2.11.6=h232c23b_0

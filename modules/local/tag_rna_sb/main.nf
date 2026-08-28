@@ -19,16 +19,20 @@
  *   - barcode counts and summary stats
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process TAG_RNA_SAMPLE_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    conda "${moduleDir}/../codon_seq/environment.yml"
+
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_sample_barcode.*.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(r1, stageAs: 'r1???/*'), path(r2, stageAs: 'r2???/*'), path(sbGroupMap)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.sample_barcode.R1.fastq"), path("${sampleId}.sample_barcode.R2.fastq"), path("${sampleId}.rna.read_set_counts.tsv"), emit: tagged
@@ -38,22 +42,21 @@ process TAG_RNA_SAMPLE_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
     def r1Manifest = (((r1 instanceof List ? r1 : [r1]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
     def r2Manifest = (((r2 instanceof List ? r2 : [r2]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     printf '%s' '${r1Manifest}' | base64 --decode > r1.fastq.manifest
     printf '%s' '${r2Manifest}' | base64 --decode > r2.fastq.manifest
 
     echo "RNA SB source=${meta.rna_sb_barcode_source}; RNA SB length=${meta.rna_sb_barcode_len}; index_read=r2; BC_LEN=${meta.sample_bc_len}; BC_START=${meta.sample_bc_start}; HD=${meta.sample_hd}; rev_comp_arg=${meta.sample_reverse_complement}" >&2
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
+    python3 "tresflow/bin/run_tag.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/Tag.codon" \\
+      --script "tresflow/codon/Tag.codon" \\
       --i2-manifest r2.fastq.manifest \\
       --r1-manifest r1.fastq.manifest \\
       --r2-manifest r2.fastq.manifest \\

@@ -15,16 +15,20 @@
  *   - modality-barcode counts and summary stats
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process TAG_DNA_MODALITY_BARCODE {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    conda "${moduleDir}/../codon_seq/environment.yml"
+
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_modality.*.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(indexRead, stageAs: 'index???/*'), path(taggedR1), path(taggedR2), path(modalityWhitelist), path(readSetCounts)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality.R1.fastq"), path("${sampleId}.dna_sample_barcode_modality.R2.fastq"), path(readSetCounts), emit: tagged
@@ -33,14 +37,13 @@ process TAG_DNA_MODALITY_BARCODE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
     def indexManifest = (((indexRead instanceof List ? indexRead : [indexRead]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
     def taggedR1Manifest = (taggedR1.toString() + '\n').bytes.encodeBase64().toString()
     def taggedR2Manifest = (taggedR2.toString() + '\n').bytes.encodeBase64().toString()
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     printf '%s' '${indexManifest}' | base64 --decode > index.fastq.manifest
     printf '%s' '${taggedR1Manifest}' | base64 --decode > tagged_r1.fastq.manifest
@@ -48,9 +51,9 @@ process TAG_DNA_MODALITY_BARCODE {
 
     echo "DNA tagmentation=${meta.dna_tagmentation}; DNA MO index_read=${meta.dna_modality_index_read}; BC_LEN=${meta.modality_bc_len}; BC_START=${meta.modality_bc_start}; HD=${meta.modality_hd}; rev_comp_arg=${meta.modality_reverse_complement}" >&2
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_tag.py" \\
+    python3 "tresflow/bin/run_tag.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/Tag.codon" \\
+      --script "tresflow/codon/Tag.codon" \\
       --i2-manifest index.fastq.manifest \\
       --r1-manifest tagged_r1.fastq.manifest \\
       --r2-manifest tagged_r2.fastq.manifest \\

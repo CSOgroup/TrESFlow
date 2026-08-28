@@ -300,13 +300,6 @@ def load_whitelist(path: Path):
 
 
 def resolve_codon_bin() -> str:
-    configured = os.environ.get("CODON_BIN")
-    if configured:
-        codon_bin = Path(configured)
-        if not codon_bin.exists() or not os.access(codon_bin, os.X_OK):
-            raise RuntimeError(f"Configured CODON_BIN is missing or not executable: {codon_bin}")
-        return str(codon_bin)
-
     resolved = shutil.which("codon")
     if resolved is None:
         raise RuntimeError("codon executable not found in PATH")

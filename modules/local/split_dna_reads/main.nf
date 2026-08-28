@@ -15,16 +15,20 @@
  *   - per-group per-mark SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process SPLIT_DNA_READS {
     tag "${sampleId}"
     label 'codon_wrapper'
 
+    conda "${moduleDir}/../codon_seq/environment.yml"
+
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_read_retention.tsv"
 
     input:
     tuple val(sampleId), val(meta), path(splitInputR1), path(splitInputR2), path(moMap), path(sbGroupMap)
+    path helperScripts, stageAs: "tresflow/bin/*"
+    path codonScripts, stageAs: "tresflow/codon/*"
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}_*_R1.fastq"), path("${sampleId}_*_R2.fastq"), emit: split_fastqs
@@ -34,15 +38,14 @@ process SPLIT_DNA_READS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_split_reads_dna.py" \\
+    python3 "tresflow/bin/run_split_reads_dna.py" \\
       --mode "${mode}" \\
-      --script "${coreScriptsDir}/Split_ReadsV2.codon" \\
+      --script "tresflow/codon/Split_ReadsV2.codon" \\
       --r1 "${splitInputR1}" \\
       --r2 "${splitInputR2}" \\
       --mo-map "${moMap}" \\

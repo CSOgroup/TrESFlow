@@ -74,10 +74,12 @@ test -s "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv"
 grep -F $'runtime_tmpdir\t'"${launch_dir}/relative-results" \
     "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv" > /dev/null
 
-# A project-owned wrapper must still be resolved from projectDir, while the
-# explicit core runtime override must be resolved from launchDir.
-grep -R -F "${repo_root}/bin/run_tag.py" "${launch_dir}/work" --include='.command.sh' > /dev/null
-grep -R -F "${launch_dir}/core-runtime/Tag.codon" "${launch_dir}/work" --include='.command.sh' > /dev/null
+# Repository wrappers and the explicit core-runtime override must be staged as
+# task inputs; task commands must use only their portable staged paths.
+grep -R -F 'python3 "tresflow/bin/run_tag.py"' "${launch_dir}/work" --include='.command.sh' > /dev/null
+grep -R -F -- '--script "tresflow/codon/Tag.codon"' "${launch_dir}/work" --include='.command.sh' > /dev/null
+find "${launch_dir}/work" -type l -lname "${repo_root}/bin/run_tag.py" -print -quit | grep . > /dev/null
+find "${launch_dir}/work" -type l -lname "${launch_dir}/core-runtime/Tag.codon" -print -quit | grep . > /dev/null
 
 snapshot_project_results > "${launch_dir}/project-results.after"
 cmp "${launch_dir}/project-results.before" "${launch_dir}/project-results.after"

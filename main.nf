@@ -151,10 +151,6 @@ workflow {
 
     runtimeSupport.validateRuntimeContract(runtimeParams)
     runtimeSupport.validateConfiguredDirectory('core scripts dir', resolvedCoreScriptsDir)
-    def codonPreflightOutput = runtimeSupport.runCodonSeqPreflight(
-        runtimeParams,
-        projectDir.toString()
-    )
     workflowSupport.validateReferenceContract(
         referenceConfig,
         modalityConfig,
@@ -179,7 +175,6 @@ workflow {
     runtimeSupport.writeRuntimeContract(
         resolvedOutdir,
         runtimeSupport.configuredRuntimeTools(runtimeParams),
-        codonPreflightOutput,
         runtimeSupport.runtimeContext(runtimeParams)
     )
 
