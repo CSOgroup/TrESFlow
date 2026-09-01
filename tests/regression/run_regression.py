@@ -244,7 +244,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samtools", required=True, type=Path)
     parser.add_argument(
         "--engine",
-        choices=("standard", "docker", "apptainer"),
+        choices=("standard", "docker", "conda", "apptainer"),
         default="standard",
         help="Nextflow task execution engine; use a separate empty workspace for each engine",
     )

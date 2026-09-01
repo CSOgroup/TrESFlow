@@ -1,0 +1,8 @@
+name: tresflow-rna-coverage
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - bioconda::star=2.7.11b=h5ca1c30_7
+  - bioconda::ucsc-bedgraphtobigwig=482=hdc0a859_0

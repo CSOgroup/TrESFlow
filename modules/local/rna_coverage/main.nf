@@ -11,16 +11,20 @@
  *   - stranded and unstranded RNA bigWig tracks
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process RNA_COVERAGE {
     tag "${splitName}"
-    label 'codon_wrapper'
+    label 'rna_alignment'
+
+    conda "${moduleDir}/../rna_alignment/environment-coverage.yml"
+    container 'community.wave.seqera.io/library/star_ucsc-bedgraphtobigwig@sha256:133ac55ecc30285f3e8b0efa7e3577efd6184354641098d0a290c66268038d88'
 
     publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true
 
     input:
-    tuple val(splitName), val(meta), path(filteredBam), val(starIndexDir), val(chromSizes)
+    tuple val(splitName), val(meta), path(filteredBam), path(starIndexDir), path(chromSizes)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.stranded_*.bw"), optional: true, emit: stranded_bw
@@ -29,32 +33,23 @@ process RNA_COVERAGE {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
-
+    def coreScriptsDir = 'tresflow/runtime'
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         printf 'mock stranded bigwig\n' > "${splitName}.stranded_Signal.Unique.str1.out.bw"
         printf 'mock unstranded bigwig\n' > "${splitName}.unstranded_Signal.Unique.str1.out.bw"
 
-        cat <<-END_VERSIONS > versions.yml
-        "${task.process}":
-          component: "local"
-        END_VERSIONS
+        printf '        "%s":\n          component: "local"\n        END_VERSIONS\n' \
+          "${task.process}" > versions.yml
         """
     }
     else {
         """
-        ${runtimeExports}
-
-        for required_bin in "\$STAR_BIN" "\$BEDGRAPH_TO_BIGWIG_BIN"; do
-          if [[ ! -x "\${required_bin}" ]]; then
-            echo "Missing configured RNA runtime executable: \${required_bin}" >&2
-            exit 1
-          fi
-        done
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         bash "${coreScriptsDir}/RNA_COVERAGE.sh" \\
           "${splitName}" \\
@@ -64,10 +59,8 @@ process RNA_COVERAGE {
           "." \\
           "${task.cpus}"
 
-        cat <<-END_VERSIONS > versions.yml
-        "${task.process}":
-          component: "local"
-        END_VERSIONS
+        printf '        "%s":\n          component: "local"\n        END_VERSIONS\n' \
+          "${task.process}" > versions.yml
         """
     }
 }

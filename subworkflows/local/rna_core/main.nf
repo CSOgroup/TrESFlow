@@ -102,6 +102,17 @@ workflow RNA_CORE {
         file("${codonScriptsRoot}/FqToSAM.codon", checkIfExists: true),
     ]
     def trimHelperScript = file("${projectDir}/bin/run_trim_galore.py", checkIfExists: true)
+    def starsoloRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/RNA_STARSOLO_ALIGN.sh", checkIfExists: true),
+    ]
+    def filteredBamRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/RNA_FILTERED_BAM.sh", checkIfExists: true),
+        file("${projectDir}/scripts/core_runtime/SummarizeRnaRetention.py", checkIfExists: true),
+        file("${projectDir}/scripts/core_runtime/FilterCanonicalBam.sh", checkIfExists: true),
+    ]
+    def coverageRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/RNA_COVERAGE.sh", checkIfExists: true),
+    ]
 
     // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -213,11 +224,11 @@ workflow RNA_CORE {
                 splitName,
                 meta,
                 usam,
-                meta.rna_star_index_dir as String
+                file(meta.rna_star_index_dir)
             )
         }
 
-    RNA_STARSOLO_ALIGN(ch_starsolo_input)
+    RNA_STARSOLO_ALIGN(ch_starsolo_input, starsoloRuntimeScripts)
     ch_versions = ch_versions.mix(RNA_STARSOLO_ALIGN.out.versions)
 
     ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
@@ -232,7 +243,7 @@ workflow RNA_CORE {
             )
         }
 
-    RNA_FILTERED_BAM(ch_filtered_bam_input)
+    RNA_FILTERED_BAM(ch_filtered_bam_input, filteredBamRuntimeScripts)
     ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
 
     ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
@@ -241,12 +252,12 @@ workflow RNA_CORE {
                 splitName,
                 meta,
                 filteredBam,
-                meta.rna_star_index_dir as String,
-                meta.canonical_chrom_sizes as String
+                file(meta.rna_star_index_dir),
+                file(meta.canonical_chrom_sizes)
             )
         }
 
-    RNA_COVERAGE(ch_coverage_input)
+    RNA_COVERAGE(ch_coverage_input, coverageRuntimeScripts)
     ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
 
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics

@@ -14,7 +14,6 @@ USAM_IN="${2}"
 path_refDB="${3}"
 outdir="${4}"
 threads="${5}"
-STAR_BIN="${STAR_BIN:-STAR}"
 
 if [[ ! -d "${path_refDB}" ]]; then
     echo "ERROR: STAR index directory missing: ${path_refDB}" >&2
@@ -56,11 +55,11 @@ UMIstart=$(( CBlen + 1 ))
 
 echo "Using STAR index directory=${path_refDB}"
 echo "Detected CBlen=${CBlen} => UMIstart=${UMIstart} UMIlen=${UMIlen}"
-echo "Using STAR_BIN=${STAR_BIN}"
+echo "Using STAR=$(command -v STAR)"
 
 ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&2
 
-"${STAR_BIN}" \
+STAR \
   --genomeDir "${path_refDB}" \
   --runThreadN "${threads}" \
   --readFilesIn "${USAM_IN}" \

@@ -15,8 +15,6 @@ INBAM="${3}"
 canonical_contigs="${4}"
 outdir="${5}"
 threads="${6}"
-SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
-PYTHON3_BIN="${PYTHON3_BIN:-python3}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 BARCODES="${solo_dir}/filtered/barcodes.tsv"
@@ -34,19 +32,20 @@ if [[ ! -s "${INBAM}" ]]; then
     exit 1
 fi
 
-echo "Using SAMTOOLS_BIN=${SAMTOOLS_BIN}"
+echo "Using samtools=$(command -v samtools)"
+echo "Using python3=$(command -v python3)"
 
 # Audit the same nested predicates used by the existing final filter in one
 # extra sequential read of the transient STAR BAM. This produces counts only;
 # it does not feed or alter the BAM data path.
-"${SAMTOOLS_BIN}" view "${INBAM}" \
-  | "${PYTHON3_BIN}" "${script_dir}/SummarizeRnaRetention.py" \
+samtools view "${INBAM}" \
+  | python3 "${script_dir}/SummarizeRnaRetention.py" \
       --split-id "${sample_name}" \
       --canonical-contigs "${canonical_contigs}" \
       --called-barcodes "${BARCODES}" \
       --output "${RETENTION_METRICS}"
 
-bash "${script_dir}/FilterCanonicalBam.sh" \
+env -u SAMTOOLS_BIN bash "${script_dir}/FilterCanonicalBam.sh" \
     "${INBAM}" \
     "${OUTBAM}" \
     "${canonical_contigs}" \

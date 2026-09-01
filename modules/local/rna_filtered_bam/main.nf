@@ -12,17 +12,21 @@
  *   - low-compression filtered-cells RNA BAM for publication, coverage, and QC
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process RNA_FILTERED_BAM {
     tag "${splitName}"
-    label 'codon_wrapper'
+    label 'rna_alignment'
+
+    conda "${moduleDir}/../rna_alignment/environment-filter.yml"
+    container 'community.wave.seqera.io/library/samtools_python@sha256:74535d380b6c327aa8a82ad941f00d900d26f1a74217e82679f9d64b1b9e28d3'
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_filter_retention.tsv"
     publishDir { "${runtimeOutdir()}/rna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.filtered_cells.bam"
 
     input:
     tuple val(splitName), val(meta), path(soloDir), path(alignedBam), path(canonicalChromosomes)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.filtered_cells.bam"), emit: filtered_bam
@@ -31,12 +35,11 @@ process RNA_FILTERED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
-
+    def coreScriptsDir = 'tresflow/runtime'
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         printf 'mock filtered bam for %s\n' "${splitName}" > "${splitName}.filtered_cells.bam"
         pair_count="\$(awk 'NR == 1 { print \$(NF - 1) }' "${alignedBam}")"
@@ -56,12 +59,8 @@ EOF
     }
     else {
         """
-        ${runtimeExports}
-
-        if [[ ! -x "\$SAMTOOLS_BIN" ]]; then
-          echo "Missing configured RNA runtime executable: \$SAMTOOLS_BIN" >&2
-          exit 1
-        fi
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         bash "${coreScriptsDir}/RNA_FILTERED_BAM.sh" \\
           "${splitName}" \\
@@ -70,6 +69,8 @@ EOF
           "${canonicalChromosomes}" \\
           "." \\
           "${task.cpus}"
+
+        chmod a+r "${splitName}.filtered_cells.bam"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

@@ -15,8 +15,6 @@ path_refDB="${3}"
 path_refCHROMSIZES="${4}"
 outdir="${5}"
 threads="${6}"
-STAR_BIN="${STAR_BIN:-STAR}"
-BEDGRAPH_TO_BIGWIG_BIN="${BEDGRAPH_TO_BIGWIG_BIN:-bedGraphToBigWig}"
 
 if [[ ! -d "${path_refDB}" ]]; then
     echo "ERROR: STAR index directory missing: ${path_refDB}" >&2
@@ -33,8 +31,8 @@ if [[ ! -s "${INBAM}" ]]; then
     exit 1
 fi
 
-echo "Using STAR_BIN=${STAR_BIN}"
-echo "Using BEDGRAPH_TO_BIGWIG_BIN=${BEDGRAPH_TO_BIGWIG_BIN}"
+echo "Using STAR=$(command -v STAR)"
+echo "Using bedGraphToBigWig=$(command -v bedGraphToBigWig)"
 echo "Using STAR index directory=${path_refDB}"
 echo "Using chromosome sizes=${path_refCHROMSIZES}"
 
@@ -49,7 +47,7 @@ fi
 STAR_COVERAGE_THREADS=1
 
 run_stranded_star() {
-    "${STAR_BIN}" \
+    STAR \
       --runMode inputAlignmentsFromBAM \
       --runThreadN "${STAR_COVERAGE_THREADS}" \
       --genomeDir "${path_refDB}" \
@@ -61,7 +59,7 @@ run_stranded_star() {
 }
 
 run_unstranded_star() {
-    "${STAR_BIN}" \
+    STAR \
       --runMode inputAlignmentsFromBAM \
       --runThreadN "${STAR_COVERAGE_THREADS}" \
       --genomeDir "${path_refDB}" \
@@ -132,7 +130,7 @@ convert_bedgraph() {
     local f="$1"
 
     sort -k1,1 -k2,2n "$f" > "${f%.bedGraph}.sorted.bg"
-    "${BEDGRAPH_TO_BIGWIG_BIN}" \
+    bedGraphToBigWig \
         "${f%.bedGraph}.sorted.bg" \
         "${path_refCHROMSIZES}" \
         "${f%.bg}.bw"

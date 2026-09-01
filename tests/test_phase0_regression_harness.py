@@ -181,6 +181,8 @@ class Phase0NormalizerTests(unittest.TestCase):
                         ["trim_galore", "<PATH>", "true", "yes"],
                         ["codon", "<PATH>", "true", "yes"],
                         ["pigz", "<PATH>", "true", "yes"],
+                        ["STAR", "<PATH>", "true", "yes"],
+                        ["bedGraphToBigWig", "<PATH>", "true", "yes"],
                         ["[runtime_environment]"],
                         ["runtime_env_prefix", "<PATH>"],
                         ["codon_home", "<PATH>"],
@@ -330,6 +332,18 @@ class Phase0NormalizerTests(unittest.TestCase):
         )
         self.assertEqual(first, second)
         self.assertIn("--runThreadN <THREADS>", first)
+
+    def test_star_bam_header_staged_and_absolute_genome_dirs_are_runtime_paths(self):
+        staged = normalizer.canonical_header_line(
+            "@CO\tuser command line: STAR --genomeDir star --soloFeatures GeneFull",
+            (),
+        )
+        absolute = normalizer.canonical_header_line(
+            "@CO\tuser command line: STAR --genomeDir /refs/hg38/star --soloFeatures GeneFull",
+            (),
+        )
+        self.assertEqual(staged, absolute)
+        self.assertIn("--genomeDir <PATH>", staged)
 
     def test_bigwig_intervals_and_values_are_semantic(self):
         try:

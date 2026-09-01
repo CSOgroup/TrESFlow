@@ -12,17 +12,21 @@
  *   - STAR coordinate-sorted aligned BAM used only by the next RNA stage
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process RNA_STARSOLO_ALIGN {
     tag "${splitName}"
-    label 'codon_wrapper'
+    label 'rna_alignment'
+
+    conda "${moduleDir}/../rna_alignment/environment-star.yml"
+    container 'quay.io/biocontainers/star@sha256:d5139d9e29bc8a871a020ca5b21bc0599fac428bd061d4b13d863f4cb4400d31'
 
     publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Solo.outGeneFull"
     publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Log.final.out"
 
     input:
-    tuple val(splitName), val(meta), path(usam), val(starIndexDir)
+    tuple val(splitName), val(meta), path(usam), path(starIndexDir)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.Solo.outGeneFull"), emit: solo_dir
@@ -34,12 +38,11 @@ process RNA_STARSOLO_ALIGN {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
-
+    def coreScriptsDir = 'tresflow/runtime'
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         input_pairs="\$(awk '\$1 !~ /^@/ { n++ } END { print int(n / 2) }' "${usam}")"
         mkdir -p "${splitName}.Solo.outGeneFull/filtered"
@@ -111,6 +114,7 @@ EOF
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \
           "report/${splitName}.Solo.summary.csv"
+        chmod -R a+rX "${splitName}.Solo.outGeneFull"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
@@ -120,12 +124,8 @@ EOF
     }
     else {
         """
-        ${runtimeExports}
-
-        if [[ ! -x "\$STAR_BIN" ]]; then
-          echo "Missing configured RNA runtime executable: \$STAR_BIN" >&2
-          exit 1
-        fi
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         bash "${coreScriptsDir}/RNA_STARSOLO_ALIGN.sh" \\
           "${splitName}" \\
@@ -137,6 +137,8 @@ EOF
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \
           "report/${splitName}.Solo.summary.csv"
+
+        chmod -R a+rX "${splitName}.Solo.outGeneFull"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

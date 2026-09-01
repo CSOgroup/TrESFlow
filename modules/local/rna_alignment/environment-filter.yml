@@ -1,0 +1,8 @@
+name: tresflow-rna-filter
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - conda-forge::python=3.12.13=hd63d673_0_cpython
+  - bioconda::samtools=1.23.1=ha83d96e_0

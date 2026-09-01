@@ -4,9 +4,7 @@ class RuntimeSupport {
 
     private static final List<Map> STANDARD_RUNTIME_TOOLS = [
         [name: 'python3', binary: 'python3'],
-        [name: 'STAR', binary: 'STAR'],
         [name: 'samtools', binary: 'samtools'],
-        [name: 'bedGraphToBigWig', binary: 'bedGraphToBigWig'],
         [name: 'bwa-mem2', binary: 'bwa-mem2'],
         [name: 'bamCoverage', binary: 'bamCoverage'],
         [name: 'gatk', binary: 'gatk'],
@@ -245,9 +243,7 @@ class RuntimeSupport {
             RUNTIME_BIN_DIR        : binDir,
             TMPDIR                 : tmpdir,
             PYTHON3_BIN            : "${binDir}/python3",
-            STAR_BIN               : "${binDir}/STAR",
             SAMTOOLS_BIN           : "${binDir}/samtools",
-            BEDGRAPH_TO_BIGWIG_BIN : "${binDir}/bedGraphToBigWig",
             BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
             BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
             GATK_BIN               : "${binDir}/gatk",

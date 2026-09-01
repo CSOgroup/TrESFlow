@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "supported_platforms": [
+    "linux/amd64"
+  ],
+  "containers": {
+    "starsolo_alignment": {
+      "reference": "quay.io/biocontainers/star@sha256:d5139d9e29bc8a871a020ca5b21bc0599fac428bd061d4b13d863f4cb4400d31",
+      "source": "Biocontainers",
+      "platform": "linux/amd64",
+      "star": "2.7.11b"
+    },
+    "rna_filtering": {
+      "reference": "community.wave.seqera.io/library/samtools_python@sha256:74535d380b6c327aa8a82ad941f00d900d26f1a74217e82679f9d64b1b9e28d3",
+      "source": "Seqera Containers",
+      "build_id": "bd-d9628c5654ca182b_1",
+      "platform": "linux/amd64",
+      "python": "3.12.13",
+      "samtools": "1.23.1",
+      "htslib": "1.23.1"
+    },
+    "rna_coverage": {
+      "reference": "community.wave.seqera.io/library/star_ucsc-bedgraphtobigwig@sha256:133ac55ecc30285f3e8b0efa7e3577efd6184354641098d0a290c66268038d88",
+      "source": "Seqera Containers",
+      "build_id": "bd-70d6d3977e2cd65f_1",
+      "platform": "linux/amd64",
+      "star": "2.7.11b",
+      "ucsc_bedgraphtobigwig_package": "482",
+      "bedgraphtobigwig_cli": "2.10"
+    }
+  },
+  "conda_direct_packages": [
+    {
+      "name": "python",
+      "version": "3.12.13",
+      "build": "hd63d673_0_cpython",
+      "channel": "conda-forge",
+      "sha256": "a44655c1c3e1d43ed8704890a91e12afd68130414ea2c0872e154e5633a13d7e",
+      "license": "Python-2.0"
+    },
+    {
+      "name": "samtools",
+      "version": "1.23.1",
+      "build": "ha83d96e_0",
+      "channel": "bioconda",
+      "sha256": "2cb721907a2df7c54580298d655ae7587dbed593bd5536fa8ef4a22c9ae2a496",
+      "license": "MIT"
+    },
+    {
+      "name": "star",
+      "version": "2.7.11b",
+      "build": "h5ca1c30_7",
+      "channel": "bioconda",
+      "sha256": "2afa23bc66ce51c7828ae84356ce886745fee73ec1b6553a5b1504fac4f4733f",
+      "license": "GPL-3.0-or-later"
+    },
+    {
+      "name": "ucsc-bedgraphtobigwig",
+      "version": "482",
+      "build": "hdc0a859_0",
+      "channel": "bioconda",
+      "sha256": "c8afc8152f569c7730b8f3eb6894a8b277912fdbd0ab8c9d18bb8c1840c89669",
+      "license": "Varies; see https://genome.ucsc.edu/license"
+    }
+  ]
+}

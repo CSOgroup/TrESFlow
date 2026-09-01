@@ -47,6 +47,8 @@ RETIRED_PROCESS_HOST_TOOLS = {
     "cutadapt",
     "trim_galore",
     "pigz",
+    "STAR",
+    "bedGraphToBigWig",
 }
 
 
@@ -95,8 +97,9 @@ def canonicalize_contract_runtime_metadata(contract: dict[str, Any]) -> dict[str
 def canonicalize_retired_process_host_rows(rows: list[list[str]]) -> list[list[str]]:
     """Remove only host rows retired by process-environment migrations.
 
-    Codon/Seq and FASTQ preprocessing now belong to process environments. The
-    remaining host-tool rows and runtime paths are still compared as before.
+    Codon/Seq, FASTQ preprocessing, and RNA STAR/coverage now belong to process
+    environments. The remaining host-tool rows and runtime paths are still
+    compared as before.
     """
     canonical: list[list[str]] = []
     for row in rows:
@@ -178,7 +181,11 @@ def canonical_header_line(line: str, roots: tuple[Path, ...]) -> str | None:
         )
         # STAR records its allocated thread count in @CO. Resource allocation
         # is runtime metadata and does not alter the alignment contract.
-        return re.sub(r"(--runThreadN\s+)\d+", r"\1<THREADS>", canonical)
+        canonical = re.sub(r"(--runThreadN\s+)\d+", r"\1<THREADS>", canonical)
+        # A staged external STAR index is rendered as its task-local basename,
+        # while the legacy host execution recorded its absolute source path.
+        # Both identify the same validated index input and are runtime paths.
+        return re.sub(r"(--genomeDir\s+)\S+", r"\1<PATH>", canonical)
     return normalize_scalar_text(line.rstrip(), roots)
 
 
