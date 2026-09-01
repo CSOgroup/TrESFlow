@@ -169,7 +169,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             normalizer.canonicalize_contract_runtime_metadata(observed),
         )
 
-    def test_retired_codon_host_preflight_is_normalized_symmetrically(self):
+    def test_retired_process_host_dependencies_are_normalized_symmetrically(self):
         expected = {
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
@@ -177,6 +177,8 @@ class Phase0NormalizerTests(unittest.TestCase):
                     "rows": [
                         ["tool", "configured_path", "exists", "currently_used"],
                         ["python3", "<PATH>", "true", "yes"],
+                        ["cutadapt", "<PATH>", "true", "yes"],
+                        ["trim_galore", "<PATH>", "true", "yes"],
                         ["codon", "<PATH>", "true", "yes"],
                         ["pigz", "<PATH>", "true", "yes"],
                         ["[runtime_environment]"],
@@ -197,7 +199,6 @@ class Phase0NormalizerTests(unittest.TestCase):
                     "rows": [
                         ["tool", "configured_path", "exists", "currently_used"],
                         ["python3", "<PATH>", "true", "yes"],
-                        ["pigz", "<PATH>", "true", "yes"],
                         ["[runtime_environment]"],
                         ["runtime_env_prefix", "<PATH>"],
                         ["runtime_tmpdir", "<PATH>"],
@@ -210,12 +211,12 @@ class Phase0NormalizerTests(unittest.TestCase):
             normalizer.canonicalize_contract_runtime_metadata(observed),
         )
 
-    def test_non_codon_runtime_contract_changes_remain_visible(self):
+    def test_nonretired_runtime_contract_changes_remain_visible(self):
         expected = {
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["pigz", "<PATH>", "true", "yes"]],
+                    "rows": [["samtools", "<PATH>", "true", "yes"]],
                 }
             }
         }
@@ -223,7 +224,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["pigz", "<PATH>", "false", "yes"]],
+                    "rows": [["samtools", "<PATH>", "false", "yes"]],
                 }
             }
         }

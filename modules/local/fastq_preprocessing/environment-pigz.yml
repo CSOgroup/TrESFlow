@@ -1,0 +1,6 @@
+name: tresflow-fastq-compression
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - conda-forge::pigz=2.8=h421ea60_2

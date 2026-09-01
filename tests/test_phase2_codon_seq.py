@@ -88,7 +88,7 @@ class Phase2CodonSeqArchitectureTests(unittest.TestCase):
         self.assertNotIn("CODON_HOME", runtime + task_exports)
         self.assertNotIn("codon_home", runtime)
         self.assertNotIn("[name: 'codon', binary: 'codon']", runtime)
-        for retained in ("cutadapt", "STAR", "samtools", "bwa-mem2", "gatk", "pigz"):
+        for retained in ("STAR", "samtools", "bwa-mem2", "gatk"):
             self.assertIn(retained, runtime)
 
     def test_runtime_build_inputs_and_platform_are_immutable(self):

@@ -94,7 +94,6 @@ def parse_args():
     parser.add_argument(
         "--trim-galore-bin",
         type=Path,
-        default=Path(os.environ["TRIM_GALORE_BIN"]) if os.environ.get("TRIM_GALORE_BIN") else None,
     )
     parser.add_argument("--quality", required=True, type=int)
     parser.add_argument("--cores", required=True, type=int)

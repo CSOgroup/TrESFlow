@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "asset_type": "synthetic-test-only",
+  "provenance": "Authored for TrESFlow Phase 3; no external source data",
+  "license": "MIT",
+  "files": {
+    "phase3_Normal_R1.fastq": "e85ae29e89a7ae61e76be73c6d153a0a48ee9ee05ef9d6f2a15f908166ae1ae4",
+    "phase3_Normal_R2.fastq": "d1358656ba9593f93d345cb185c7304c1ba596470ca311b4a576cd508fcf1d7a"
+  },
+  "expected_behavior": {
+    "input_pairs": 3,
+    "trimmed_pairs": 3,
+    "dual_tag_retained_pairs": 2,
+    "dual_tag_rejected_pairs": 1
+  }
+}

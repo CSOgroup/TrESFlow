@@ -148,6 +148,11 @@ workflow DNA_CORE {
     def splitCodonScripts = [
         file("${codonScriptsRoot}/Split_ReadsV2.codon", checkIfExists: true),
     ]
+    def trimHelperScript = file("${projectDir}/bin/run_trim_galore.py", checkIfExists: true)
+    def dualTagFilterHelperScript = file(
+        "${projectDir}/bin/run_dual_tag_artifact_filter.py",
+        checkIfExists: true
+    )
 
     // Tag sample barcodes from the tagmentation-specific DNA index stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
@@ -195,7 +200,7 @@ workflow DNA_CORE {
 
     // Every DNA pair first undergoes ordinary adapter/quality trimming so
     // genomic prefixes can be salvaged before exact residual-linker detection.
-    TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged)
+    TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged, trimHelperScript)
     ch_versions = ch_versions.mix(TRIM_DNA_FASTQS.out.versions)
 
     // Only dual-tagmentation DNA is eligible for exact linker-signature
@@ -209,7 +214,8 @@ workflow DNA_CORE {
 
     DUAL_TAG_ARTIFACT_FILTER(
         ch_dual_tag_artifact_routes.filter,
-        file("${projectDir}/assets/dual_tag_artifact_23mers.fasta")
+        file("${projectDir}/assets/dual_tag_artifact_23mers.fasta"),
+        dualTagFilterHelperScript
     )
     ch_versions = ch_versions.mix(DUAL_TAG_ARTIFACT_FILTER.out.versions)
 

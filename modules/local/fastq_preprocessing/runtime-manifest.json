@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "containers": {
+    "trim": {
+      "reference": "quay.io/biocontainers/trim-galore@sha256:a02bb87b8ce02d86efd0ffd65e2cce1559b52689faab42faad1df145657390cf",
+      "platform": "linux/amd64",
+      "trim_galore": "0.6.11",
+      "cutadapt": "5.2",
+      "pigz": "2.8",
+      "python": "3.12.12"
+    },
+    "cutadapt_and_compression": {
+      "reference": "quay.io/biocontainers/cutadapt@sha256:2049f305574854edb189ccad7038fda4801ef16458bcde0239383d42d4a3f83a",
+      "platform": "linux/amd64",
+      "cutadapt": "5.2",
+      "pigz": "2.8",
+      "python": "3.12.12"
+    }
+  },
+  "conda_direct_packages": [
+    {
+      "name": "python",
+      "version": "3.12.13",
+      "build": "hd63d673_0_cpython",
+      "channel": "conda-forge",
+      "sha256": "a44655c1c3e1d43ed8704890a91e12afd68130414ea2c0872e154e5633a13d7e"
+    },
+    {
+      "name": "trim-galore",
+      "version": "0.6.11",
+      "build": "hdfd78af_0",
+      "channel": "bioconda",
+      "sha256": "1e0a25136196423f8f7d44f7c8da07e593531c4dea5ab89f4af48773927932e4"
+    },
+    {
+      "name": "cutadapt",
+      "version": "5.2",
+      "build": "py312h0fa9677_0",
+      "channel": "bioconda",
+      "sha256": "10f57f62b00299abdd5ffc0185aea31de1b8fe2c0bf766032459e76149cb151f"
+    },
+    {
+      "name": "pigz",
+      "version": "2.8",
+      "build": "h421ea60_2",
+      "channel": "conda-forge",
+      "sha256": "3d535f86f6eb4243cc47c51a3694e01bfc1aa72d80d9789c053f0154b531f974"
+    }
+  ]
+}

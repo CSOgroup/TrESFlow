@@ -132,7 +132,9 @@ class DualTagArtifactFilterUnitTests(unittest.TestCase):
         self.assertIn(".join(ch_trimmed_for_split)", dna_workflow)
         self.assertNotIn(".join(TRIM_DNA_FASTQS.out.trimmed)", dna_workflow)
         self.assertLess(
-            dna_workflow.index("TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged)"),
+            dna_workflow.index(
+                "TRIM_DNA_FASTQS(TAG_DNA_CELL_BARCODE.out.tagged, trimHelperScript)"
+            ),
             dna_workflow.index("TRIM_DNA_FASTQS.out.trimmed.branch"),
         )
         self.assertLess(
@@ -141,7 +143,7 @@ class DualTagArtifactFilterUnitTests(unittest.TestCase):
         )
         self.assertNotIn("DUAL_TAG_ARTIFACT_FILTER", rna_workflow)
 
-    def test_cutadapt_is_an_explicit_runtime_dependency(self):
+    def test_cutadapt_is_a_portable_process_dependency(self):
         runtime_module = (REPO_ROOT / "modules/local/runtime_support/main.nf").read_text(
             encoding="utf-8"
         )
@@ -152,9 +154,13 @@ class DualTagArtifactFilterUnitTests(unittest.TestCase):
             REPO_ROOT / "modules/local/dual_tag_artifact_filter/main.nf"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("CUTADAPT_BIN", runtime_module)
-        self.assertIn("[name: 'cutadapt', binary: 'cutadapt']", runtime_support)
-        self.assertIn('--cutadapt-bin "\\$CUTADAPT_BIN"', process_module)
+        self.assertNotIn("CUTADAPT_BIN", runtime_module)
+        self.assertNotIn("[name: 'cutadapt', binary: 'cutadapt']", runtime_support)
+        self.assertIn("environment-cutadapt.yml", process_module)
+        self.assertIn("quay.io/biocontainers/cutadapt@sha256:", process_module)
+        self.assertIn('path helperScript, stageAs:', process_module)
+        self.assertIn('python3 "tresflow/bin/run_dual_tag_artifact_filter.py"', process_module)
+        self.assertNotIn('--cutadapt-bin', process_module)
 
     def test_zero_input_mock_has_safe_fraction_and_balanced_counts(self):
         with tempfile.TemporaryDirectory() as tmpdir:

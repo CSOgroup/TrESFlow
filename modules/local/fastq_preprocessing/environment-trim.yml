@@ -1,0 +1,9 @@
+name: tresflow-fastq-trim
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - conda-forge::python=3.12.13=hd63d673_0_cpython
+  - bioconda::trim-galore=0.6.11=hdfd78af_0
+  - bioconda::cutadapt=5.2=py312h0fa9677_0

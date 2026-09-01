@@ -101,6 +101,7 @@ workflow RNA_CORE {
     def fqToSamCodonScripts = [
         file("${codonScriptsRoot}/FqToSAM.codon", checkIfExists: true),
     ]
+    def trimHelperScript = file("${projectDir}/bin/run_trim_galore.py", checkIfExists: true)
 
     // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -137,7 +138,7 @@ workflow RNA_CORE {
 
     TAG_RNA_CELL_BARCODE(ch_cb_input, cellHelperScripts, cellCodonScripts)
     ch_versions = ch_versions.mix(TAG_RNA_CELL_BARCODE.out.versions)
-    TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged)
+    TRIM_RNA_FASTQS(TAG_RNA_CELL_BARCODE.out.tagged, trimHelperScript)
     ch_versions = ch_versions.mix(TRIM_RNA_FASTQS.out.versions)
 
     // Count exact same-pair cumulative gates from the barcode decisions

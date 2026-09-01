@@ -6,11 +6,14 @@
  * publication is enabled.
  */
 
-include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process COMPRESS_SPLIT_FASTQS {
     tag "${modality}.${sampleId}"
     label 'process_single'
+
+    conda "${moduleDir}/../fastq_preprocessing/environment-pigz.yml"
+    container 'quay.io/biocontainers/cutadapt@sha256:2049f305574854edb189ccad7038fda4801ef16458bcde0239383d42d4a3f83a'
 
     publishDir { "${runtimeOutdir()}/${modality}_split_fastqs" }, mode: 'copy', overwrite: true, pattern: "*_R[12].fastq.gz"
 
@@ -22,20 +25,15 @@ process COMPRESS_SPLIT_FASTQS {
     path("versions.yml"), emit: versions
 
     script:
-    def runtimeExports = runtimeShellExports(meta)
     def fastqs = (splitR1s instanceof List ? splitR1s : [splitR1s]) + (splitR2s instanceof List ? splitR2s : [splitR2s])
     def fastqArgs = fastqs.collect { fastq -> "\"${fastq}\"" }.join(' ')
 
     """
-    ${runtimeExports}
-
-    if [[ ! -x "\$PIGZ_BIN" ]]; then
-      echo "Missing configured pigz executable for split FASTQ publication: \$PIGZ_BIN" >&2
-      exit 1
-    fi
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     for fastq in ${fastqArgs}; do
-      "\$PIGZ_BIN" -c -p "${task.cpus}" "\$fastq" > "\$(basename "\$fastq").gz"
+      pigz -c -p "${task.cpus}" "\$fastq" > "\$(basename "\$fastq").gz"
     done
 
     cat <<-END_VERSIONS > versions.yml

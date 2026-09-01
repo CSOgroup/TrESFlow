@@ -12,15 +12,12 @@ def runtimeShellExports(runtimeParams) {
         RUNTIME_BIN_DIR        : binDir,
         TMPDIR                 : tmpdir,
         PYTHON3_BIN            : "${binDir}/python3",
-        CUTADAPT_BIN           : "${binDir}/cutadapt",
-        TRIM_GALORE_BIN        : "${binDir}/trim_galore",
         STAR_BIN               : "${binDir}/STAR",
         SAMTOOLS_BIN           : "${binDir}/samtools",
         BEDGRAPH_TO_BIGWIG_BIN : "${binDir}/bedGraphToBigWig",
         BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
         BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
         GATK_BIN               : "${binDir}/gatk",
-        PIGZ_BIN               : "${binDir}/pigz",
     ]
 
     exports.collect { key, value ->

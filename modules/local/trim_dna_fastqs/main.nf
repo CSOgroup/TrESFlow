@@ -17,14 +17,16 @@
  *   - uncompressed trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  */
 
-include { runtimeShellExports } from '../runtime_support/main'
-
 process TRIM_DNA_FASTQS {
     tag "${sampleId}"
-    label 'codon_wrapper'
+    label 'fastq_preprocessing'
+
+    conda "${moduleDir}/../fastq_preprocessing/environment-trim.yml"
+    container 'quay.io/biocontainers/trim-galore@sha256:a02bb87b8ce02d86efd0ffd65e2cce1559b52689faab42faad1df145657390cf'
 
     input:
     tuple val(sampleId), val(meta), path(taggedR1), path(taggedR2)
+    path helperScript, stageAs: 'tresflow/bin/run_trim_galore.py'
 
     output:
     tuple val(sampleId), val(meta), path("${sampleId}.dna_sample_barcode_modality_cell.R1_val_1.fq"), path("${sampleId}.dna_sample_barcode_modality_cell.R2_val_2.fq"), emit: trimmed
@@ -32,16 +34,15 @@ process TRIM_DNA_FASTQS {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def runtimeExports = runtimeShellExports(meta)
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
-    "\$PYTHON3_BIN" "${projectDir}/bin/run_trim_galore.py" \\
+    python3 "tresflow/bin/run_trim_galore.py" \\
       --mode "${mode}" \\
       --r1 "${taggedR1}" \\
       --r2 "${taggedR2}" \\
-      --trim-galore-bin "\$TRIM_GALORE_BIN" \\
       --quality 10 \\
       --cores ${task.cpus} \\
       --length 20 \\
