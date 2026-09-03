@@ -197,7 +197,7 @@ class DualTagArtifactFilterUnitTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            '"${BWA_MEM2_BIN}" mem -t ${threads} -C -o ${RGID}_TEMP.sam '
+            'bwa-mem2 mem -t ${threads} -C -o ${RGID}_TEMP.sam '
             '${path_bwarefDB} ${R1} ${R2}',
             alignment,
         )

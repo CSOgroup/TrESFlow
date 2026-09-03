@@ -3,9 +3,7 @@ process DEEPTOOLS_BAMCOVERAGE {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/mulled-v2-eb9e7907c7a753917c1e4d7a64384c047429618a:28424fe3aec58d2b3e4e4390025d886207657d25-0':
-        'quay.io/biocontainers/mulled-v2-eb9e7907c7a753917c1e4d7a64384c047429618a:28424fe3aec58d2b3e4e4390025d886207657d25-0' }"
+    container 'community.wave.seqera.io/library/deeptools_samtools@sha256:9c482aa632f9a30dcd09c38bed01ac89c54b345fd1ec666deb3ec9c595b258c9'
 
     input:
     tuple val(meta) , path(input)   , path(input_index)
@@ -36,12 +34,20 @@ process DEEPTOOLS_BAMCOVERAGE {
 
     if( task.ext.mock ) {
         return """
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
+
         touch ${prefix}.${extension}
         """
     }
 
     if (is_cram){
         """
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
+        export MPLCONFIGDIR="\$TMPDIR/matplotlib"
+        mkdir -p "\$MPLCONFIGDIR"
+
         samtools view -T $fasta $input $fai_reference -@ $task.cpus -o $input_out
         samtools index -b $input_out -@ $task.cpus
 
@@ -55,6 +61,11 @@ process DEEPTOOLS_BAMCOVERAGE {
     }
     else {
         """
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
+        export MPLCONFIGDIR="\$TMPDIR/matplotlib"
+        mkdir -p "\$MPLCONFIGDIR"
+
         bamCoverage \\
             --bam $input_out \\
             $args \\

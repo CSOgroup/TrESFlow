@@ -1,0 +1,7 @@
+name: tresflow-dna-samtools
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - bioconda::samtools=1.23.1=ha83d96e_0

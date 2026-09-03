@@ -49,6 +49,9 @@ RETIRED_PROCESS_HOST_TOOLS = {
     "pigz",
     "STAR",
     "bedGraphToBigWig",
+    "bwa-mem2",
+    "bamCoverage",
+    "gatk",
 }
 
 

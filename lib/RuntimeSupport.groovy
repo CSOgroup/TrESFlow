@@ -5,9 +5,6 @@ class RuntimeSupport {
     private static final List<Map> STANDARD_RUNTIME_TOOLS = [
         [name: 'python3', binary: 'python3'],
         [name: 'samtools', binary: 'samtools'],
-        [name: 'bwa-mem2', binary: 'bwa-mem2'],
-        [name: 'bamCoverage', binary: 'bamCoverage'],
-        [name: 'gatk', binary: 'gatk'],
     ]
 
     static void validateConfiguredExecutable(final String label, final String rawPath) {
@@ -244,9 +241,6 @@ class RuntimeSupport {
             TMPDIR                 : tmpdir,
             PYTHON3_BIN            : "${binDir}/python3",
             SAMTOOLS_BIN           : "${binDir}/samtools",
-            BWA_MEM2_BIN           : "${binDir}/bwa-mem2",
-            BAMCOVERAGE_BIN        : "${binDir}/bamCoverage",
-            GATK_BIN               : "${binDir}/gatk",
         ]
 
         return exports.collect { key, value ->

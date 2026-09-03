@@ -123,7 +123,7 @@ class Phase3FastqPreprocessingArchitectureTests(unittest.TestCase):
             "[name: 'pigz', binary: 'pigz']",
         ):
             self.assertNotIn(token, runtime + task_exports)
-        for retained in ("python3", "samtools", "bwa-mem2", "bamCoverage", "gatk"):
+        for retained in ("python3", "samtools"):
             self.assertIn(retained, runtime)
 
     def test_wrappers_do_not_read_absolute_host_binary_variables(self):

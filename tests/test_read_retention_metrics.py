@@ -356,7 +356,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
                 "blacklisted\t147\tchr1\t551\t60\t20M\t=\t501\t-70\tACGTACGTACGTACGTACGT\tIIIIIIIIIIIIIIIIIIII\n",
                 encoding="utf-8",
             )
-            fake_bwa = root / "fake-bwa-mem2"
+            fake_bwa = root / "bwa-mem2"
             fake_bwa.write_text(
                 "#!/usr/bin/env bash\n"
                 "set -euo pipefail\n"
@@ -378,9 +378,10 @@ class ReadRetentionMetricTests(unittest.TestCase):
             env = os.environ.copy()
             env.update(
                 {
-                    "BWA_MEM2_BIN": str(fake_bwa),
+                    "PATH": f"{root}{os.pathsep}{env['PATH']}",
+                    "BWA_MEM2_BIN": "/host/runtime/must-not-be-used/bwa-mem2",
                     "FAKE_BWA_SAM": str(source_sam),
-                    "SAMTOOLS_BIN": samtools,
+                    "SAMTOOLS_BIN": "/host/runtime/must-not-be-used/samtools",
                     "ALIGN_DNA_THREADS": "1",
                     "ALIGN_DNA_VIEW_THREADS": "1",
                     "ALIGN_DNA_SORT_THREADS": "1",

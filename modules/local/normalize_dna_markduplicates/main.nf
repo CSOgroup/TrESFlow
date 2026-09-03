@@ -3,17 +3,21 @@
  * filename contract and remove noncanonical alignments after duplicate marking.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process NORMALIZE_DNA_MARKDUPLICATES {
     tag "${splitName}"
-    label 'process_single'
+    label 'dna_processing'
+
+    conda "${moduleDir}/../dna_processing/environment-samtools.yml"
+    container 'community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34'
 
     publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*_MarkedDup.bam*"
     publishDir { "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.DuplicateMetrics.txt"
 
     input:
     tuple val(splitName), val(meta), path(markedDupBam, stageAs: "input_markeddup.bam"), path(markedDupBai, stageAs: "input_markeddup.bam.bai"), path(markedDupMetrics, stageAs: "input.DuplicateMetrics.txt"), path(canonicalChromosomes, stageAs: "canonical_chromosomes.txt")
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_MarkedDup.bam"), emit: bam
@@ -23,12 +27,12 @@ process NORMALIZE_DNA_MARKDUPLICATES {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
+    def coreScriptsDir = 'tresflow/runtime'
 
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         cp -L "${markedDupBam}" "${splitName}_MarkedDup.bam"
         cp -L "${markedDupBai}" "${splitName}_MarkedDup.bam.bai"
@@ -42,20 +46,23 @@ process NORMALIZE_DNA_MARKDUPLICATES {
     }
     else {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
-        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+        env -u SAMTOOLS_BIN bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
           "${markedDupBam}" \\
           "${splitName}_MarkedDup.bam" \\
           "${canonicalChromosomes}" \\
           "${task.cpus}" \\
           normal
 
-        "\$SAMTOOLS_BIN" index \\
+        samtools index \\
           --threads "${task.cpus}" \\
           --bai \\
           --output "${splitName}_MarkedDup.bam.bai" \\
           "${splitName}_MarkedDup.bam"
+
+        chmod a+r "${splitName}_MarkedDup.bam" "${splitName}_MarkedDup.bam.bai"
 
         cp -L "${markedDupMetrics}" "${splitName}.DuplicateMetrics.txt"
 

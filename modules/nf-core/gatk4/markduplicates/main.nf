@@ -3,9 +3,7 @@ process GATK4_MARKDUPLICATES {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/e3/e3d753d93f57969fe76b8628a8dfcd23ef44bccd08c4ced7089c1f94bf47c89f/data'
-        : 'community.wave.seqera.io/library/gatk4_gcnvkernel_htslib_samtools:d3becb6465454c35'}"
+    container 'community.wave.seqera.io/library/gatk4_samtools@sha256:ca703ab322c8cf829f3987275648ab98fec87b4a340b5cbe154a49cb9a4f41a0'
 
     input:
     tuple val(meta), path(bam)
@@ -34,6 +32,9 @@ process GATK4_MARKDUPLICATES {
     if( task.ext.mock ) {
         prefix_no_suffix = task.ext.prefix ? prefix.tokenize('.')[0] : "${meta.id}"
         return """
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
+
         # MarkDuplicates arguments: ${args}
         touch ${prefix_no_suffix}.bam
         touch ${prefix_no_suffix}.cram
@@ -61,6 +62,9 @@ EOF
     // Using samtools and not Markduplicates to compress to CRAM speeds up computation:
     // https://medium.com/@acarroll.dna/looking-at-trade-offs-in-compression-levels-for-genomics-tools-eec2834e8b94
     """
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
+
     gatk --java-options "-Xmx${avail_mem}M -XX:-UsePerfData" \\
         MarkDuplicates \\
         ${input_list} \\

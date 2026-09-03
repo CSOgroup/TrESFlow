@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "supported_platforms": [
+    "linux/amd64"
+  ],
+  "containers": {
+    "dna_alignment": {
+      "reference": "community.wave.seqera.io/library/bwa-mem2_samtools@sha256:ce8cbf5cc21c690c8c2994d9bbb409b9313c47f38c5452a5fe7dec3402eff9c8",
+      "source": "Seqera Containers",
+      "build_id": "bd-baa14157d80b2ebc_1",
+      "platform": "linux/amd64",
+      "bwa_mem2": "2.2.1",
+      "samtools": "1.23.1"
+    },
+    "samtools_processing": {
+      "reference": "community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34",
+      "source": "Seqera Containers",
+      "build_id": "bd-ec31daf335c4b05b_1",
+      "platform": "linux/amd64",
+      "samtools": "1.23.1"
+    },
+    "duplicate_marking": {
+      "reference": "community.wave.seqera.io/library/gatk4_samtools@sha256:ca703ab322c8cf829f3987275648ab98fec87b4a340b5cbe154a49cb9a4f41a0",
+      "source": "Seqera Containers",
+      "build_id": "bd-461b76f7736a8724_1",
+      "platform": "linux/amd64",
+      "gatk": "4.6.2.0",
+      "picard": "3.4.0",
+      "samtools": "1.23.1"
+    },
+    "nodup_coverage": {
+      "reference": "community.wave.seqera.io/library/deeptools_samtools@sha256:9c482aa632f9a30dcd09c38bed01ac89c54b345fd1ec666deb3ec9c595b258c9",
+      "source": "Seqera Containers",
+      "build_id": "bd-14ff7ad60da85459_1",
+      "platform": "linux/amd64",
+      "deeptools": "3.5.5",
+      "samtools": "1.23.1"
+    }
+  },
+  "conda_direct_packages": [
+    {
+      "name": "bwa-mem2",
+      "version": "2.2.1",
+      "build": "he70b90d_8",
+      "channel": "bioconda",
+      "sha256": "7db7a2b1555e27c5b66fb27c309b2e2ea5fd8198bd4e084b6fe165113967b69e",
+      "license": "MIT"
+    },
+    {
+      "name": "samtools",
+      "version": "1.23.1",
+      "build": "ha83d96e_0",
+      "channel": "bioconda",
+      "sha256": "2cb721907a2df7c54580298d655ae7587dbed593bd5536fa8ef4a22c9ae2a496",
+      "license": "MIT/Expat"
+    },
+    {
+      "name": "gatk4",
+      "version": "4.6.2.0",
+      "build": "py310hdfd78af_0",
+      "channel": "bioconda",
+      "sha256": "525179af9f76f6d5ea178a6f31131db89aabba1ae372e29890508670e8c3f602",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "name": "deeptools",
+      "version": "3.5.5",
+      "build": "pyhdfd78af_0",
+      "channel": "bioconda",
+      "sha256": "b309cd6b4207ce704d308e8f9d1327031a3fbe2fe5bc193404d2065574e043be",
+      "license": "MIT (deeptools/cm.py: BSD)"
+    }
+  ]
+}

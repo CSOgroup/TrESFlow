@@ -1180,7 +1180,7 @@ class SharedQcTests(unittest.TestCase):
         self.assertIn("-L ${blacklist_bed}", align_script)
         self.assertLess(
             dna_workflow.index("GATK4_MARKDUPLICATES(ch_gatk_markduplicates_input"),
-            dna_workflow.index("NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input)"),
+            dna_workflow.index("NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input, canonicalBamRuntimeScripts)"),
         )
         with tempfile.TemporaryDirectory() as tmp:
             model = synthetic_plot_model(

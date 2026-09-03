@@ -4,14 +4,16 @@
  * preserving the existing duplicate-marking definition.
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
-
 process FILTER_CANONICAL_DNA_ALIGNED_BAM {
     tag "${splitName}"
-    label 'process_single'
+    label 'dna_processing'
+
+    conda "${moduleDir}/../dna_processing/environment-samtools.yml"
+    container 'community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34'
 
     input:
     tuple val(splitName), val(meta), path(alignedBam, stageAs: "input.bam"), path(alignedBai, stageAs: "input.bam.bai"), path(canonicalChromosomes, stageAs: "canonical_chromosomes.txt")
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
@@ -20,12 +22,12 @@ process FILTER_CANONICAL_DNA_ALIGNED_BAM {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
+    def coreScriptsDir = 'tresflow/runtime'
 
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         cp -L "${alignedBam}" "${splitName}.bam"
         cp -L "${alignedBai}" "${splitName}.bam.bai"
@@ -38,20 +40,23 @@ process FILTER_CANONICAL_DNA_ALIGNED_BAM {
     }
     else {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
-        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+        env -u SAMTOOLS_BIN bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
           "${alignedBam}" \\
           "${splitName}.bam" \\
           "${canonicalChromosomes}" \\
           "${task.cpus}" \\
           normal
 
-        "\$SAMTOOLS_BIN" index \\
+        samtools index \\
           --threads "${task.cpus}" \\
           --bai \\
           --output "${splitName}.bam.bai" \\
           "${splitName}.bam"
+
+        chmod a+r "${splitName}.bam" "${splitName}.bam.bai"
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

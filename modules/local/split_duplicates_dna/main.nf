@@ -27,17 +27,21 @@
  *     producer, NORMALIZE_DNA_MARKDUPLICATES, already enforces that invariant.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process SPLIT_DUPLICATES_DNA {
     tag "${splitName}"
-    label 'codon_wrapper'
+    label 'dna_processing'
+
+    conda "${moduleDir}/../dna_processing/environment-samtools.yml"
+    container 'community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34'
 
     publishDir { "${runtimeOutdir()}/dna_align" }, mode: 'copy', overwrite: true, pattern: "*_NoDup.bam*"
     publishDir { "${runtimeOutdir()}/pipeline_info/warnings" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.zero_mapped_nodup_bam.tsv"
 
     input:
     tuple val(splitName), val(meta), path(markedDupBam), val(effectiveGenomeSize)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_NoDup.bam"), emit: bam
@@ -48,8 +52,7 @@ process SPLIT_DUPLICATES_DNA {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
+    def coreScriptsDir = 'tresflow/runtime'
     def sampleId = meta.id as String
     def suffix = splitName.replaceFirst("^${sampleId}_", '')
     def tokens = suffix.tokenize('_')
@@ -58,7 +61,8 @@ process SPLIT_DUPLICATES_DNA {
 
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         printf 'mock nodup bam for %s\n' "${splitName}" > "${splitName}_NoDup.bam"
         printf 'mock nodup bai for %s\n' "${splitName}" > "${splitName}_NoDup.bam.bai"
@@ -72,14 +76,8 @@ process SPLIT_DUPLICATES_DNA {
     }
     else {
         """
-        ${runtimeExports}
-
-        if [[ ! -x "\$SAMTOOLS_BIN" ]]; then
-          echo "Missing configured DNA runtime executable: \$SAMTOOLS_BIN" >&2
-          exit 1
-        fi
-
-        echo "Using SAMTOOLS_BIN=\$SAMTOOLS_BIN"
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         bash "${coreScriptsDir}/SplitDuplicatesDNA.sh" \\
           "${markedDupBam}" \\

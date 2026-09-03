@@ -3,13 +3,8 @@
 channels:
   - conda-forge
   - bioconda
+  - nodefaults
 
 dependencies:
-  # renovate: datasource=conda depName=bioconda/gatk4
-  - bioconda::gatk4=4.6.2.0
-  # renovate: datasource=conda depName=bioconda/gcnvkernel
-  - bioconda::gcnvkernel=0.9
-  # do not update - later htslib versions not compatible with gcnvkernel
-  - bioconda::htslib=1.21
-  # do not update - later samtools versions not compatible with gcnvkernel
-  - bioconda::samtools=1.21
+  - bioconda::gatk4=4.6.2.0=py310hdfd78af_0
+  - bioconda::samtools=1.23.1=ha83d96e_0

@@ -18,21 +18,20 @@ sample_id="${7}"
 group_name="${8}"
 mark_name="${9}"
 split_name="${10}"
-SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
 
 if [[ ! -s "${input_bam}" ]]; then
   echo "ERROR: Duplicate-marked BAM is missing or empty: ${input_bam}" >&2
   exit 1
 fi
-if ! command -v "${SAMTOOLS_BIN}" >/dev/null 2>&1; then
-  echo "ERROR: Missing configured DNA runtime executable: ${SAMTOOLS_BIN}" >&2
+if ! command -v samtools >/dev/null 2>&1; then
+  echo "ERROR: Missing samtools on task PATH" >&2
   exit 1
 fi
 
 # NORMALIZE_DNA_MARKDUPLICATES is the only producer of this input and has
 # already restricted it to the resolved canonical chromosomes. Preserve that
 # header and coordinate order while removing only records carrying 0x400.
-"${SAMTOOLS_BIN}" view \
+samtools view \
   --threads "${threads}" \
   --bam \
   --with-header \
@@ -40,13 +39,13 @@ fi
   --output "${output_bam}" \
   "${input_bam}"
 
-"${SAMTOOLS_BIN}" index \
+samtools index \
   --threads "${threads}" \
   --bai \
   --output "${output_bai}" \
   "${output_bam}"
 
-mapped_reads="$("${SAMTOOLS_BIN}" view --threads "${threads}" -c -F 4 "${output_bam}")"
+mapped_reads="$(samtools view --threads "${threads}" -c -F 4 "${output_bam}")"
 printf '%s\n' "${mapped_reads}" > "${mapped_reads_file}"
 
 if [[ "${mapped_reads}" -eq 0 ]]; then

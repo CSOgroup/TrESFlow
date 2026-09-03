@@ -174,7 +174,7 @@ class Phase4RnaAlignmentArchitectureTests(unittest.TestCase):
             "BEDGRAPH_TO_BIGWIG_BIN",
         ):
             self.assertNotIn(retired, runtime + exports)
-        for retained in ("python3", "samtools", "bwa-mem2", "bamCoverage", "gatk"):
+        for retained in ("python3", "samtools"):
             self.assertIn(retained, runtime)
 
     def test_apptainer_profile_reuses_digest_pinned_oci_images(self):

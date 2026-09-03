@@ -153,6 +153,16 @@ workflow DNA_CORE {
         "${projectDir}/bin/run_dual_tag_artifact_filter.py",
         checkIfExists: true
     )
+    def alignRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/AlignDNA.sh", checkIfExists: true),
+    ]
+    def canonicalBamRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/FilterCanonicalBam.sh", checkIfExists: true),
+    ]
+    def splitDuplicatesRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/SplitDuplicatesDNA.sh", checkIfExists: true),
+    ]
+    def bwaMem2IndexSuffixes = ['.0123', '.amb', '.ann', '.bwt.2bit.64', '.pac']
 
     // Tag sample barcodes from the tagmentation-specific DNA index stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
@@ -295,6 +305,11 @@ workflow DNA_CORE {
         .join(ch_align_rg)
         .map { splitName, sampleId, metaFromFastq, splitR1, splitR2, sampleIdFromRg, metaFromRg, rgHeader ->
             def splitMeta = parseDnaSplitName(sampleId, splitName)
+            def bwaReference = metaFromFastq.dna_bwa_reference as String
+            def bwaReferenceName = new File(bwaReference).name
+            def bwaIndexFiles = bwaMem2IndexSuffixes.collect { suffix ->
+                file("${bwaReference}${suffix}", checkIfExists: true)
+            }
 
             tuple(
                 splitName,
@@ -304,14 +319,15 @@ workflow DNA_CORE {
                 splitR1,
                 splitR2,
                 rgHeader,
-                metaFromFastq.dna_bwa_reference as String,
-                metaFromFastq.dna_blacklist_bed as String,
+                bwaReferenceName,
+                bwaIndexFiles,
+                file(metaFromFastq.dna_blacklist_bed as String, checkIfExists: true),
                 (metaFromFastq.dna_effective_genome_size as String)
             )
         }
 
     // Finish the DNA core with alignment, duplicate marking, NoDup extraction, and coverage.
-    ALIGN_DNA(ch_align_input)
+    ALIGN_DNA(ch_align_input, alignRuntimeScripts)
     ch_versions = ch_versions.mix(ALIGN_DNA.out.versions)
 
     // Preserve MarkDuplicates input exactly as before. A separate canonical
@@ -328,7 +344,7 @@ workflow DNA_CORE {
             )
         }
 
-    FILTER_CANONICAL_DNA_ALIGNED_BAM(ch_canonical_aligned_input)
+    FILTER_CANONICAL_DNA_ALIGNED_BAM(ch_canonical_aligned_input, canonicalBamRuntimeScripts)
     ch_versions = ch_versions.mix(FILTER_CANONICAL_DNA_ALIGNED_BAM.out.versions)
 
     ch_gatk_markduplicates_input = ALIGN_DNA.out.bam.map { splitName, meta, alignedBam ->
@@ -354,7 +370,7 @@ workflow DNA_CORE {
             )
         }
 
-    NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input)
+    NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input, canonicalBamRuntimeScripts)
     ch_versions = ch_versions.mix(NORMALIZE_DNA_MARKDUPLICATES.out.versions)
 
     ch_split_duplicates_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
@@ -367,7 +383,7 @@ workflow DNA_CORE {
             )
         }
 
-    SPLIT_DUPLICATES_DNA(ch_split_duplicates_input)
+    SPLIT_DUPLICATES_DNA(ch_split_duplicates_input, splitDuplicatesRuntimeScripts)
     ch_versions = ch_versions.mix(SPLIT_DUPLICATES_DNA.out.versions)
 
     ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam

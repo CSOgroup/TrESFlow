@@ -18,16 +18,20 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
-    label 'codon_wrapper'
+    label 'dna_processing'
+
+    conda "${moduleDir}/../dna_processing/environment-align.yml"
+    container 'community.wave.seqera.io/library/bwa-mem2_samtools@sha256:ce8cbf5cc21c690c8c2994d9bbb409b9313c47f38c5452a5fe7dec3402eff9c8'
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_alignment_retention.tsv"
 
     input:
-    tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
+    tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReferenceName), path(bwaIndexFiles, stageAs: 'bwa_index/*'), path(blacklistBed), val(effectiveGenomeSize)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
@@ -40,12 +44,13 @@ process ALIGN_DNA {
     def alignThreads = task.cpus as int
     def viewThreads = alignThreads
     def sortThreads = alignThreads
-    def coreScriptsDir = runtimeCoreScriptsDir()
-    def runtimeExports = runtimeShellExports(meta)
+    def coreScriptsDir = 'tresflow/runtime'
+    def bwaReference = "bwa_index/${bwaReferenceName}"
 
     if( mode == 'mock' ) {
         """
-        ${runtimeExports}
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
@@ -66,14 +71,8 @@ EOF
     }
     else {
         """
-        ${runtimeExports}
-
-        for required_bin in "\$BWA_MEM2_BIN" "\$SAMTOOLS_BIN"; do
-          if [[ ! -x "\${required_bin}" ]]; then
-            echo "Missing configured DNA runtime executable: \${required_bin}" >&2
-            exit 1
-          fi
-        done
+        export TMPDIR="\$PWD/.tmp"
+        mkdir -p "\$TMPDIR"
 
         export ALIGN_DNA_THREADS="${alignThreads}"
         export ALIGN_DNA_VIEW_THREADS="${viewThreads}"
