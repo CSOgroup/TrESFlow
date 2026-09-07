@@ -4,8 +4,8 @@ process FASTQC {
 
     conda "${moduleDir}/environment.yml"
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'https://depot.galaxyproject.org/singularity/fastqc:0.12.1--hdfd78af_0'
-        : 'quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0'}"
+        ? 'docker://quay.io/biocontainers/fastqc@sha256:e194048df39c3145d9b4e0a14f4da20b59d59250465b6f2a9cb698445fd45900'
+        : 'quay.io/biocontainers/fastqc@sha256:e194048df39c3145d9b4e0a14f4da20b59d59250465b6f2a9cb698445fd45900'}"
 
     input:
     tuple val(meta), path(reads, stageAs: 'raw???/*')
@@ -36,11 +36,14 @@ process FASTQC {
     def fastqc_memory_arg = fastqc_memory ? "--memory ${fastqc_memory}" : ''
 
     """
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
+
     renamed_files=()
     while IFS=\$'\\t' read -r old_name new_name; do
         [ -f "\${new_name}" ] || ln -s -- "\${old_name}" "\${new_name}"
         renamed_files+=("\${new_name}")
-    done < <(printf '%s' '${renameManifest}' | base64 --decode)
+    done < <(printf '%s' '${renameManifest}' | base64 -d)
 
     fastqc \\
         ${args} \\

@@ -111,7 +111,12 @@ class OutputPublicationTests(unittest.TestCase):
         )
 
         self.assertIn("include { SAMTOOLS_BAM_QC }", workflow)
-        self.assertEqual(workflow.count("SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc)"), 1)
+        self.assertEqual(
+            workflow.count(
+                "SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc, samtoolsQcRuntimeScripts)"
+            ),
+            1,
+        )
         for obsolete in (
             "SAMTOOLS_FLAGSTAT",
             "SAMTOOLS_STATS",

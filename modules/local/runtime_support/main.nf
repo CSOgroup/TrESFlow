@@ -12,7 +12,6 @@ def runtimeShellExports(runtimeParams) {
         RUNTIME_BIN_DIR        : binDir,
         TMPDIR                 : tmpdir,
         PYTHON3_BIN            : "${binDir}/python3",
-        SAMTOOLS_BIN           : "${binDir}/samtools",
     ]
 
     exports.collect { key, value ->

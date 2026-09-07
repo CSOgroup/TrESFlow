@@ -147,7 +147,10 @@ workflow TRESEQ {
         .mix(ch_dna_markeddup_bams_for_qc)
         .mix(ch_dna_nodup_bams_for_qc)
 
-    SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc)
+    def samtoolsQcRuntimeScripts = [
+        file("${projectDir}/scripts/core_runtime/SamtoolsBamQc.sh", checkIfExists: true),
+    ]
+    SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc, samtoolsQcRuntimeScripts)
 
     ch_barcode_report_files = RNA_CORE.out.barcode_report_files
         .mix(DNA_CORE.out.barcode_report_files)

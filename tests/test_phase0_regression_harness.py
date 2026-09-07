@@ -177,6 +177,7 @@ class Phase0NormalizerTests(unittest.TestCase):
                     "rows": [
                         ["tool", "configured_path", "exists", "currently_used"],
                         ["python3", "<PATH>", "true", "yes"],
+                        ["samtools", "<PATH>", "true", "yes"],
                         ["cutadapt", "<PATH>", "true", "yes"],
                         ["trim_galore", "<PATH>", "true", "yes"],
                         ["codon", "<PATH>", "true", "yes"],
@@ -221,7 +222,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["samtools", "<PATH>", "true", "yes"]],
+                    "rows": [["python3", "<PATH>", "true", "yes"]],
                 }
             }
         }
@@ -229,7 +230,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["samtools", "<PATH>", "false", "yes"]],
+                    "rows": [["python3", "<PATH>", "false", "yes"]],
                 }
             }
         }

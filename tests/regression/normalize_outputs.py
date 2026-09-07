@@ -52,6 +52,7 @@ RETIRED_PROCESS_HOST_TOOLS = {
     "bwa-mem2",
     "bamCoverage",
     "gatk",
+    "samtools",
 }
 
 
@@ -100,9 +101,9 @@ def canonicalize_contract_runtime_metadata(contract: dict[str, Any]) -> dict[str
 def canonicalize_retired_process_host_rows(rows: list[list[str]]) -> list[list[str]]:
     """Remove only host rows retired by process-environment migrations.
 
-    Codon/Seq, FASTQ preprocessing, and RNA STAR/coverage now belong to process
-    environments. The remaining host-tool rows and runtime paths are still
-    compared as before.
+    Codon/Seq, FASTQ preprocessing, RNA and DNA processing, and task-side QC
+    tools now belong to process environments. The remaining host-tool rows and
+    runtime paths are still compared as before.
     """
     canonical: list[list[str]] = []
     for row in rows:

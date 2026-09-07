@@ -1,0 +1,55 @@
+{
+  "conda_direct_packages": [
+    {
+      "build": "hdfd78af_0",
+      "channel": "bioconda",
+      "environment": "modules/nf-core/fastqc/environment.yml",
+      "license": "GPL-3.0-or-later",
+      "name": "fastqc",
+      "sha256": "7cc26225d590540ae95cd24940ff42f2da7479dd4cd22ae9ab9298665d06790c",
+      "version": "0.12.1"
+    },
+    {
+      "build": "ha83d96e_0",
+      "channel": "bioconda",
+      "environment": "modules/local/dna_processing/environment-samtools.yml",
+      "license": "MIT/Expat",
+      "name": "samtools",
+      "sha256": "2cb721907a2df7c54580298d655ae7587dbed593bd5536fa8ef4a22c9ae2a496",
+      "version": "1.23.1"
+    },
+    {
+      "build": "pyhdfd78af_0",
+      "channel": "bioconda",
+      "environment": "modules/nf-core/multiqc/environment.yml",
+      "license": "GPL-3.0-or-later",
+      "name": "multiqc",
+      "sha256": "f005760b13093362fc9c997d603dd487de32ab2e821a3cbce52a42bcb8136517",
+      "version": "1.33"
+    }
+  ],
+  "containers": {
+    "fastqc": {
+      "fastqc": "0.12.1",
+      "platform": "linux/amd64",
+      "reference": "quay.io/biocontainers/fastqc@sha256:e194048df39c3145d9b4e0a14f4da20b59d59250465b6f2a9cb698445fd45900",
+      "source": "BioContainers"
+    },
+    "multiqc": {
+      "multiqc": "1.33",
+      "platform": "linux/amd64",
+      "reference": "quay.io/biocontainers/multiqc@sha256:dfd9fde2c48b896b884e79a71ddc16c72c97a0ee5c5c8e45aaba50f55d07d263",
+      "source": "BioContainers"
+    },
+    "samtools_qc": {
+      "platform": "linux/amd64",
+      "reference": "community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34",
+      "samtools": "1.23.1",
+      "source": "Seqera Containers"
+    }
+  },
+  "schema_version": 1,
+  "supported_platforms": [
+    "linux/amd64"
+  ]
+}

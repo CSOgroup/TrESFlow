@@ -198,7 +198,7 @@ class Phase5DnaProcessingArchitectureTests(unittest.TestCase):
             "GATK_BIN",
         ):
             self.assertNotIn(retired, runtime + exports)
-        for retained in ("python3", "samtools", "PYTHON3_BIN", "SAMTOOLS_BIN"):
+        for retained in ("python3", "PYTHON3_BIN"):
             self.assertIn(retained, runtime + exports)
 
     def test_obsolete_dna_modules_are_not_in_the_active_graph(self):

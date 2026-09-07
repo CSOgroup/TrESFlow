@@ -12,19 +12,18 @@ input_bam="${1}"
 output_prefix="${2}"
 run_idxstats="${3}"
 threads="${4}"
-SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
 
 if [[ ! -e "${input_bam}" ]]; then
   echo "ERROR: Samtools QC input is missing: ${input_bam}" >&2
   exit 1
 fi
-if ! command -v "${SAMTOOLS_BIN}" >/dev/null 2>&1; then
-  echo "ERROR: Missing configured Samtools QC executable: ${SAMTOOLS_BIN}" >&2
+if ! command -v samtools >/dev/null 2>&1; then
+  echo "ERROR: Missing Samtools QC executable on PATH: samtools" >&2
   exit 1
 fi
 
 set +e
-"${SAMTOOLS_BIN}" quickcheck "${input_bam}"
+samtools quickcheck "${input_bam}"
 quickcheck_exit=$?
 set -e
 printf 'id\tbam\texit_code\tstatus\n' > "${output_prefix}.quickcheck.tsv"
@@ -41,13 +40,13 @@ printf '%s\t%s\t%s\t%s\n' \
   >> "${output_prefix}.quickcheck.tsv"
 
 set +e
-"${SAMTOOLS_BIN}" flagstat \
+samtools flagstat \
   --threads "${threads}" \
   "${input_bam}" \
   > "${output_prefix}.flagstat"
 flagstat_exit=$?
 
-"${SAMTOOLS_BIN}" stats \
+samtools stats \
   --threads "${threads}" \
   "${input_bam}" \
   > "${output_prefix}.stats"
@@ -57,7 +56,7 @@ idxstats_exit=0
 case "${run_idxstats}" in
   true)
     idxstats_threads=$((threads > 0 ? threads - 1 : 0))
-    "${SAMTOOLS_BIN}" idxstats \
+    samtools idxstats \
       --threads "${idxstats_threads}" \
       "${input_bam}" \
       > "${output_prefix}.idxstats"

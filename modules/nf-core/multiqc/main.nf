@@ -4,8 +4,8 @@ process MULTIQC {
 
     conda "${moduleDir}/environment.yml"
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/c8/c8e346f4f6080eadf1253505e6ff09ef004454fc18e8d672006fd7b222cc412e/data'
-        : 'community.wave.seqera.io/library/multiqc:1.35--c17fb751507e9dfc'}"
+        ? 'docker://quay.io/biocontainers/multiqc@sha256:dfd9fde2c48b896b884e79a71ddc16c72c97a0ee5c5c8e45aaba50f55d07d263'
+        : 'quay.io/biocontainers/multiqc@sha256:dfd9fde2c48b896b884e79a71ddc16c72c97a0ee5c5c8e45aaba50f55d07d263'}"
 
     input:
     tuple val(meta), path(multiqc_files, stageAs: "?/*"), path(multiqc_config, stageAs: "?/*"), path(multiqc_logo), path(replace_names), path(sample_names)
@@ -28,8 +28,18 @@ process MULTIQC {
     def replace = replace_names ? "--replace-names ${replace_names}" : ''
     def samples = sample_names ? "--sample-names ${sample_names}" : ''
     """
+    export TMPDIR="\$PWD/.tmp"
+    export XDG_CACHE_HOME="\$PWD/.cache"
+    export MPLCONFIGDIR="\$PWD/.mplconfig"
+    export NUMBA_CACHE_DIR="\$PWD/.numba"
+    mkdir -p "\$TMPDIR" "\$XDG_CACHE_HOME" "\$MPLCONFIGDIR" "\$NUMBA_CACHE_DIR"
+
     multiqc \\
         --force \\
+        --ignore '.tmp/**' \\
+        --ignore '.cache/**' \\
+        --ignore '.mplconfig/**' \\
+        --ignore '.numba/**' \\
         ${args} \\
         ${config} \\
         ${prefix} \\

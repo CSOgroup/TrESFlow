@@ -5,16 +5,20 @@
  * task; flagstat, stats, and DNA idxstats retain their normal failure behavior.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeOutdir } from '../runtime_support/main'
 
 process SAMTOOLS_BAM_QC {
     tag "${meta.id}"
     label 'process_single'
 
+    conda "${moduleDir}/../dna_processing/environment-samtools.yml"
+    container 'community.wave.seqera.io/library/samtools@sha256:2ee310db4ac650bc54c16dc9d28151d973e2ffed0ca878de8fc8e70e820ffe34'
+
     publishDir { "${runtimeOutdir()}/TrES_Stats/qc/samtools" }, mode: params.publish_dir_mode, overwrite: true
 
     input:
     tuple val(meta), path(bam), path(bai), val(runIdxstats)
+    path runtimeScripts, stageAs: 'tresflow/runtime/*'
 
     output:
     tuple val(meta), path("*.flagstat"), emit: flagstat
@@ -28,11 +32,11 @@ process SAMTOOLS_BAM_QC {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def runtimeExports = runtimeShellExports(meta)
-    def coreScriptsDir = runtimeCoreScriptsDir()
+    def coreScriptsDir = 'tresflow/runtime'
 
     """
-    ${runtimeExports}
+    export TMPDIR="\$PWD/.tmp"
+    mkdir -p "\$TMPDIR"
 
     bash "${coreScriptsDir}/SamtoolsBamQc.sh" \\
       "${bam}" \\

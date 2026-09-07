@@ -35,7 +35,8 @@ class SamtoolsBamQcTests(unittest.TestCase):
 
     def run_qc(self, bam, prefix, run_idxstats):
         env = os.environ.copy()
-        env["SAMTOOLS_BIN"] = self.samtools
+        env["PATH"] = f"{Path(self.samtools).parent}:{env.get('PATH', '')}"
+        env["SAMTOOLS_BIN"] = "/home/annan/micromamba/envs/tres/must-not-be-used"
         return subprocess.run(
             [
                 "bash",
