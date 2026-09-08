@@ -39,13 +39,15 @@ NXF_OFFLINE=true nextflow run . -profile test --samplesheet assets/samplesheet.e
 Canonical real-data style run:
 
 ```bash
-NXF_OFFLINE=true nextflow run . \
+NXF_OFFLINE=true nextflow run . -with-conda \
   --samplesheet /mnt/dataFast/ahrmad/TEST_NF/isa_multiome.yaml \
   --outdir /mnt/dataFast/ahrmad/TEST_NF/TrESFlow_Isa \
   --max_cpus 32
 ```
 
-The pipeline reads runtime and reference locations from the samplesheet. Runtime and reference CLI overrides are rejected.
+The pipeline reads reference locations from the samplesheet. Process software
+comes from declared task environments; legacy runtime and reference CLI
+overrides remain rejected.
 
 TrESFlow supports both Nextflow parser v1 and parser v2 from one source tree
 (Nextflow 24.10 or later; parser v2 is the default from Nextflow 26.04).
@@ -84,9 +86,6 @@ The supported YAML structure is:
 
 ```yaml
 library_name: Isa
-
-runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
 
 references:
   species: human
@@ -131,14 +130,16 @@ samples:
 ### Top-level fields
 
 - `library_name`: run-level library label propagated into RG headers and derived contract files
-- `runtime`: required runtime environment and explicit task temporary directory
 - `references`: required species label, shared files, and direct RNA/DNA reference paths
 - `samples`: biological sample blocks keyed by user-defined sample ID
 
-### `runtime`
+### Legacy `runtime` compatibility
 
-- `env_prefix`: environment prefix containing `python3`, `codon`, `cutadapt` (5.2 in the supported environment), `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, `FastQC`, and `gatk`
-- `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
+The `runtime` block is no longer required. Existing samplesheets may retain
+`runtime.env_prefix` and `runtime.tmpdir`; TrESFlow emits a deprecation warning
+and ignores both values. Processes resolve software from their declared
+container or Conda environment and use task-local temporary directories.
+Choose shared or high-capacity task storage with Nextflow's `-work-dir` option.
 
 ### `references`
 

@@ -93,20 +93,20 @@ nextflow_pipeline {
         }
     }
 
-    test("missing runtime.env_prefix fails") {
+    test("samplesheet runtime block is optional") {
 
         when {
             params {
-                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_env_prefix.yaml"
+                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_tmpdir.yaml"
                 outdir = "$outputDir"
             }
         }
 
         then {
-            def output = (workflow.stdout + workflow.stderr).join('\n')
+            def runtimeContract = new File(outputDir, "pipeline_info/runtime_contract.tsv")
             assertAll(
-                { assert !workflow.success },
-                { assert output.contains("Missing required field: runtime.env_prefix") }
+                { assert workflow.success },
+                { assert runtimeContract.text == "tool\tconfigured_path\texists\tcurrently_used\n" }
             )
         }
     }
@@ -152,11 +152,11 @@ nextflow_pipeline {
         }
     }
 
-    test("missing runtime.tmpdir defaults to outdir") {
+    test("legacy runtime.tmpdir is accepted and ignored") {
 
         when {
             params {
-                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_tmpdir.yaml"
+                samplesheet = "$projectDir/tests/samplesheets/missing_runtime_env_prefix.yaml"
                 outdir = "$outputDir"
             }
         }
@@ -166,12 +166,12 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert runtimeContract.exists() },
-                { assert runtimeContract.text.contains("runtime_tmpdir\t${outputDir}") }
+                { assert runtimeContract.text == "tool\tconfigured_path\texists\tcurrently_used\n" }
             )
         }
     }
 
-    test("explicit runtime.tmpdir is preserved") {
+    test("legacy runtime fields are accepted and ignored") {
 
         when {
             params {
@@ -185,7 +185,7 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert runtimeContract.exists() },
-                { assert runtimeContract.text.contains("runtime_tmpdir\t/tmp/TrESFlow_explicit_runtime_tmpdir") }
+                { assert runtimeContract.text == "tool\tconfigured_path\texists\tcurrently_used\n" }
             )
         }
     }

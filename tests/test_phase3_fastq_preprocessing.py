@@ -123,8 +123,8 @@ class Phase3FastqPreprocessingArchitectureTests(unittest.TestCase):
             "[name: 'pigz', binary: 'pigz']",
         ):
             self.assertNotIn(token, runtime + task_exports)
-        for retained in ("python3",):
-            self.assertIn(retained, runtime)
+        self.assertNotIn("runtimeToolPath", runtime)
+        self.assertNotIn("PYTHON3_BIN", runtime + task_exports)
 
     def test_wrappers_do_not_read_absolute_host_binary_variables(self):
         trim_wrapper = (REPO / "bin/run_trim_galore.py").read_text(encoding="utf-8")

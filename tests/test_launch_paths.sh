@@ -71,8 +71,8 @@ test ! -e "${launch_dir}/relative-results/tres_report"
 test ! -e "${launch_dir}/relative-results/qc"
 test ! -e "${launch_dir}/relative-results/multiqc"
 test -s "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv"
-grep -F $'runtime_tmpdir\t'"${launch_dir}/relative-results" \
-    "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv" > /dev/null
+test "$(cat "${launch_dir}/relative-results/pipeline_info/runtime_contract.tsv")" = \
+    $'tool\tconfigured_path\texists\tcurrently_used'
 
 # Repository wrappers and the explicit core-runtime override must be staged as
 # task inputs; task commands must use only their portable staged paths.

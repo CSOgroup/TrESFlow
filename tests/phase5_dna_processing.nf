@@ -64,8 +64,6 @@ workflow {
     def blacklist = file(params.blacklist, checkIfExists: true)
     def canonical = file(params.canonical_chromosomes, checkIfExists: true)
     def effectiveGenomeSize = '62000'
-    def poisonedPrefix = '/home/annan/micromamba/envs/tres/phase5-must-not-be-used'
-
     def scenarios = [
         [
             sampleId: 'phase0_dna_single',
@@ -87,8 +85,6 @@ workflow {
         def meta = [
             id                       : scenario.sampleId,
             dna_effective_genome_size: effectiveGenomeSize,
-            runtime_env_prefix       : poisonedPrefix,
-            runtime_tmpdir           : "${poisonedPrefix}/tmp",
         ]
         tuple(
             scenario.splitName,
@@ -137,8 +133,6 @@ workflow {
     def emptyMeta = [
         id                       : 'phase5_empty',
         dna_effective_genome_size: effectiveGenomeSize,
-        runtime_env_prefix       : poisonedPrefix,
-        runtime_tmpdir           : "${poisonedPrefix}/tmp",
     ]
     ch_split = NORMALIZE_DNA_MARKDUPLICATES.out.bam
         .map { splitName, meta, bam ->

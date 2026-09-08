@@ -1,9 +1,5 @@
 library_name: TESTLIB
 
-runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /tmp/TrESFlow_test_dual_without_i2_tmp
-
 references:
   species: human
   root: ../../assets/testdata/TrESFlow_References

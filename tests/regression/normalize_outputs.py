@@ -43,6 +43,7 @@ STAR_MAPPING_SPEED_LINE = re.compile(
 PICARD_STARTED_ON_LINE = re.compile(r"^# Started on:\s+.+$")
 RUNTIME_CONTRACT_PATH = "pipeline_info/runtime_contract.tsv"
 RETIRED_PROCESS_HOST_TOOLS = {
+    "python3",
     "codon",
     "cutadapt",
     "trim_galore",
@@ -53,6 +54,13 @@ RETIRED_PROCESS_HOST_TOOLS = {
     "bamCoverage",
     "gatk",
     "samtools",
+}
+RETIRED_HOST_RUNTIME_ROWS = {
+    "[runtime_environment]",
+    "runtime_env_prefix",
+    "runtime_bin_dir",
+    "runtime_tmpdir",
+    "codon_home",
 }
 
 
@@ -101,15 +109,14 @@ def canonicalize_contract_runtime_metadata(contract: dict[str, Any]) -> dict[str
 def canonicalize_retired_process_host_rows(rows: list[list[str]]) -> list[list[str]]:
     """Remove only host rows retired by process-environment migrations.
 
-    Codon/Seq, FASTQ preprocessing, RNA and DNA processing, and task-side QC
-    tools now belong to process environments. The remaining host-tool rows and
-    runtime paths are still compared as before.
+    All production tools now belong to process environments, and the legacy
+    samplesheet runtime paths are ignored. Unknown future rows remain visible.
     """
     canonical: list[list[str]] = []
     for row in rows:
         if row == ["[host_codon_seq_preflight]"]:
             break
-        if row and row[0] in RETIRED_PROCESS_HOST_TOOLS | {"codon_home"}:
+        if row and row[0] in RETIRED_PROCESS_HOST_TOOLS | RETIRED_HOST_RUNTIME_ROWS:
             continue
         canonical.append(row)
     return canonical

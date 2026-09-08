@@ -7,9 +7,6 @@
 
 library_name: Isa
 
-runtime:
-  env_prefix: /path/to/env/prefix
-
 references:
   species: human
   root: /path/to/TrESFlow_References

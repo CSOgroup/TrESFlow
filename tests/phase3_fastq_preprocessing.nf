@@ -30,11 +30,8 @@ workflow {
         checkIfExists: true
     )
 
-    def poisonedPrefix = '/home/annan/micromamba/envs/tres/phase3-must-not-be-used'
     def commonMeta = [
         library_name      : 'PHASE3',
-        runtime_env_prefix: poisonedPrefix,
-        runtime_tmpdir    : "${poisonedPrefix}/tmp",
     ]
 
     def rnaMeta = commonMeta + [id: 'phase3_rna']

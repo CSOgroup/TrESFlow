@@ -45,7 +45,7 @@ samtools view "${INBAM}" \
       --called-barcodes "${BARCODES}" \
       --output "${RETENTION_METRICS}"
 
-env -u SAMTOOLS_BIN bash "${script_dir}/FilterCanonicalBam.sh" \
+bash "${script_dir}/FilterCanonicalBam.sh" \
     "${INBAM}" \
     "${OUTBAM}" \
     "${canonical_contigs}" \

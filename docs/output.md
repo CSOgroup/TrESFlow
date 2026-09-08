@@ -274,6 +274,10 @@ Expected files include:
 - `runtime_contract.tsv`
 - `warnings/*.zero_mapped_nodup_bam.tsv` when DNA NoDup BAMs have zero mapped reads and bamCoverage is skipped
 
+`runtime_contract.tsv` is retained as an output-layout compatibility marker.
+It no longer records host executables or samplesheet environment paths because
+production tools are supplied by process environments.
+
 When the YAML contains group and DNA mark definitions, the parser also writes:
 
 ```text

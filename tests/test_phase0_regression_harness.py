@@ -204,10 +204,6 @@ class Phase0NormalizerTests(unittest.TestCase):
                     "delimiter": "tab",
                     "rows": [
                         ["tool", "configured_path", "exists", "currently_used"],
-                        ["python3", "<PATH>", "true", "yes"],
-                        ["[runtime_environment]"],
-                        ["runtime_env_prefix", "<PATH>"],
-                        ["runtime_tmpdir", "<PATH>"],
                     ],
                 }
             }
@@ -222,7 +218,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["python3", "<PATH>", "true", "yes"]],
+                    "rows": [["future_host_tool", "<PATH>", "true", "yes"]],
                 }
             }
         }
@@ -230,7 +226,7 @@ class Phase0NormalizerTests(unittest.TestCase):
             "tables": {
                 normalizer.RUNTIME_CONTRACT_PATH: {
                     "delimiter": "tab",
-                    "rows": [["python3", "<PATH>", "false", "yes"]],
+                    "rows": [["future_host_tool", "<PATH>", "false", "yes"]],
                 }
             }
         }

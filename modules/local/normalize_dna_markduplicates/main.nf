@@ -49,7 +49,7 @@ process NORMALIZE_DNA_MARKDUPLICATES {
         export TMPDIR="\$PWD/.tmp"
         mkdir -p "\$TMPDIR"
 
-        env -u SAMTOOLS_BIN bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
           "${markedDupBam}" \\
           "${splitName}_MarkedDup.bam" \\
           "${canonicalChromosomes}" \\

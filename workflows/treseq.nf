@@ -202,8 +202,6 @@ workflow TRESEQ {
             report_title    : reportMetadata.report_title,
             pipeline_version: reportMetadata.pipeline_version,
             filter_dual_tag_artifacts: params.filter_dual_tag_artifacts,
-            runtime_env_prefix: sampleRows ? sampleRows[0].runtime_env_prefix : '',
-            runtime_tmpdir  : sampleRows ? sampleRows[0].runtime_tmpdir : '',
             samples         : sampleRows.collect { row -> [
                 id              : row.id,
                 modality        : row.modality,

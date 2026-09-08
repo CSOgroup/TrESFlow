@@ -43,7 +43,7 @@ process FILTER_CANONICAL_DNA_ALIGNED_BAM {
         export TMPDIR="\$PWD/.tmp"
         mkdir -p "\$TMPDIR"
 
-        env -u SAMTOOLS_BIN bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
+        bash "${coreScriptsDir}/FilterCanonicalBam.sh" \\
           "${alignedBam}" \\
           "${splitName}.bam" \\
           "${canonicalChromosomes}" \\

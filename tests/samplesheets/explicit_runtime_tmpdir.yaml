@@ -1,8 +1,8 @@
 library_name: TESTLIB
 
 runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
-  tmpdir: /tmp/TrESFlow_explicit_runtime_tmpdir
+  env_prefix: /legacy/tresflow/environment
+  tmpdir: /legacy/tresflow/tmp
 
 references:
   species: human

@@ -36,8 +36,6 @@ while (( $# > 0 )); do
   esac
 done
 
-SAMTOOLS_BIN="${SAMTOOLS_BIN:-samtools}"
-
 validation_tmp=""
 header_file=""
 reheadered_bam=""
@@ -79,7 +77,7 @@ header_index=0
 while IFS= read -r contig; do
   header_order["${contig}"]="${header_index}"
   header_index=$((header_index + 1))
-done < <("${SAMTOOLS_BIN}" view -H "${input_bam}" | awk -F '\t' '
+done < <(samtools view -H "${input_bam}" | awk -F '\t' '
   $1 == "@SQ" {
     for (i = 2; i <= NF; i++) {
       if ($i ~ /^SN:/) {
@@ -106,7 +104,7 @@ for contig in "${canonical_contigs[@]}"; do
 done
 
 if [[ ! -s "${input_bam}.bai" && ! -s "${input_bam%.bam}.bai" && ! -s "${input_bam}.csi" ]]; then
-  "${SAMTOOLS_BIN}" index --threads "${threads}" "${input_bam}"
+  samtools index --threads "${threads}" "${input_bam}"
 fi
 
 case "${compression_mode}" in
@@ -122,7 +120,7 @@ case "${compression_mode}" in
     ;;
 esac
 
-"${SAMTOOLS_BIN}" view \
+samtools view \
   --threads "${threads}" \
   "${output_option[@]}" \
   --with-header \
@@ -145,7 +143,7 @@ esac
 # therefore cannot alter which records are retained.
 validation_tmp="$(mktemp "${TMPDIR:-/tmp}/canonical-validation.XXXXXX.tsv")"
 
-"${SAMTOOLS_BIN}" view "${output_bam}" | awk -v allowlist="${allowlist}" '
+samtools view "${output_bam}" | awk -v allowlist="${allowlist}" '
   BEGIN {
     while ((getline line < allowlist) > 0) {
       split(line, fields)
@@ -233,7 +231,7 @@ if (( invalid_mate_reference_records == 0 )); then
   header_file="$(mktemp "${TMPDIR:-/tmp}/canonical-header.XXXXXX.sam")"
   reheadered_bam="$(mktemp "${TMPDIR:-/tmp}/canonical-reheader.XXXXXX.bam")"
 
-  "${SAMTOOLS_BIN}" view --no-PG -H "${output_bam}" | awk -v allowlist="${allowlist}" '
+  samtools view --no-PG -H "${output_bam}" | awk -v allowlist="${allowlist}" '
     BEGIN {
       FS = OFS = "\t"
       while ((getline line < allowlist) > 0) {
@@ -265,8 +263,8 @@ if (( invalid_mate_reference_records == 0 )); then
   # entry for this implementation detail.
   {
     cat "${header_file}"
-    "${SAMTOOLS_BIN}" view "${output_bam}"
-  } | "${SAMTOOLS_BIN}" view \
+    samtools view "${output_bam}"
+  } | samtools view \
     --no-PG \
     --threads "${threads}" \
     "${output_option[@]}" \
@@ -281,7 +279,7 @@ else
   echo "WARNING: Retaining unused noncanonical @SQ entries in ${output_bam} because a canonical alignment has a mate reference outside the allowlist" >&2
 fi
 
-"${SAMTOOLS_BIN}" quickcheck -v "${output_bam}"
+samtools quickcheck -v "${output_bam}"
 
 rm -f "${validation_tmp}"
 validation_tmp=""

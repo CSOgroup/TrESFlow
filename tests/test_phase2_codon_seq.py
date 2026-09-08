@@ -88,8 +88,8 @@ class Phase2CodonSeqArchitectureTests(unittest.TestCase):
         self.assertNotIn("CODON_HOME", runtime + task_exports)
         self.assertNotIn("codon_home", runtime)
         self.assertNotIn("[name: 'codon', binary: 'codon']", runtime)
-        for retained in ("python3",):
-            self.assertIn(retained, runtime)
+        self.assertNotIn("runtimeToolPath", runtime)
+        self.assertNotIn("PYTHON3_BIN", runtime + task_exports)
 
     def test_runtime_build_inputs_and_platform_are_immutable(self):
         manifest = json.loads(
@@ -130,9 +130,10 @@ class Phase2CodonSeqArchitectureTests(unittest.TestCase):
         self.assertNotIn("docker push", workflow)
         self.assertNotIn("push: true", workflow)
 
-    def test_isolated_harness_poisoned_the_legacy_host_prefix(self):
+    def test_isolated_harness_has_no_legacy_runtime_metadata(self):
         harness = (REPO / "tests/phase2_codon_seq.nf").read_text(encoding="utf-8")
-        self.assertIn("phase2-must-not-be-used", harness)
+        self.assertNotIn("runtime_env_prefix", harness)
+        self.assertNotIn("runtime_tmpdir", harness)
         for process_name in (
             "TAG_RNA_SAMPLE_BARCODE",
             "TAG_RNA_UMI",

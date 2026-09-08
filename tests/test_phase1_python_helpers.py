@@ -118,9 +118,10 @@ class Phase1PythonHelperArchitectureTests(unittest.TestCase):
         self.assertIn("lib/tresflow_qc", workflow)
         self.assertIn("TRES_REPORT_HTML(\n        ch_tres_report_input,", workflow)
 
-    def test_process_test_uses_an_unresolvable_legacy_environment(self):
+    def test_process_test_has_no_legacy_runtime_metadata(self):
         harness = (REPO / "tests/phase1_python_helpers.nf").read_text()
-        self.assertIn("phase1-must-not-be-used", harness)
+        self.assertNotIn("runtime_env_prefix", harness)
+        self.assertNotIn("runtime_tmpdir", harness)
         self.assertIn("BARCODE_GATE_METRICS(", harness)
         self.assertIn("TRES_REPORT_HTML(", harness)
 

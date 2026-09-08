@@ -1,8 +1,5 @@
 library_name: TESTLIB
 
-runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
-
 references:
   species: human
   root: testdata/TrESFlow_References

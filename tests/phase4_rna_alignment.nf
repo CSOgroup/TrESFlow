@@ -30,11 +30,8 @@ workflow {
     ]
 
     def splitName = 'phase0_rna_Normal'
-    def poisonedPrefix = '/home/annan/micromamba/envs/tres/phase4-must-not-be-used'
     def meta = [
         id                : splitName,
-        runtime_env_prefix: poisonedPrefix,
-        runtime_tmpdir    : "${poisonedPrefix}/tmp",
     ]
 
     RNA_STARSOLO_ALIGN(

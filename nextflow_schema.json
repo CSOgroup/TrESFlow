@@ -22,7 +22,7 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. Each read role accepts one path, a comma-separated scalar, or an ordered YAML sequence of synchronized technical chunks from the same logical library. Samplesheet-internal relative paths resolve from the samplesheet directory; the --samplesheet path itself resolves from the Nextflow launch directory."
+                    "description": "Hierarchical YAML samplesheet describing references, biological groups, and modality-specific FASTQ inputs. Legacy runtime.env_prefix and runtime.tmpdir keys are accepted but ignored. Each read role accepts one path, a comma-separated scalar, or an ordered YAML sequence of synchronized technical chunks from the same logical library. Samplesheet-internal relative paths resolve from the samplesheet directory; the --samplesheet path itself resolves from the Nextflow launch directory."
                 },
                 "outdir": {
                     "type": "string",
@@ -41,7 +41,7 @@
         "execution_options": {
             "title": "Execution options",
             "type": "object",
-            "description": "Pipeline execution options. Runtime environment and references are configured in the YAML samplesheet.",
+            "description": "Pipeline execution options. Software is supplied by process environments and references are configured in the YAML samplesheet.",
             "properties": {
                 "core_scripts_dir": {
                     "type": "string",

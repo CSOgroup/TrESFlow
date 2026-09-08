@@ -9,13 +9,11 @@ Core workflow only:
 ```mermaid
 flowchart TD
     SS[Hierarchical YAML samplesheet]
-    RUN[runtime block]
     REF[references block\nspecies and direct paths]
     GROUPS[groups with modality barcodes and group-specific mark_barcodes]
     DNAMARKS[Group-specific DNA mark_barcodes]
     DERIVE[Normalize ordered FASTQ lists\nprovenance, barcode maps, whitelists\ncanonical chromosome contracts]
 
-    SS --> RUN
     SS --> REF
     SS --> GROUPS
     SS --> DNAMARKS
@@ -103,11 +101,11 @@ Notes:
 - `BARCODE_GATE_METRICS` is a sidecar reader attached to the exact paired FASTQs entering RNA or DNA splitting. It intersects their ordered QNAMEs with the existing compressed `Tag_Lig3` decision records to publish exact cumulative L1/L2/L3, sample-barcode, and DNA MO gates plus exhaustive composition tables. Sample composition preserves every configured barcode sequence and group plus explicit `NoMatch`; DNA mark composition preserves every configured mark plus `NoMatch`. It has no FASTQ output and cannot modify matching, routing, or biological data. Filtered dual-tag DNA is measured after artifact removal; the artifact summary separately supplies the preceding paired-trimming population.
 - Each Codon split task emits plain FASTQs directly to computation (`FQ_TO_SAM` or `ALIGN_DNA`). With `--publish_split_fastqs`, an independent `pigz -c` branch publishes gzip copies; by default that publication-only task is skipped.
 - `RNA_FILTERED_BAM` publishes its low-compression filtered BAM directly under `rna_align/`; RNA coverage and Samtools QC consume the same process output without a copy or recompression task.
-- Canonical chromosome contracts are resolved once from the STAR and bwa-mem2 dictionaries. No contigs are renamed, and mixed UCSC/Ensembl conventions fail before task execution.
+- Canonical chromosome contracts are resolved once in pure Groovy from the STAR and bwa-mem2 dictionaries. No host Python is executed, no contigs are renamed, and mixed UCSC/Ensembl conventions fail before task execution.
 - GATK duplicate marking consumes the same unfiltered aligned BAM as before. `NORMALIZE_DNA_MARKDUPLICATES` performs the post-marking canonical filter; `SPLIT_DUPLICATES_DNA` therefore removes only records carrying flag `0x400`, indexes the NoDup BAM, and gates coverage from its mapped-read count without restaging the BAM. DNA QC always consumes the NoDup BAM/index, including when coverage is skipped.
 - Canonical-only `@SQ` dictionaries are emitted when every retained mate reference permits it. If a canonical record refers to a mate on a noncanonical contig, unused noncanonical `@SQ` lines are retained to keep RNEXT valid; alignment records and coverage signal are still canonical-only.
 - nf-core FastQC receives every explicitly configured raw FASTQ once. The implicit dual-DNA `i2=i1` fallback is excluded so it is not measured twice. FastQC and the combined Samtools QC process are sidecar readers only; they do not alter downstream TrESFlow outputs.
 - nf-core `gatk4/markduplicates` replaces the previous local GATK invocation and keeps duplicate grouping cell-aware with `--BARCODE_TAG CB`. DNA `RG`/`PU` values are deterministic `instrument:run:flowcell:L<lane>` physical-unit IDs derived from the complete AVITI QNAME; the colon separator cannot occur inside a QNAME field, and unsupported identifier characters fail. Cell identity remains in `CB`, and every physical unit has the same logical `LB`, preserving genomic/PCR duplicate grouping across units while optical comparisons remain unit-local. TrESFlow supplies the AVITI QNAME regex and an empirical, configurable optical distance (default 10 AVITI coordinate units). `--REMOVE_DUPLICATES false`, index creation, and the historical TrESFlow output names remain unchanged through the normalization adapter.
 - nf-core `deeptools/bamcoverage` writes the historical `<split>_NoDup.bw` filename directly. Zero-mapped detection is performed inside `SPLIT_DUPLICATES_DNA`; the original NoDup BAM/BAI reaches bamCoverage only when mapped reads are present, while the historical warning TSV is published otherwise.
 - `TRES_REPORT_HTML` receives explicit metric-channel inputs, including sample-barcode counts/stats, so report execution waits for the gate/composition, retention, DT, STARsolo, samtools flagstat, Picard, and derived-map producers rather than scanning published output. The entry workflow resolves the report title from the canonical `params.outdir` basename and resolves the checked-out GitHub release tag (or deterministic nearest-release development baseline) offline before passing both values explicitly. Samplesheet group identities are retained as report metadata. The module uses `lib/tresflow_qc`, shared with the standalone assessor, to publish only the self-contained `tres_report.html` and four consolidated TSVs. Applicable plots are generated per independent run from the normalized model, use measured data-derived inline-SVG layouts, and expose browser-side SVG and PNG downloads without publishing plot artifacts. STARsolo `Summary.csv` is authoritative for RNA sequencing saturation; Picard metrics are authoritative for the separately reconciled DNA PCR/library and optical components. FastQC and broader samtools inputs remain in the independent MultiQC collection under `TrES_Stats/qc/`.
-- The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).
+- Repository-owned core helpers live under `scripts/core_runtime/` and are staged into tasks as explicit inputs.

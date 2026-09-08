@@ -7,17 +7,13 @@ TrESFlow is a Nextflow DSL2 pipeline for preprocessing TrES-seq RNA and DNA sequ
 
 ## Installation
 
-Create and activate a conda/mamba/micromamba environment with the required tools:
+Install Nextflow 24.10 or later and a Conda-compatible environment manager.
+TrESFlow declares each production task's dependencies in its process module;
+the samplesheet does not select or locate software. To use those declarations,
+enable Nextflow's Conda execution mode:
 
 ```bash
-micromamba create -n tres
-micromamba activate tres
-
-micromamba install \
-  pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy \
-  pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
-  snapatac2 screen samtools bwa-mem2 star fastqc multiqc trim-galore \
-  deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
+nextflow run . -with-conda --samplesheet /path/to/samplesheet.yaml
 ```
 
 Clone TrESFlow:
@@ -27,22 +23,13 @@ git clone git@github.com:CSOgroup/TrESFlow.git
 cd TrESFlow
 ```
 
-Install Codon in the same environment:
-
-```bash
-./scripts/install_codon_0.16.3.sh --prefix /path/to/env/prefix
-```
-
 ## Inputs
 
-TrESFlow uses one hierarchical YAML samplesheet describing the runtime environment, references, biological groups, barcodes, and FASTQ inputs.
+TrESFlow uses one hierarchical YAML samplesheet describing references,
+biological groups, barcodes, and FASTQ inputs.
 
 ```yaml
 library_name: Isa
-
-runtime:
-  env_prefix: /path/to/env/prefix
-  # tmpdir: /path/to/large/tmp
 
 references:
   species: human
@@ -108,7 +95,7 @@ samples:
 - `dna.reads.i2` is required for `single` tagmentation and optional for `dual`.
 - FASTQ inputs may be a single path, a comma-separated list, or a YAML sequence. Multiple entries represent ordered technical FASTQ chunks from the same library, and corresponding read roles must contain the same number of entries.
 - YAML sequences are recommended for multi-FASTQ inputs and are required when a path itself contains a comma. Relative paths resolve from the samplesheet directory.
-- `runtime.tmpdir` is optional and defaults to `--outdir`.
+- Legacy `runtime.env_prefix` and `runtime.tmpdir` keys are accepted but ignored.
 - `references.rna_ref_dir` must point to a STAR index when RNA is present.
 - DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
 
@@ -130,8 +117,10 @@ A typical run is:
 
 ```bash
 NXF_OFFLINE=true nextflow run . \
+  -with-conda \
   --samplesheet /path/to/samplesheet.yaml \
   --outdir /path/to/results \
+  -work-dir /path/to/task-work \
   --max_cpus 80
 ```
 
@@ -217,7 +206,10 @@ when you need to preserve the work directory for debugging or reliable reuse wit
 
 ### Temporary disk space
 
-`runtime.tmpdir` defaults to `--outdir`. Large datasets can require substantial temporary disk space, so set `runtime.tmpdir` explicitly when a larger or faster filesystem is available.
+Processes use task-local temporary directories beneath the Nextflow work
+directory. Large datasets can require substantial temporary disk space, so use
+`-work-dir` to place task work and temporary files on a suitably large, fast
+filesystem.
 
 ### Canonical chromosomes
 

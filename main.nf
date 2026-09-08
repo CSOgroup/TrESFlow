@@ -131,25 +131,24 @@ workflow {
         error e.message
     }
 
-    def runtimeConfig = samplesheetContract['runtime'] as Map
+    def deprecatedRuntimeFields = samplesheetContract['deprecated_runtime_fields'] as List<String>
     def referenceConfig = samplesheetContract['references'] as Map
     def modalityConfig = samplesheetContract['modalities'] as Map
-    def runtimeParams = [
-        runtime_env_prefix: runtimeConfig['env_prefix'],
-        runtime_tmpdir    : runtimeConfig['tmpdir'],
-    ]
     def sampleRows = samplesheetContract['samples'] as List<Map>
+
+    if( deprecatedRuntimeFields ) {
+        log.warn "Deprecated samplesheet runtime fields are ignored: " +
+            deprecatedRuntimeFields.collect { "runtime.${it}" }.join(', ')
+    }
 
     log.warn """
     TrESFlow storage paths:
       results: ${resolvedOutdir}
-      TMPDIR:  ${runtimeParams.runtime_tmpdir}
       workDir: ${workflow.workDir}
 
     Large runs can use substantial disk space; monitor free space.
     """.stripIndent().trim()
 
-    runtimeSupport.validateRuntimeContract(runtimeParams)
     runtimeSupport.validateConfiguredDirectory('core scripts dir', resolvedCoreScriptsDir)
     workflowSupport.validateReferenceContract(
         referenceConfig,
@@ -157,8 +156,6 @@ workflow {
         sampleRows
     )
     def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
-        runtimeParams,
-        projectDir.toString(),
         resolvedOutdir,
         referenceConfig,
         modalityConfig
@@ -172,11 +169,7 @@ workflow {
         row.canonical_chrom_sizes = chromosomeContract.chrom_sizes
         row.chromosome_naming = chromosomeContract.style
     }
-    runtimeSupport.writeRuntimeContract(
-        resolvedOutdir,
-        runtimeSupport.configuredRuntimeTools(runtimeParams),
-        runtimeSupport.runtimeContext(runtimeParams)
-    )
+    runtimeSupport.writeRuntimeContract(resolvedOutdir)
 
     TRESEQ(
         sampleRows,

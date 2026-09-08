@@ -89,7 +89,7 @@ class Phase4RnaAlignmentArchitectureTests(unittest.TestCase):
         self.assertNotIn("STAR_BIN", starsolo)
         self.assertIn('samtools view "${INBAM}"', filtering)
         self.assertIn('python3 "${script_dir}/SummarizeRnaRetention.py"', filtering)
-        self.assertIn("env -u SAMTOOLS_BIN", filtering)
+        self.assertIn('bash "${script_dir}/FilterCanonicalBam.sh"', filtering)
         self.assertIn(
             'chmod a+r "${splitName}.filtered_cells.bam"',
             FILTER_MODULE.read_text(encoding="utf-8"),
@@ -174,8 +174,8 @@ class Phase4RnaAlignmentArchitectureTests(unittest.TestCase):
             "BEDGRAPH_TO_BIGWIG_BIN",
         ):
             self.assertNotIn(retired, runtime + exports)
-        for retained in ("python3",):
-            self.assertIn(retained, runtime)
+        self.assertNotIn("runtimeToolPath", runtime)
+        self.assertNotIn("PYTHON3_BIN", runtime + exports)
 
     def test_apptainer_profile_reuses_digest_pinned_oci_images(self):
         config = (REPO / "tests/phase4_rna_alignment.config").read_text(
@@ -187,11 +187,12 @@ class Phase4RnaAlignmentArchitectureTests(unittest.TestCase):
         for module in MODULES:
             self.assertIn("@sha256:", module.read_text(encoding="utf-8"))
 
-    def test_isolated_real_harness_poisoned_the_legacy_host_prefix(self):
+    def test_isolated_real_harness_has_no_legacy_runtime_metadata(self):
         harness = (REPO / "tests/phase4_rna_alignment.nf").read_text(
             encoding="utf-8"
         )
-        self.assertIn("phase4-must-not-be-used", harness)
+        self.assertNotIn("runtime_env_prefix", harness)
+        self.assertNotIn("runtime_tmpdir", harness)
         for process_name in (
             "RNA_STARSOLO_ALIGN",
             "RNA_FILTERED_BAM",

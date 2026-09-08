@@ -13,11 +13,27 @@ REPO = Path(__file__).resolve().parents[1]
 FIXTURE = REPO / "tests" / "samplesheets" / "group_specific_modalities.yaml"
 
 
+def nextflow_command():
+    java = shutil.which("java")
+    jars = []
+    if os.environ.get("CONDA_PREFIX"):
+        jars.extend(
+            Path(os.environ["CONDA_PREFIX"]).glob(
+                "share/nextflow/dist/*/nextflow-*-one.jar"
+            )
+        )
+    jars.extend(Path.home().glob(".nextflow/framework/*/nextflow-*-one.jar"))
+    if java and jars:
+        return [java, "-jar", str(sorted(jars)[-1])]
+    nextflow = shutil.which("nextflow")
+    if nextflow:
+        return [nextflow]
+    pytest.skip("Nextflow is not installed")
+
+
 def test_group_specific_modalities_derive_independent_maps():
     """Shared sample FASTQs yield modality-specific group maps and MO union."""
-    nextflow = shutil.which("nextflow")
-    if not nextflow:
-        pytest.skip("nextflow is not installed")
+    nextflow = nextflow_command()
 
     with tempfile.TemporaryDirectory(prefix="tresflow_contract_") as tmp:
         outdir = Path(tmp) / "output"
@@ -27,7 +43,7 @@ def test_group_specific_modalities_derive_independent_maps():
         env.setdefault("NXF_OFFLINE", "true")
         result = subprocess.run(
             [
-                nextflow,
+                *nextflow,
                 "run",
                 str(REPO),
                 "-preview",
@@ -64,9 +80,7 @@ def test_group_specific_modalities_derive_independent_maps():
         assert set(whitelist) == {"AGGCTATA", "GCCTCTAT"}
 
 def test_dna_tagmentation_is_required():
-    nextflow = shutil.which("nextflow")
-    if not nextflow:
-        pytest.skip("nextflow is not installed")
+    nextflow = nextflow_command()
 
     source = FIXTURE.read_text()
     explicit = "      tagmentation: dual\n"
@@ -92,7 +106,7 @@ def test_dna_tagmentation_is_required():
 
             result = subprocess.run(
                 [
-                    nextflow,
+                    *nextflow,
                     "run",
                     str(REPO),
                     "-preview",
@@ -121,3 +135,84 @@ def test_dna_tagmentation_is_required():
             ) in combined
     finally:
         temporary_sheet.unlink(missing_ok=True)
+
+
+def test_pipeline_construction_does_not_invoke_host_python(tmp_path):
+    nextflow = nextflow_command()
+
+    poison_dir = tmp_path / "poison-bin"
+    poison_dir.mkdir()
+    marker = tmp_path / "host-python-was-invoked"
+    python3 = poison_dir / "python3"
+    python3.write_text(
+        f"#!/bin/sh\nprintf invoked > {marker}\nexit 97\n", encoding="utf-8"
+    )
+    python3.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{poison_dir}{os.pathsep}{env['PATH']}"
+    env["PYTHON3_BIN"] = str(python3)
+    env["NXF_HOME"] = str(tmp_path / "nxf-home")
+    env["NXF_OFFLINE"] = "true"
+    result = subprocess.run(
+        [
+            *nextflow,
+            "run",
+            str(REPO),
+            "-preview",
+            "-ansi-log",
+            "false",
+            "--samplesheet",
+            str(REPO / "assets/samplesheet.example.yaml"),
+            "--outdir",
+            str(tmp_path / "output"),
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+
+    combined = result.stdout + result.stderr
+    if result.returncode != 0 and "Could not resolve host" in combined:
+        pytest.skip("configured nextflow launcher is unavailable offline")
+    assert result.returncode == 0, combined
+    assert not marker.exists(), "launch-time host python3 was executed"
+
+
+def test_legacy_runtime_fields_warn_and_do_not_enter_runtime_contract(tmp_path):
+    nextflow = nextflow_command()
+    env = os.environ.copy()
+    env["NXF_HOME"] = str(tmp_path / "nxf-home")
+    env["NXF_OFFLINE"] = "true"
+    outdir = tmp_path / "output"
+    result = subprocess.run(
+        [
+            *nextflow,
+            "run",
+            str(REPO),
+            "-preview",
+            "-ansi-log",
+            "false",
+            "--samplesheet",
+            str(REPO / "tests/samplesheets/explicit_runtime_tmpdir.yaml"),
+            "--outdir",
+            str(outdir),
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert (
+        "Deprecated samplesheet runtime fields are ignored: "
+        "runtime.env_prefix, runtime.tmpdir"
+    ) in combined
+    assert (outdir / "pipeline_info/runtime_contract.tsv").read_text() == (
+        "tool\tconfigured_path\texists\tcurrently_used\n"
+    )

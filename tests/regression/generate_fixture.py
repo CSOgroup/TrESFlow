@@ -186,14 +186,20 @@ def samplesheet_text(
     reference_root: Path,
     env_prefix: Path,
     runtime_tmpdir: Path,
+    include_legacy_runtime: bool = True,
 ) -> str:
-    common = f"""library_name: PHASE0_SYNTHETIC
-
-runtime:
+    legacy_runtime = (
+        f"""runtime:
   env_prefix: {env_prefix}
   tmpdir: {runtime_tmpdir}
 
-references:
+"""
+        if include_legacy_runtime
+        else ""
+    )
+    common = f"""library_name: PHASE0_SYNTHETIC
+
+{legacy_runtime}references:
   species: human
   root: {reference_root}
   ligation_barcode_whitelist: {reference_root / 'ligation_barcode_whitelist.txt'}
@@ -314,6 +320,7 @@ def build_fixture(args: argparse.Namespace) -> None:
                 reference_root,
                 args.env_prefix.resolve(),
                 output / "tmp" / scenario,
+                include_legacy_runtime=not args.omit_runtime,
             ),
         )
 
@@ -344,6 +351,7 @@ def build_fixture(args: argparse.Namespace) -> None:
             "effective_genome_size": sum(CONTIG_LENGTHS.values()),
         },
         "read_pairs_per_scenario": args.read_pairs,
+        "legacy_runtime_fields": not args.omit_runtime,
         "tools": {
             "STAR": {
                 "version": star_version,
@@ -375,6 +383,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--star", required=True, type=Path)
     parser.add_argument("--bwa-mem2", required=True, type=Path)
     parser.add_argument("--read-pairs", type=int, default=64)
+    parser.add_argument(
+        "--omit-runtime",
+        action="store_true",
+        help="Omit legacy runtime fields for current-worktree process-environment tests",
+    )
     args = parser.parse_args()
     if args.read_pairs < 32:
         parser.error("--read-pairs must be at least 32 so STARsolo cell calling is exercised")

@@ -48,14 +48,11 @@ workflow {
         ? 'phase0_rna_Normal'
         : "${sampleId}_Normal_H3K27ac"
     def tagmentation = scenario == 'rna_only' ? null : scenario.replace('dna_', '')
-    def poisonPrefix = '/home/annan/micromamba/envs/tres/phase6-must-not-be-used'
     def taskMeta = [
         id                : "${modality}.${sampleId}.raw",
         tres_modality     : modality,
         tres_qc_stage     : 'raw_fastq',
         tres_split_name   : sampleId,
-        runtime_env_prefix: poisonPrefix,
-        runtime_tmpdir    : "${poisonPrefix}/tmp",
     ]
 
     def readsDir = new File(fixtureRoot.toString(), "reads/${scenario}")
@@ -174,8 +171,6 @@ workflow {
         report_title             : scenario,
         pipeline_version         : 'v1.1.1',
         filter_dual_tag_artifacts: true,
-        runtime_env_prefix       : poisonPrefix,
-        runtime_tmpdir           : "${poisonPrefix}/tmp",
         samples                  : [[
             id              : sampleId,
             modality        : modality,

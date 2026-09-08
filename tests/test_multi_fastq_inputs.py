@@ -99,7 +99,6 @@ def base_contract(samples):
     testdata = REPO / "assets" / "testdata"
     return {
         "library_name": "MULTI_TEST",
-        "runtime": {"env_prefix": "/tmp/tresflow-test-env", "tmpdir": "/tmp"},
         "references": {
             "species": "human",
             "root": str(testdata / "TrESFlow_References"),
@@ -171,9 +170,6 @@ def write_rna_yaml_sheet(path, reads, syntax_by_role):
     )
     path.write_text(
         f"""library_name: MULTI_TEST
-runtime:
-  env_prefix: /tmp/tresflow-test-env
-  tmpdir: /tmp
 references:
   species: human
   root: {yaml_quote(references['root'])}

@@ -28,11 +28,8 @@ workflow {
     def resolvedOutdir = file(params.outdir).toAbsolutePath().normalize().toString()
     java.lang.System.setProperty('tresflow.resolvedOutdir', resolvedOutdir)
 
-    def invalidHostRuntime = '/home/annan/micromamba/envs/tres/phase2-must-not-be-used'
     def commonMeta = [
         library_name: 'PHASE2',
-        runtime_env_prefix: invalidHostRuntime,
-        runtime_tmpdir: "${invalidHostRuntime}/tmp",
     ]
 
     def tagHelpers = [

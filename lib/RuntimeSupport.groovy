@@ -1,24 +1,12 @@
-import groovy.json.JsonSlurper
-
 class RuntimeSupport {
 
-    private static final List<Map> STANDARD_RUNTIME_TOOLS = [
-        [name: 'python3', binary: 'python3'],
-    ]
-
-    static void validateConfiguredExecutable(final String label, final String rawPath) {
-        final String path = rawPath?.toString()?.trim()
-        if( !path ) {
-            throw new IllegalStateException("Missing configured executable path for ${label}")
-        }
-
-        final File executable = new File(path)
-        if( !executable.exists() || !executable.canExecute() ) {
-            throw new IllegalStateException(
-                "Configured executable for ${label} is missing or not executable: ${executable}"
-            )
-        }
-    }
+    private static final List<String> AUTOSOMES = (1..22).collect { it.toString() }
+    private static final Set<String> UCSC_NAMES = (
+        AUTOSOMES.collect { chromosome -> 'chr' + chromosome } + ['chrX', 'chrY', 'chrM']
+    ) as Set<String>
+    private static final Set<String> ENSEMBL_NAMES = (
+        AUTOSOMES + ['X', 'Y', 'MT', 'M']
+    ) as Set<String>
 
     static void validateConfiguredDirectory(final String label, final String rawPath) {
         final String path = rawPath?.toString()?.trim()
@@ -32,24 +20,6 @@ class RuntimeSupport {
                 "Configured directory for ${label} is missing or not a directory: ${directory}"
             )
         }
-    }
-
-    static String runtimeEnvPrefix(final Map params) {
-        return (params.runtime_env_prefix ?: '').toString().trim()
-    }
-
-    static String runtimeTmpdir(final Map params) {
-        return (params.runtime_tmpdir ?: '').toString().trim()
-    }
-
-    static String runtimeBinDir(final Map params) {
-        final String envPrefix = runtimeEnvPrefix(params)
-        return envPrefix ? "${envPrefix}/bin" : ''
-    }
-
-    static String runtimeToolPath(final Map params, final String binary) {
-        final String binDir = runtimeBinDir(params)
-        return binDir ? "${binDir}/${binary}" : ''
     }
 
     static String resolvePath(final String rawBaseDir, final Object rawPath) {
@@ -107,175 +77,290 @@ class RuntimeSupport {
     }
 
     static Map writeCanonicalChromosomeContracts(
-        final Map runtimeParams,
-        final String rawProjectDir,
         final String rawOutdir,
         final Map references,
         final Map modalities
     ) {
-        final File projectDirectory = new File(rawProjectDir).canonicalFile
-        final File resolver = new File(projectDirectory, 'bin/resolve_canonical_chromosomes.py')
         final File outputDirectory = new File(
             new File(rawOutdir).canonicalFile,
             'pipeline_info/derived_contract'
         )
-        final String pythonBin = runtimeToolPath(runtimeParams, 'python3')
-
-        validateConfiguredExecutable('canonical chromosome resolver', resolver.canonicalPath)
-        validateConfiguredExecutable('runtime python3', pythonBin)
-
-        final List<String> command = [
-            pythonBin,
-            resolver.canonicalPath,
-            '--output-dir',
-            outputDirectory.canonicalPath,
-        ]
-
-        if( modalities.rna as boolean ) {
-            command.addAll([
-                '--rna-chrom-sizes',
-                references.rna_chrom_sizes.toString(),
-            ])
-        }
-        if( modalities.dna as boolean ) {
-            command.addAll([
-                '--dna-bwa-ann',
-                "${references.dna_bwa_reference}.ann".toString(),
-            ])
-            final String dnaChromSizes = references.dna_chrom_sizes?.toString()?.trim()
-            if( dnaChromSizes ) {
-                command.addAll(['--dna-chrom-sizes', dnaChromSizes])
-            }
-        }
-
-        final Process process = new ProcessBuilder(command)
-            .directory(projectDirectory)
-            .redirectErrorStream(true)
-            .start()
-        final String output = process.inputStream.getText('UTF-8').trim()
-        final int exitCode = process.waitFor()
-        if( exitCode != 0 ) {
-            throw new IllegalArgumentException(
-                "Canonical chromosome resolution failed for the configured reference index: ${output}"
-            )
-        }
-
         try {
-            return new JsonSlurper().parseText(output) as Map
+            final Map contracts = [:]
+            if( modalities.rna as boolean ) {
+                contracts.rna = writeChromosomeContract(
+                    'rna',
+                    new File(references.rna_chrom_sizes.toString()),
+                    'chrom-sizes',
+                    outputDirectory
+                )
+            }
+            if( modalities.dna as boolean ) {
+                final String dnaChromSizes = references.dna_chrom_sizes?.toString()?.trim()
+                contracts.dna = writeChromosomeContract(
+                    'dna',
+                    new File("${references.dna_bwa_reference}.ann"),
+                    'bwa-ann',
+                    outputDirectory,
+                    dnaChromSizes ? new File(dnaChromSizes) : null
+                )
+            }
+            if( contracts.isEmpty() ) {
+                throw new IllegalArgumentException(
+                    'At least one RNA or DNA reference dictionary is required'
+                )
+            }
+            return contracts
         }
         catch( Exception error ) {
-            throw new IllegalStateException(
-                "Canonical chromosome resolver returned invalid output: ${output}",
+            throw new IllegalArgumentException(
+                'Canonical chromosome resolution failed for the configured reference index: ' +
+                error.message,
                 error
             )
         }
     }
 
-    static List<Map> standardRuntimeTools(final Map params) {
-        return STANDARD_RUNTIME_TOOLS.collect { tool ->
-            [name: tool.name, path: runtimeToolPath(params, tool.binary), used: 'yes']
-        }
-    }
-
-    static List<Map> configuredRuntimeTools(final Map params) {
-        return standardRuntimeTools(params)
-    }
-
-    static Map runtimeContext(final Map params) {
-        return [
-            runtime_env_prefix: runtimeEnvPrefix(params),
-            runtime_bin_dir   : runtimeBinDir(params),
-            runtime_tmpdir    : runtimeTmpdir(params),
-        ]
-    }
-
-    static void validateRuntimeContract(final Map params) {
-        validateConfiguredDirectory('runtime env prefix', runtimeEnvPrefix(params))
-        validateConfiguredDirectory('runtime bin dir', runtimeBinDir(params))
-        validateConfiguredWritableDirectory('runtime tmpdir', runtimeTmpdir(params), true)
-
-        standardRuntimeTools(params).each { tool ->
-            validateConfiguredExecutable("runtime ${tool.name}", tool.path as String)
-        }
-    }
-
-    static void validateConfiguredWritableDirectory(
-        final String label,
-        final String rawPath,
-        final boolean createIfMissing = false
-    ) {
-        final String path = rawPath?.toString()?.trim()
-        if( !path ) {
-            throw new IllegalStateException("Missing configured writable directory path for ${label}")
-        }
-
-        final File directory = new File(path)
-        if( !directory.exists() && createIfMissing ) {
-            if( !directory.mkdirs() && !directory.exists() ) {
-                throw new IllegalStateException(
-                    "Configured writable directory for ${label} does not exist and could not be created: ${directory}"
-                )
+    static List<Map> readChromSizes(final File path) {
+        final List<Map> entries = []
+        final Set<String> seen = [] as Set<String>
+        path.eachLine('UTF-8') { rawLine, lineNumber ->
+            final String line = rawLine.trim()
+            if( line && !line.startsWith('#') ) {
+                final List<String> fields = line.split(/\s+/) as List<String>
+                if( fields.size() < 2 ) {
+                    throw new IllegalArgumentException(
+                        "Malformed chromosome-size line ${lineNumber} in ${path}: '${rawLine}'"
+                    )
+                }
+                long length
+                try {
+                    length = Long.parseLong(fields[1])
+                }
+                catch( NumberFormatException error ) {
+                    throw new IllegalArgumentException(
+                        "Invalid chromosome length on line ${lineNumber} in ${path}: '${fields[1]}'",
+                        error
+                    )
+                }
+                final String name = fields[0]
+                if( length < 1 ) {
+                    throw new IllegalArgumentException(
+                        "Chromosome length must be positive on line ${lineNumber} in ${path}: ${length}"
+                    )
+                }
+                if( !seen.add(name) ) {
+                    throw new IllegalArgumentException("Duplicate chromosome '${name}' in ${path}")
+                }
+                entries << [name: name, length: length]
             }
         }
-
-        if( !directory.exists() || !directory.isDirectory() ) {
-            throw new IllegalStateException(
-                "Configured writable directory for ${label} is missing or not a directory: ${directory}"
-            )
+        if( entries.isEmpty() ) {
+            throw new IllegalArgumentException("Reference chromosome dictionary is empty: ${path}")
         }
-        if( !directory.canWrite() ) {
-            throw new IllegalStateException(
-                "Configured writable directory for ${label} is not writable: ${directory}"
-            )
-        }
+        return entries
     }
 
-    static String shellExports(final Map params) {
-        final String envPrefix = runtimeEnvPrefix(params)
-        final String binDir = runtimeBinDir(params)
-        final String tmpdir = runtimeTmpdir(params)
-        final Map<String, String> exports = [
-            RUNTIME_ENV_PREFIX     : envPrefix,
-            RUNTIME_BIN_DIR        : binDir,
-            TMPDIR                 : tmpdir,
-            PYTHON3_BIN            : "${binDir}/python3",
+    static List<Map> readBwaAnn(final File path) {
+        final List<String> lines = path.readLines('UTF-8')
+            .collect { it.trim() }
+            .findAll { it }
+        if( lines.isEmpty() ) {
+            throw new IllegalArgumentException("BWA annotation file is empty: ${path}")
+        }
+
+        final List<String> header = lines[0].split(/\s+/) as List<String>
+        final int sequenceCount
+        try {
+            sequenceCount = Integer.parseInt(header[1])
+        }
+        catch( Exception error ) {
+            throw new IllegalArgumentException(
+                "Cannot read the sequence count from BWA annotation header in ${path}: '${lines[0]}'",
+                error
+            )
+        }
+        final int expectedLines = 1 + (sequenceCount * 2)
+        if( sequenceCount < 1 || lines.size() < expectedLines ) {
+            throw new IllegalArgumentException(
+                "Malformed BWA annotation file ${path}: expected ${sequenceCount} sequence entries"
+            )
+        }
+
+        final List<Map> entries = []
+        final Set<String> seen = [] as Set<String>
+        (0..<sequenceCount).each { index ->
+            final List<String> descriptor = lines[1 + (index * 2)].split(/\s+/) as List<String>
+            final List<String> coordinates = lines[2 + (index * 2)].split(/\s+/) as List<String>
+            String name
+            long length
+            try {
+                name = descriptor[1]
+                length = Long.parseLong(coordinates[1])
+            }
+            catch( Exception error ) {
+                throw new IllegalArgumentException(
+                    "Malformed BWA sequence entry ${index + 1} in ${path}",
+                    error
+                )
+            }
+            if( length < 1 ) {
+                throw new IllegalArgumentException(
+                    "BWA chromosome length must be positive for '${name}' in ${path}: ${length}"
+                )
+            }
+            if( !seen.add(name) ) {
+                throw new IllegalArgumentException("Duplicate chromosome '${name}' in ${path}")
+            }
+            entries << [name: name, length: length]
+        }
+        return entries
+    }
+
+    static Map resolveCanonicalEntries(final List<Map> entries, final String sourceLabel) {
+        final Set<String> names = entries.collect { it.name as String } as Set<String>
+        final Set<String> ucscHits = names.intersect(UCSC_NAMES) as Set<String>
+        final Set<String> ensemblHits = names.intersect(ENSEMBL_NAMES) as Set<String>
+
+        if( ucscHits && ensemblHits ) {
+            throw new IllegalArgumentException(
+                'Cannot determine a coherent human chromosome naming convention for ' +
+                "${sourceLabel}: both UCSC-style (${ucscHits.sort().join(', ')}) and " +
+                "Ensembl-style (${ensemblHits.sort().join(', ')}) canonical names are present"
+            )
+        }
+        if( !ucscHits && !ensemblHits ) {
+            throw new IllegalArgumentException(
+                "Cannot determine a human chromosome naming convention for ${sourceLabel}: " +
+                'no exact canonical autosome, X, Y, or mitochondrial names were found'
+            )
+        }
+
+        String style
+        Set<String> allowedNames
+        final List<String> missingAnchors = []
+        if( ucscHits ) {
+            style = 'ucsc'
+            allowedNames = UCSC_NAMES
+            if( !AUTOSOMES.any { chromosome -> names.contains('chr' + chromosome) } ) {
+                missingAnchors << 'an autosome (chr1-chr22)'
+            }
+            if( !names.contains('chrX') ) missingAnchors << 'chrX'
+            if( !names.contains('chrY') ) missingAnchors << 'chrY'
+            if( !names.contains('chrM') ) missingAnchors << 'chrM'
+        }
+        else {
+            style = 'ensembl'
+            final List<String> mitochondrial = ['MT', 'M'].findAll { names.contains(it) }
+            if( mitochondrial.size() > 1 ) {
+                throw new IllegalArgumentException(
+                    "Cannot choose a single Ensembl mitochondrial chromosome for ${sourceLabel}: " +
+                    'both MT and M are present'
+                )
+            }
+            allowedNames = (AUTOSOMES + ['X', 'Y'] + mitochondrial) as Set<String>
+            if( !AUTOSOMES.any { chromosome -> names.contains(chromosome) } ) {
+                missingAnchors << 'an autosome (1-22)'
+            }
+            if( !names.contains('X') ) missingAnchors << 'X'
+            if( !names.contains('Y') ) missingAnchors << 'Y'
+            if( mitochondrial.isEmpty() ) missingAnchors << 'MT or M'
+        }
+
+        if( missingAnchors ) {
+            throw new IllegalArgumentException(
+                "Cannot safely resolve canonical human chromosomes for ${sourceLabel}; missing: " +
+                missingAnchors.join(', ')
+            )
+        }
+
+        return [
+            style  : style,
+            entries: entries.findAll { allowedNames.contains(it.name as String) },
         ]
-
-        return exports.collect { key, value ->
-            "export ${key}=${shellQuote(value)}"
-        }.join('\n') + '\nmkdir -p "$TMPDIR"'
     }
 
-    private static String shellQuote(final Object value) {
-        final String text = (value ?: '').toString()
-        return "'" + text.replace("'", "'\"'\"'") + "'"
-    }
-
-    static void writeRuntimeContract(
-        final String rawOutdir,
-        final List<Map> configuredTools,
-        final Map runtimeContext = [:]
+    static void verifyMatchingContracts(
+        final Map primary,
+        final Map secondary,
+        final String primaryLabel,
+        final String secondaryLabel
     ) {
+        if( primary.style != secondary.style ) {
+            throw new IllegalArgumentException(
+                "Reference naming mismatch: ${primaryLabel} is ${primary.style}-style but " +
+                "${secondaryLabel} is ${secondary.style}-style"
+            )
+        }
+        final Map primarySizes = primary.entries.collectEntries {
+            [(it.name as String): it.length]
+        }
+        final Map secondarySizes = secondary.entries.collectEntries {
+            [(it.name as String): it.length]
+        }
+        if( primarySizes != secondarySizes ) {
+            throw new IllegalArgumentException(
+                "Canonical chromosome names or lengths disagree between ${primaryLabel} and " +
+                secondaryLabel
+            )
+        }
+    }
+
+    private static Map writeChromosomeContract(
+        final String modality,
+        final File source,
+        final String sourceFormat,
+        final File outputDirectory,
+        final File verificationSizes = null
+    ) {
+        final List<Map> entries = sourceFormat == 'bwa-ann'
+            ? readBwaAnn(source)
+            : readChromSizes(source)
+        final Map resolved = resolveCanonicalEntries(entries, source.toString())
+        if( verificationSizes ) {
+            final Map verification = resolveCanonicalEntries(
+                readChromSizes(verificationSizes),
+                verificationSizes.toString()
+            )
+            verifyMatchingContracts(
+                resolved,
+                verification,
+                source.toString(),
+                verificationSizes.toString()
+            )
+        }
+
+        if( !outputDirectory.exists() && !outputDirectory.mkdirs() && !outputDirectory.exists() ) {
+            throw new IllegalStateException(
+                "Unable to create canonical chromosome output directory: ${outputDirectory}"
+            )
+        }
+        final File allowlist = new File(outputDirectory, "${modality}_canonical_chromosomes.txt")
+        final File chromSizes = new File(outputDirectory, "${modality}_canonical_chromosomes.chrom.sizes")
+        allowlist.setText(
+            resolved.entries.collect { "${it.name}\n" }.join(''),
+            'UTF-8'
+        )
+        chromSizes.setText(
+            resolved.entries.collect { "${it.name}\t${it.length}\n" }.join(''),
+            'UTF-8'
+        )
+        return [
+            style      : resolved.style,
+            source     : source.canonicalPath,
+            allowlist  : allowlist.canonicalPath,
+            chrom_sizes: chromSizes.canonicalPath,
+            contigs    : resolved.entries.collect { it.name },
+        ]
+    }
+
+    static void writeRuntimeContract(final String rawOutdir) {
         final File pipelineInfoDir = new File((rawOutdir ?: 'results').toString(), 'pipeline_info')
         if( !pipelineInfoDir.exists() ) {
             pipelineInfoDir.mkdirs()
         }
 
         final File reportFile = new File(pipelineInfoDir, 'runtime_contract.tsv')
-        final StringBuilder builder = new StringBuilder()
-        builder.append("tool\tconfigured_path\texists\tcurrently_used\n")
-
-        configuredTools.each { tool ->
-            final String path = (tool.path ?: '').toString()
-            final boolean exists = path ? new File(path).exists() : false
-            builder.append("${tool.name}\t${path}\t${exists}\t${tool.used}\n")
-        }
-
-        builder.append("\n[runtime_environment]\n")
-        runtimeContext.each { key, value ->
-            builder.append("${key}\t${(value ?: '').toString()}\n")
-        }
-
-        reportFile.text = builder.toString()
+        reportFile.setText("tool\tconfigured_path\texists\tcurrently_used\n", 'UTF-8')
     }
 }

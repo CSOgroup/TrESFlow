@@ -1,8 +1,5 @@
 library_name: TRESEQ_202601_CAM
 
-runtime:
-  env_prefix: /home/annan/micromamba/envs/tres
-
 references:
   species: human
   root: /mnt/dataFast/ahrmad/TrESFlow_References

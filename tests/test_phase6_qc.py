@@ -90,17 +90,20 @@ class Phase6QcArchitectureTests(unittest.TestCase):
             self.assertIn(command, wrapper)
         self.assertIn('idxstats_threads=$((threads > 0 ? threads - 1 : 0))', wrapper)
 
-    def test_only_launch_time_python_remains_in_host_contract(self):
+    def test_no_launch_time_host_tool_contract_remains(self):
         runtime = (REPO / "lib/RuntimeSupport.groovy").read_text(encoding="utf-8")
         exports = (REPO / "modules/local/runtime_support/main.nf").read_text(
             encoding="utf-8"
         )
         entry = (REPO / "main.nf").read_text(encoding="utf-8")
-        self.assertIn("[name: 'python3', binary: 'python3']", runtime)
+        self.assertNotIn("[name: 'python3', binary: 'python3']", runtime)
         self.assertNotIn("[name: 'samtools', binary: 'samtools']", runtime)
         self.assertNotIn("SAMTOOLS_BIN", runtime + exports)
+        self.assertNotIn("PYTHON3_BIN", runtime + exports)
+        self.assertNotIn("runtimeShellExports", exports)
         self.assertIn("writeCanonicalChromosomeContracts", runtime)
-        self.assertIn("final String pythonBin = runtimeToolPath", runtime)
+        self.assertNotIn("ProcessBuilder(command)", runtime)
+        self.assertNotIn("runtimeToolPath", runtime)
         self.assertIn("runtimeSupport.writeCanonicalChromosomeContracts", entry)
 
         active_files = [
@@ -169,7 +172,8 @@ class Phase6QcArchitectureTests(unittest.TestCase):
         self.assertIn("phase6_qc_apptainer_static", config)
         self.assertIn("apptainer.enabled = true", config)
         self.assertIn("apptainer.autoMounts = true", config)
-        self.assertIn("phase6-must-not-be-used", harness)
+        self.assertNotIn("runtime_env_prefix", harness)
+        self.assertNotIn("runtime_tmpdir", harness)
         for process in ("FASTQC", "SAMTOOLS_BAM_QC", "TRES_REPORT_HTML", "MULTIQC"):
             self.assertIn(f"{process}(", harness)
         self.assertIn("I2.fastq", harness)

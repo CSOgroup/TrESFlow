@@ -30,11 +30,15 @@ python tests/regression/run_regression.py \
   --samtools /path/to/samtools
 ```
 
-Use `--engine docker` or `--engine apptainer` with a separate empty workspace
-to exercise declared task containers. At the Phase 0 boundary most custom
-processes still have no container directive, so these modes are intentionally
-available for migration verification but do not yet prove full isolation from
-the host environment.
+`--env-prefix` exists only so the runner can execute the historical v1.1.1
+checkout, whose generated samplesheet requires that field. The current
+worktree accepts the same legacy fields for comparison but ignores them; normal
+current samplesheets do not contain a runtime block.
+
+Use `--engine conda`, `--engine docker`, or `--engine apptainer` with a separate
+empty workspace to exercise declared task environments. A complete production
+container profile remains intentionally deferred until the Codon/Seq image can
+be published under a confirmed redistribution grant.
 
 Golden capture is intentionally separate and overwrite-protected. The initial
 capture must add `--capture-baseline`; capture fails if a scenario JSON already

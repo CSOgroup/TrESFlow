@@ -40,23 +40,19 @@ class SamplesheetParser {
 
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
-        final Map runtime = resolveRuntime(parsed, baseDir, options)
+        final List<String> deprecatedRuntimeFields = resolveDeprecatedRuntimeFields(parsed)
         final Map references = resolveReferences(parsed, baseDir)
         final List<Map> samples = parseUnified(parsed, baseDir, libraryName, options, references)
-        samples.each { row ->
-            row.runtime_env_prefix = runtime['env_prefix']
-            row.runtime_tmpdir = runtime['tmpdir']
-        }
 
         return [
-            library_name: libraryName,
-            runtime     : runtime,
-            references  : references,
-            modalities  : [
+            library_name             : libraryName,
+            deprecated_runtime_fields: deprecatedRuntimeFields,
+            references               : references,
+            modalities               : [
                 rna: samples.any { row -> row.modality == MODALITY_RNA },
                 dna: samples.any { row -> row.modality == MODALITY_DNA },
             ],
-            samples     : samples,
+            samples                  : samples,
         ]
     }
 
@@ -814,21 +810,12 @@ class SamplesheetParser {
         }
     }
 
-    private static Map resolveRuntime(final Map parsed, final File baseDir, final Map options) {
+    private static List<String> resolveDeprecatedRuntimeFields(final Map parsed) {
+        if( !parsed.containsKey('runtime') || parsed.runtime == null ) {
+            return []
+        }
         final Map runtime = asMap(parsed.runtime, 'runtime')
-        final String explicitTmpdir = runtime.tmpdir?.toString()?.trim()
-        final String defaultTmpdir = options.outdir?.toString()?.trim() ?: 'results'
-
-        return [
-            env_prefix: resolvePath(
-                baseDir,
-                requireString(runtime.env_prefix, 'runtime.env_prefix')
-            ),
-            tmpdir: resolvePath(
-                baseDir,
-                explicitTmpdir ?: defaultTmpdir
-            ),
-        ]
+        return ['env_prefix', 'tmpdir'].findAll { runtime.containsKey(it) }
     }
 
     private static Map resolveReferences(final Map parsed, final File baseDir) {

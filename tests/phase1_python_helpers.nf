@@ -20,11 +20,8 @@ workflow {
     def tagRecords = file("${fixtureRoot}/tag_records.tsv", checkIfExists: true)
     def sbGroupMap = file("${fixtureRoot}/dna_sb_group_map.tsv", checkIfExists: true)
     def moMap = file("${fixtureRoot}/dna_mo_map.tsv", checkIfExists: true)
-    def deliberatelyInvalidRuntime = '/home/annan/micromamba/envs/tres/phase1-must-not-be-used'
     def barcodeMeta = [
         id: 'sample',
-        runtime_env_prefix: deliberatelyInvalidRuntime,
-        runtime_tmpdir: '/home/annan/micromamba/envs/tres/phase1-must-not-be-used/tmp',
     ]
     def barcodeHelpers = [
         file("${repoRoot}/bin/write_barcode_gate_metrics.py", checkIfExists: true),
@@ -43,8 +40,6 @@ workflow {
         report_title: 'Phase 1 portable helpers',
         pipeline_version: 'v1.1.1',
         filter_dual_tag_artifacts: false,
-        runtime_env_prefix: deliberatelyInvalidRuntime,
-        runtime_tmpdir: '/home/annan/micromamba/envs/tres/phase1-must-not-be-used/tmp',
         samples: [[
             id: 'sample',
             modality: 'dna',

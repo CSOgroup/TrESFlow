@@ -198,8 +198,8 @@ class Phase5DnaProcessingArchitectureTests(unittest.TestCase):
             "GATK_BIN",
         ):
             self.assertNotIn(retired, runtime + exports)
-        for retained in ("python3", "PYTHON3_BIN"):
-            self.assertIn(retained, runtime + exports)
+        self.assertNotIn("runtimeToolPath", runtime)
+        self.assertNotIn("PYTHON3_BIN", runtime + exports)
 
     def test_obsolete_dna_modules_are_not_in_the_active_graph(self):
         workflow = (REPO / "subworkflows/local/dna_core/main.nf").read_text(
@@ -220,7 +220,8 @@ class Phase5DnaProcessingArchitectureTests(unittest.TestCase):
         self.assertIn("phase5_dna_apptainer_static", config)
         self.assertIn("apptainer.enabled = true", config)
         self.assertIn("apptainer.autoMounts = true", config)
-        self.assertIn("phase5-must-not-be-used", harness)
+        self.assertNotIn("runtime_env_prefix", harness)
+        self.assertNotIn("runtime_tmpdir", harness)
         self.assertIn("empty_markeddup_bam", harness)
         self.assertIn("hasMappedDnaReads(mappedReads)", harness)
         for process_name in (
