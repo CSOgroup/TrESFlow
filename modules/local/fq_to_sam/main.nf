@@ -14,7 +14,7 @@
  *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process FQ_TO_SAM {
     tag "${splitName}"
@@ -31,6 +31,7 @@ process FQ_TO_SAM {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
 
     """
     ${runtimeExports}
@@ -42,9 +43,12 @@ process FQ_TO_SAM {
       --r2 "${splitR2}" \\
       --output-sam "${splitName}_tagged.usam"
 
+    ${stagedFastqCleanup}
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
       component: "local"
     END_VERSIONS
+
     """
 }

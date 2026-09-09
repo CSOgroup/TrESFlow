@@ -15,7 +15,7 @@
  *   - per-barcode counts, tag records, and ligation stats
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process TAG_RNA_CELL_BARCODE {
     tag "${sampleId}"
@@ -38,6 +38,7 @@ process TAG_RNA_CELL_BARCODE {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [taggedR1, taggedR2])
     def i1Manifest = (((i1 instanceof List ? i1 : [i1]).collect { it.toString() }.join('\n')) + '\n').bytes.encodeBase64().toString()
     def taggedR1Manifest = (taggedR1.toString() + '\n').bytes.encodeBase64().toString()
     def taggedR2Manifest = (taggedR2.toString() + '\n').bytes.encodeBase64().toString()
@@ -80,9 +81,12 @@ process TAG_RNA_CELL_BARCODE {
     fi
     "\$PIGZ_BIN" -f -p "${task.cpus}" "${sampleId}.rna_tag_records.tsv"
 
+    ${stagedFastqCleanup}
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
       component: "local"
     END_VERSIONS
+
     """
 }

@@ -27,6 +27,7 @@ include { BARCODE_GATE_METRICS }      from '../../../modules/local/barcode_gate_
 include { SPLIT_DNA_READS }          from '../../../modules/local/split_dna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_DNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { ALIGN_DNA }                from '../../../modules/local/align_dna/main'
+include { CLEANUP_INTERMEDIATE_FASTQS as CLEANUP_DNA_INTERMEDIATE_FASTQS } from '../../../modules/local/cleanup_intermediate_fastqs/main'
 include { FILTER_CANONICAL_DNA_ALIGNED_BAM } from '../../../modules/local/filter_canonical_dna_aligned_bam/main'
 include { GATK4_MARKDUPLICATES }     from '../../../modules/nf-core/gatk4/markduplicates/main'
 include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_dna_markduplicates/main'
@@ -123,6 +124,9 @@ workflow DNA_CORE {
 
     main:
     ch_versions = channel.empty()
+    def cleanupEnabled = params.cleanup_work instanceof Boolean
+        ? params.cleanup_work
+        : params.cleanup_work.toString().toBoolean()
 
     // Tag sample barcodes from the tagmentation-specific DNA index stream.
     ch_sb_input = ch_dna_samples.map { sampleId, meta, i1, i2, r1, r2, modalityWhitelist, cellWhitelist, moMap, sbGroupMap ->
@@ -366,6 +370,97 @@ workflow DNA_CORE {
             restoreDnaMeta(nfMeta),
             bigwig
         )
+    }
+
+    // Reclaim each producer-owned FASTQ only after its complete set of enabled
+    // consumers has succeeded. Filtered dual-tag and bypassed trim outputs are
+    // deliberately tracked as distinct lifecycles before the split fan-out.
+    if( cleanupEnabled ) {
+        def workDir = workflow.workDir.toString()
+
+        ch_cleanup_dna_sample_tag = TAG_DNA_SAMPLE_BARCODE.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2, _readSetCounts ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TAG_DNA_MODALITY_BARCODE.out.tagged.map { sampleId, _meta, _r1, _r2, _counts -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _modalityTagComplete ->
+                tuple("dna_sample_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_dna_modality_tag = TAG_DNA_MODALITY_BARCODE.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2, _readSetCounts ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TAG_DNA_CELL_BARCODE.out.tagged.map { sampleId, _meta, _r1, _r2 -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _cellTagComplete ->
+                tuple("dna_modality_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_dna_cell_tag = TAG_DNA_CELL_BARCODE.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2 ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TRIM_DNA_FASTQS.out.trimmed.map { sampleId, _meta, _r1, _r2 -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _trimComplete ->
+                tuple("dna_cell_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_dna_pre_artifact_trim = ch_dual_tag_artifact_routes.filter
+            .map { sampleId, meta, trimmedR1, trimmedR2 ->
+                tuple(sampleId, meta, [trimmedR1.toString(), trimmedR2.toString()])
+            }
+            .join(DUAL_TAG_ARTIFACT_FILTER.out.filtered.map { sampleId, _meta, _r1, _r2 -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _artifactFilterComplete ->
+                tuple("dna_pre_artifact_trim:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_dna_split_input = ch_trimmed_for_split
+            .map { sampleId, meta, splitInputR1, splitInputR2 ->
+                tuple(sampleId, meta, [splitInputR1.toString(), splitInputR2.toString()])
+            }
+            .join(SPLIT_DNA_READS.out.split_fastqs.map { sampleId, _meta, _r1s, _r2s -> tuple(sampleId, true) })
+            .join(BARCODE_GATE_METRICS.out.metrics.map { sampleId, _meta, _gates, _composition -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _splitComplete, _metricsComplete ->
+                def stage = meta.dna_tagmentation == 'dual' && params.filter_dual_tag_artifacts
+                    ? 'dna_artifact_filtered'
+                    : 'dna_trimmed'
+                tuple("${stage}:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_dna_split = ch_align_fastqs
+            .map { splitName, _sampleId, meta, splitR1, splitR2 ->
+                tuple(splitName, meta, [splitR1.toString(), splitR2.toString()])
+            }
+            .join(ALIGN_DNA.out.bam.map { splitName, _meta, _bam -> tuple(splitName, true) })
+
+        if( params.publish_split_fastqs ) {
+            ch_dna_compression_complete = COMPRESS_DNA_SPLIT_FASTQS.out.compressed_fastqs
+                .flatMap { _sampleId, _meta, compressedR1s, compressedR2s ->
+                    pairDnaSplitFastqs(compressedR1s, compressedR2s).collect { split ->
+                        tuple(split.splitName, true)
+                    }
+                }
+            ch_cleanup_dna_split_requests = ch_cleanup_dna_split
+                .join(ch_dna_compression_complete)
+                .map { splitName, meta, fastqs, _alignmentComplete, _compressionComplete ->
+                    tuple("dna_split:${splitName}", meta, fastqs, workDir)
+                }
+        }
+        else {
+            ch_cleanup_dna_split_requests = ch_cleanup_dna_split
+                .map { splitName, meta, fastqs, _alignmentComplete ->
+                    tuple("dna_split:${splitName}", meta, fastqs, workDir)
+                }
+        }
+
+        ch_dna_fastq_cleanup_requests = ch_cleanup_dna_sample_tag
+            .mix(ch_cleanup_dna_modality_tag)
+            .mix(ch_cleanup_dna_cell_tag)
+            .mix(ch_cleanup_dna_pre_artifact_trim)
+            .mix(ch_cleanup_dna_split_input)
+            .mix(ch_cleanup_dna_split_requests)
+
+        CLEANUP_DNA_INTERMEDIATE_FASTQS(ch_dna_fastq_cleanup_requests)
     }
 
     ch_barcode_reports = TAG_DNA_SAMPLE_BARCODE.out.metrics

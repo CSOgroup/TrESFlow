@@ -8,7 +8,7 @@
  * dual-tagmentation samples by DNA_CORE.
  */
 
-include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process DUAL_TAG_ARTIFACT_FILTER {
     tag "${sampleId}"
@@ -29,6 +29,7 @@ process DUAL_TAG_ARTIFACT_FILTER {
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [trimmedR1, trimmedR2])
 
     """
     ${runtimeExports}
@@ -47,10 +48,13 @@ process DUAL_TAG_ARTIFACT_FILTER {
       --output-json "${sampleId}.dual_tag_artifact_filter.cutadapt.json" \\
       --output-summary "${sampleId}.dual_tag_artifact_filter.summary.tsv"
 
+    ${stagedFastqCleanup}
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
       cutadapt: "\$("\$CUTADAPT_BIN" --version)"
       component: "local"
     END_VERSIONS
+
     """
 }

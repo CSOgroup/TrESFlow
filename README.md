@@ -138,7 +138,7 @@ NXF_OFFLINE=true nextflow run . \
 Useful options include:
 
 - `--max_cpus`: maximum CPU budget available to the pipeline.
-- `--cleanup_work false`: retain successful Nextflow work directories when debugging or when `-resume` is important.
+- `--cleanup_work false`: disable early intermediate-FASTQ cleanup and retain successful Nextflow work directories when debugging or when `-resume` is important.
 - `--publish_split_fastqs true`: also publish gzip-compressed per-group split FASTQs.
 - `--filter_dual_tag_artifacts false`: disable the dual-tagmentation DNA artifact filter.
 
@@ -205,7 +205,7 @@ dna_split_fastqs/
 
 ### Work directory cleanup
 
-`--cleanup_work true` is the default. After a successful run, completed task work directories are removed to save disk space.
+`--cleanup_work true` is the default. Generated intermediate FASTQs are removed during the run as soon as every enabled consumer has succeeded. Samplesheet FASTQs and gzip-compressed split FASTQs being published are never early-cleanup targets. Nextflow also removes successful task work directories after the run finishes, as before.
 
 Use:
 
@@ -213,7 +213,7 @@ Use:
 --cleanup_work false
 ```
 
-when you need to preserve the work directory for debugging or reliable reuse with `-resume`.
+when you need to preserve the work directory for debugging or reliable reuse with `-resume`. With cleanup enabled, a resumed run can recompute tasks whose cached FASTQ outputs were deliberately removed; cleanup tasks themselves are never restored from cache.
 
 ### Temporary disk space
 

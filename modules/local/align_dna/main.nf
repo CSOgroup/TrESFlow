@@ -18,7 +18,7 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
@@ -42,6 +42,7 @@ process ALIGN_DNA {
     def sortThreads = alignThreads
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
 
     if( mode == 'mock' ) {
         """
@@ -58,10 +59,13 @@ ${splitName}	post_blacklist_mapped_primary_pairs	\${pair_count}	primary_read1_pa
 ${splitName}	proper_pair_primary_pairs	\${pair_count}	primary_read1_pair_representatives
 EOF
 
+        ${stagedFastqCleanup}
+
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
           component: "local"
         END_VERSIONS
+
         """
     }
     else {
@@ -91,10 +95,13 @@ EOF
           "${effectiveGenomeSize}" \\
           "."
 
+        ${stagedFastqCleanup}
+
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
           component: "local"
         END_VERSIONS
+
         """
     }
 }

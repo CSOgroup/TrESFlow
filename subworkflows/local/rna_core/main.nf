@@ -24,6 +24,7 @@ include { BARCODE_GATE_METRICS }    from '../../../modules/local/barcode_gate_me
 include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
+include { CLEANUP_INTERMEDIATE_FASTQS as CLEANUP_RNA_INTERMEDIATE_FASTQS } from '../../../modules/local/cleanup_intermediate_fastqs/main'
 include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_align/main'
 include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
 include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
@@ -63,6 +64,9 @@ workflow RNA_CORE {
 
     main:
     ch_versions = channel.empty()
+    def cleanupEnabled = params.cleanup_work instanceof Boolean
+        ? params.cleanup_work
+        : params.cleanup_work.toString().toBoolean()
 
     // Tag sample barcodes from the RNA read-2 stream.
     ch_sb_input = ch_rna_samples.map { sampleId, meta, i1, r1, r2, cellWhitelist, sbGroupMap ->
@@ -152,12 +156,16 @@ workflow RNA_CORE {
         ch_published_split_fastqs = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
     }
 
-    ch_fq_to_sam_input = SPLIT_RNA_READS.out.split_fastqs
+    ch_rna_split_pairs = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
             pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
-                tuple(split.splitName, meta, split.r1, split.r2)
+                tuple(split.splitName, sampleId, meta, split.r1, split.r2)
             }
         }
+
+    ch_fq_to_sam_input = ch_rna_split_pairs.map { splitName, sampleId, meta, splitR1, splitR2 ->
+        tuple(splitName, meta, splitR1, splitR2)
+    }
 
     FQ_TO_SAM(ch_fq_to_sam_input)
     ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
@@ -204,6 +212,84 @@ workflow RNA_CORE {
 
     RNA_COVERAGE(ch_coverage_input)
     ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
+
+    // Reclaim each producer-owned FASTQ only after its complete set of enabled
+    // consumers has succeeded. These channels carry absolute paths as values,
+    // so the cleanup task neither stages nor follows the files implicitly.
+    if( cleanupEnabled ) {
+        def workDir = workflow.workDir.toString()
+
+        ch_cleanup_rna_sample_tag = TAG_RNA_SAMPLE_BARCODE.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2, _readSetCounts ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TAG_RNA_UMI.out.tagged.map { sampleId, _meta, _r1, _r2, _counts -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _umiComplete ->
+                tuple("rna_sample_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_rna_umi_tag = TAG_RNA_UMI.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2, _readSetCounts ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TAG_RNA_CELL_BARCODE.out.tagged.map { sampleId, _meta, _r1, _r2 -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _cellTagComplete ->
+                tuple("rna_umi_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_rna_cell_tag = TAG_RNA_CELL_BARCODE.out.tagged
+            .map { sampleId, meta, taggedR1, taggedR2 ->
+                tuple(sampleId, meta, [taggedR1.toString(), taggedR2.toString()])
+            }
+            .join(TRIM_RNA_FASTQS.out.trimmed.map { sampleId, _meta, _r1, _r2 -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _trimComplete ->
+                tuple("rna_cell_tag:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_rna_trimmed = TRIM_RNA_FASTQS.out.trimmed
+            .map { sampleId, meta, trimmedR1, trimmedR2 ->
+                tuple(sampleId, meta, [trimmedR1.toString(), trimmedR2.toString()])
+            }
+            .join(SPLIT_RNA_READS.out.split_fastqs.map { sampleId, _meta, _r1s, _r2s -> tuple(sampleId, true) })
+            .join(BARCODE_GATE_METRICS.out.metrics.map { sampleId, _meta, _gates, _composition -> tuple(sampleId, true) })
+            .map { sampleId, meta, fastqs, _splitComplete, _metricsComplete ->
+                tuple("rna_trimmed:${sampleId}", meta, fastqs, workDir)
+            }
+
+        ch_cleanup_rna_split = ch_rna_split_pairs
+            .map { splitName, _sampleId, meta, splitR1, splitR2 ->
+                tuple(splitName, meta, [splitR1.toString(), splitR2.toString()])
+            }
+            .join(FQ_TO_SAM.out.usam.map { splitName, _meta, _usam -> tuple(splitName, true) })
+
+        if( params.publish_split_fastqs ) {
+            ch_rna_compression_complete = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
+                .flatMap { sampleId, _meta, compressedR1s, compressedR2s ->
+                    pairRnaSplitFastqs(sampleId, compressedR1s, compressedR2s).collect { split ->
+                        tuple(split.splitName, true)
+                    }
+                }
+            ch_cleanup_rna_split_requests = ch_cleanup_rna_split
+                .join(ch_rna_compression_complete)
+                .map { splitName, meta, fastqs, _computeComplete, _compressionComplete ->
+                    tuple("rna_split:${splitName}", meta, fastqs, workDir)
+                }
+        }
+        else {
+            ch_cleanup_rna_split_requests = ch_cleanup_rna_split
+                .map { splitName, meta, fastqs, _computeComplete ->
+                    tuple("rna_split:${splitName}", meta, fastqs, workDir)
+                }
+        }
+
+        ch_rna_fastq_cleanup_requests = ch_cleanup_rna_sample_tag
+            .mix(ch_cleanup_rna_umi_tag)
+            .mix(ch_cleanup_rna_cell_tag)
+            .mix(ch_cleanup_rna_trimmed)
+            .mix(ch_cleanup_rna_split_requests)
+
+        CLEANUP_RNA_INTERMEDIATE_FASTQS(ch_rna_fastq_cleanup_requests)
+    }
 
     ch_barcode_reports = TAG_RNA_SAMPLE_BARCODE.out.metrics
         .mix(TAG_RNA_UMI.out.metrics)

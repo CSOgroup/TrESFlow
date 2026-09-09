@@ -15,7 +15,7 @@
  *   - per-group per-mark SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process SPLIT_DNA_READS {
     tag "${sampleId}"
@@ -36,6 +36,7 @@ process SPLIT_DNA_READS {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitInputR1, splitInputR2])
 
     """
     ${runtimeExports}
@@ -55,5 +56,7 @@ process SPLIT_DNA_READS {
       '"${task.process}":' \\
       '  component: "local"' \\
       > versions.yml
+
+    ${stagedFastqCleanup}
     """
 }
