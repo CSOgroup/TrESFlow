@@ -205,7 +205,7 @@ dna_split_fastqs/
 
 ### Work directory cleanup
 
-`--cleanup_work true` is the default. Generated intermediate FASTQs are removed during the run as soon as every enabled consumer has succeeded. Samplesheet FASTQs and gzip-compressed split FASTQs being published are never early-cleanup targets. Nextflow also removes successful task work directories after the run finishes, as before.
+`--cleanup_work true` is the default. Generated intermediate FASTQs are removed during the run as soon as every enabled consumer has succeeded. Samplesheet FASTQs and gzip-compressed split FASTQs being published are never early-cleanup targets. Nextflow also removes successful task work directories after the run finishes.
 
 Use:
 
