@@ -18,7 +18,7 @@
  *     raw SB match first, then drop-first fallback.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process SPLIT_RNA_READS {
     tag "${sampleId}"
@@ -39,6 +39,7 @@ process SPLIT_RNA_READS {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [trimmedR1, trimmedR2])
 
     """
     ${runtimeExports}
@@ -57,5 +58,7 @@ process SPLIT_RNA_READS {
       '"${task.process}":' \\
       '  component: "local"' \\
       > versions.yml
+
+    ${stagedFastqCleanup}
     """
 }

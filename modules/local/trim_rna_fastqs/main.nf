@@ -21,7 +21,7 @@
  *     as transient inputs to the split stage.
  */
 
-include { runtimeShellExports } from '../runtime_support/main'
+include { runtimeShellExports; intermediateFastqCleanupCommand } from '../runtime_support/main'
 
 process TRIM_RNA_FASTQS {
     tag "${sampleId}"
@@ -37,6 +37,7 @@ process TRIM_RNA_FASTQS {
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
     def runtimeExports = runtimeShellExports(meta)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [taggedR1, taggedR2])
 
     """
     ${runtimeExports}
@@ -52,9 +53,12 @@ process TRIM_RNA_FASTQS {
       --output-r1 "${sampleId}.sample_barcode_umi_cell.R1_val_1.fq" \\
       --output-r2 "${sampleId}.sample_barcode_umi_cell.R2_val_2.fq"
 
+    ${stagedFastqCleanup}
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
       component: "local"
     END_VERSIONS
+
     """
 }

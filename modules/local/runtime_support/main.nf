@@ -47,3 +47,44 @@ def runtimeCoreScriptsDir() {
     }
     return value
 }
+
+def shellQuoteForFastqCleanup(value) {
+    def text = value.toString()
+    return "'" + text.replace("'", "'\"'\"'") + "'"
+}
+
+def intermediateFastqCleanupCommand(cleanupWork, mode, workDir, cleanupScript, fastqs, reportPath = null) {
+    def enabled = cleanupWork instanceof Boolean
+        ? cleanupWork
+        : cleanupWork.toString().toBoolean()
+    if( !enabled ) {
+        return ''
+    }
+
+    def values = fastqs instanceof List ? fastqs : [fastqs]
+    def flattened = []
+    values.each { value ->
+        if( value instanceof List ) {
+            flattened.addAll(value)
+        }
+        else {
+            flattened.add(value)
+        }
+    }
+    if( flattened.isEmpty() ) {
+        throw new IllegalStateException('FASTQ cleanup command received no paths')
+    }
+
+    def pathArguments = flattened.collect { fastq ->
+        "--path ${shellQuoteForFastqCleanup(fastq)}"
+    }.join(' ')
+    def reportArgument = reportPath ? "--report ${shellQuoteForFastqCleanup(reportPath)}" : '--quiet'
+
+    return """
+    \"\$PYTHON3_BIN\" ${shellQuoteForFastqCleanup(cleanupScript)} \\
+      --work-dir ${shellQuoteForFastqCleanup(workDir)} \\
+      --mode ${shellQuoteForFastqCleanup(mode)} \\
+      ${pathArguments} \\
+      ${reportArgument}
+    """.stripIndent().trim()
+}

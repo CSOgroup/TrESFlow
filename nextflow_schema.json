@@ -54,7 +54,7 @@
                 },
                 "cleanup_work": {
                     "type": "boolean",
-                    "description": "Enable Nextflow cleanup of successful task work directories after a successful run. This reduces retained work/ storage and makes --resume unreliable for cleaned tasks.",
+                    "description": "Remove generated intermediate FASTQs at safe last-consumer barriers and enable Nextflow cleanup of successful task work directories after a successful run. Samplesheet and published FASTQs are never early-cleanup targets. Cleaned cache outputs may be recomputed with --resume.",
                     "default": true
                 },
                 "tagging_cpus": {

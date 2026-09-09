@@ -298,4 +298,14 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or cover
 - RNA coverage, QC, and publication all consume the same low-compression `RNA_FILTERED_BAM` output under `rna_align/*.filtered_cells.bam`
 - DNA duplicate-marked BAMs are published under `dna_align/` as duplicate-aware alignment outputs
 
-By default, `--cleanup_work true` asks Nextflow to clean successful task work directories after the workflow finishes successfully. This preserves published outputs while reducing retained `work/` storage. Set `--cleanup_work false` to keep work directories for debugging or a more resume-friendly run.
+With `--cleanup_work true`, generated FASTQs are reclaimed at these successful last-consumer barriers:
+
+- RNA sample-barcode pair after UMI tagging; UMI-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
+- RNA trimmed pair after both splitting and barcode-gate metrics; each RNA split pair after `FQ_TO_SAM` and, when enabled, split-FASTQ compression.
+- DNA sample-barcode pair after modality tagging; modality-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
+- For dual-tag filtering, the pre-filter trimmed pair after artifact filtering; the filtered pair after both splitting and barcode-gate metrics. On the bypass path, the trimmed pair waits directly for those same two consumers.
+- Each DNA split pair after alignment and, when enabled, split-FASTQ compression.
+
+Consumer-local staged entries are unlinked after that consumer succeeds, independently of whether Nextflow staged them as symlinks, copies, or hardlinks. The producer cleanup process receives exact paths as values, never stages them, validates that they are regular FASTQs inside the work directory, and performs no glob or recursive deletion. Samplesheet inputs are excluded from every cleanup channel. Compressed split FASTQs remain available for `publishDir`, and all published outputs remain outside the early-cleanup target set.
+
+Nextflow still cleans successful task directories after the workflow finishes successfully. On failure, producer cleanup barriers whose consumers did not all finish do not fire. With cleanup enabled, `-resume` can recompute tasks whose FASTQ cache outputs are gone; cleanup tasks are non-cacheable so recreated intermediates are reclaimed again. Set `--cleanup_work false` to disable both early FASTQ reclamation and successful-run work cleanup for debugging or a more cache-friendly run.
