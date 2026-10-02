@@ -18,7 +18,7 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
@@ -42,7 +42,7 @@ process ALIGN_DNA {
     def sortThreads = alignThreads
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
 
     if( mode == 'mock' ) {
         """

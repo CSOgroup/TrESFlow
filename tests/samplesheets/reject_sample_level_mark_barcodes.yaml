@@ -12,7 +12,7 @@ samples:
   old_contract:
     groups:
       DNA_group:
-        dna_sb_barcodes: [AAA]
+        dna_sb_barcodes: [GAT]
     dna:
       tagmentation: dual
       reads:

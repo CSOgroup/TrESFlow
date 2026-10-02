@@ -6,7 +6,7 @@
  *     -O <sample>_MarkedDup.bam \
  *     -M <sample>.DuplicateMetrics.txt \
  *     --REMOVE_DUPLICATES false \
- *     --BARCODE_TAG CB \
+ *     --READ_ONE_BARCODE_TAG CB --READ_TWO_BARCODE_TAG SB \
  *     --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \
  *     --OPTICAL_DUPLICATE_PIXEL_DISTANCE <aviti_optical_duplicate_distance> \
  *     --CREATE_INDEX true \
@@ -79,7 +79,7 @@ EOF
           -O "${splitName}_MarkedDup.bam" \\
           -M "${splitName}.DuplicateMetrics.txt" \\
           --REMOVE_DUPLICATES false \\
-          --BARCODE_TAG CB \\
+          --READ_ONE_BARCODE_TAG CB --READ_TWO_BARCODE_TAG SB \\
           --READ_NAME_REGEX '^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$' \\
           --OPTICAL_DUPLICATE_PIXEL_DISTANCE "${params.aviti_optical_duplicate_distance}" \\
           --CREATE_INDEX true \\

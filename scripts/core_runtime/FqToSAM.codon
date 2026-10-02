@@ -12,54 +12,34 @@ def open_fastq(path: str):
 		return bio.FASTQ(path, gzip=False, validate=False, copy=True)
 
 
-def extract_cr_and_others(comment: str) -> Tuple[str, List[str]]:
-	"""
-	From FASTQ comment, extract:
-	  - CR value = CB + UM
-	  - other tags (excluding CB and UM), preserving tokens verbatim.
-
-	Accepts whitespace-separated tokens (spaces and/or tabs), e.g.:
-	  CB:Z:AAAA  RG:Z:AAAA  UM:Z:TTTT SB:Z:AAAA
-	"""
+def extract_rna_tags(comment: str) -> Tuple[str, List[str]]:
 	cb = ""
+	xi = ""
 	um = ""
 	others: List[str] = []
-	others_append = others.append
+	for token in comment.split():
+		if token.startswith("CB:"):
+			cb = token[token.rfind(':') + 1:]
+		elif token.startswith("XI:"):
+			xi = token[token.rfind(':') + 1:]
+		elif token.startswith("UM:"):
+			um = token[token.rfind(':') + 1:]
+		if not token.startswith("CR:") and not token.startswith("UR:"):
+			others.append(token)
+	if not cb or cb != xi or not um:
+		sys.stderr.write("ERROR: RNA FASTQ requires equal full CB/XI and a separate UM tag\n")
+		sys.exit(1)
+	others.append("UR:Z:" + um)
+	return um, others
 
-	i = 0
-	n = len(comment)
 
-	while i < n:
-		# skip whitespace (space/tab)
-		while i < n and (comment[i] == ' ' or comment[i] == '\t'):
-			i += 1
-		if i >= n:
-			break
-
-		j = i
-		while j < n and (comment[j] != ' ' and comment[j] != '\t'):
-			j += 1
-
-		# token = comment[i:j]
-		# detect CB/UM quickly; tolerate KEY:Z:VAL or KEY:VAL by taking text after last ':'
-		if (j - i) >= 5 and comment[i] == 'C' and comment[i + 1] == 'B' and comment[i + 2] == ':':
-			k = comment.rfind(':', i, j)
-			if k >= 0 and (k + 1) < j:
-				cb = comment[k + 1:j]
-		elif (j - i) >= 5 and comment[i] == 'U' and comment[i + 1] == 'M' and comment[i + 2] == ':':
-			k = comment.rfind(':', i, j)
-			if k >= 0 and (k + 1) < j:
-				um = comment[k + 1:j]
-		else:
-			# keep everything else
-			others_append(comment[i:j])
-
-		i = j + 1
-
-	if (not cb) or (not um):
-		return "", others
-
-	return cb + um, others
+def has_failed_barcode(comment: str) -> bool:
+	# Match explicit upstream failure values, never text inside a full cell ID.
+	for token in comment.split():
+		key = token.split(':')[0]
+		if key in ("CB", "SB", "MO") and token[token.rfind(':') + 1:] == "NoMatch":
+			return True
+	return False
 
 
 def normalize_qname(n1: str, n2: str) -> str:
@@ -85,7 +65,7 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 	R2_gen = open_fastq(R2)
 	R2_it = iter(R2_gen)
 
-	extract = extract_cr_and_others
+	extract = extract_rna_tags
 
 	with open(sam_outpath, "w") as out:
 		write = out.write
@@ -95,7 +75,6 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 
 		SAM_STATIC_R1 = "\t77\t*\t0\t0\t*\t*\t0\t0\t"
 		SAM_STATIC_R2 = "\t141\t*\t0\t0\t*\t*\t0\t0\t"
-		CR_PREFIX = "\tCR:Z:"
 
 		n_pairs_total = 0
 		n_pairs_written = 0
@@ -107,13 +86,16 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 			rec2 = next(R2_it)
 			n_pairs_total += 1
 
-			# behave like prior RNA splitter: skip NoMatch
+			# Skip genuine failed barcodes on either mate, preserving valid names.
 			comment = rec1.comment
-			if comment.find("NoMatch") >= 0:
+			if has_failed_barcode(comment) or has_failed_barcode(rec2.comment):
 				continue
 
-			cr_val, other_tags = extract(comment)
-			if not cr_val:
+			umi_value, other_tags = extract(comment)
+			if extract(rec2.comment) != (umi_value, other_tags):
+				sys.stderr.write("ERROR: Mate RNA tags differ\n")
+				sys.exit(1)
+			if not umi_value:
 				sys.stderr.write("ERROR: Missing CB or UM tag in FASTQ comment\n")
 				sys.exit(1)
 
@@ -133,8 +115,6 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 			write(seq1)
 			write("\t")
 			write(qual1)
-			write(CR_PREFIX)
-			write(cr_val)
 			for t in other_tags:
 				write("\t")
 				write(t)
@@ -146,8 +126,6 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 			write(seq2)
 			write("\t")
 			write(qual2)
-			write(CR_PREFIX)
-			write(cr_val)
 			for t in other_tags:
 				write("\t")
 				write(t)
@@ -159,6 +137,9 @@ def write_unmapped_pairs_to_sam(R1: str, R2: str, sam_outpath: str) -> int:
 				stdout_flush()
 				next_report += 1000000
 
+	for remaining in R2_it:
+		sys.stderr.write("ERROR: Paired FASTQ streams have unequal EOF\n")
+		sys.exit(1)
 	stdout_write(
 		"\nFinished. Total pairs seen: " + str(n_pairs_total) +
 		"; pairs written: " + str(n_pairs_written) +

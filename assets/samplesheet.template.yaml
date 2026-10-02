@@ -25,14 +25,12 @@ samples:
     groups:
       # A group may be RNA-only, DNA-only, or participate in both modalities.
       group_a:
-        rna_sb_barcodes: [AAAA, CCCC]
-        dna_sb_barcodes: [AAA, CCC]
+        sb_oligo_indices: ["01", "02"]
         mark_barcodes:
           H3K27me3: AGGCTATA
           H3K27ac: GCCTCTAT
       group_b:
-        rna_sb_barcodes: [GGGG, TTTT]
-        dna_sb_barcodes: [GGG, TTT]
+        sb_oligo_indices: ["03", "04"]
         mark_barcodes:
           H3K27me3: AGGCTATA
           H3K27ac: GCCTCTAT
@@ -51,7 +49,7 @@ samples:
 
     dna:
       # Use `single` for legacy 4 nt DNA sample barcodes, or `dual` for explicit
-      # 3 nt DNA sample barcodes that differ from RNA barcodes. `reads.i2` is
+      # 3 nt DNA sample barcodes expanded from indices. `reads.i2` is
       # required for single tagmentation and optional for dual tagmentation.
       # Ligation starts are 15,53,91 from i1 in single mode and 41,79,117 from
       # i1 in dual mode.

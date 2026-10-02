@@ -373,12 +373,6 @@ def percent(count: int, total: int) -> str:
     return f"{(count / total) * 100.0}%"
 
 
-def normalize_sb_drop_first(sb: str):
-    if len(sb) < 2:
-        raise ValueError(f"SB tag length < 2: {sb}")
-    return sb[1:]
-
-
 def find_tag_value(comment: str, tag_name: str):
     for token in comment.replace("\t", " ").split():
         if token.startswith(f"{tag_name}:"):
@@ -387,8 +381,8 @@ def find_tag_value(comment: str, tag_name: str):
     return ""
 
 
-def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
-    return f"{sample}_{group_name}_{cell_barcode}"
+def canonical_cell_id(sample: str, group_name: str, oligo_index: str, cell_barcode: str) -> str:
+    return f"{sample}_{group_name}_{oligo_index}_{cell_barcode}"
 
 
 def parse_aviti_qname(read_name: str):
@@ -418,15 +412,9 @@ def aviti_physical_unit(instrument: str, run: str, flowcell: str, lane: int) -> 
 
 
 def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> str:
-    candidate_prefixes = [sb]
-    if len(sb) > 1:
-        candidate_prefixes.append(sb[1:])
-
-    for prefix in candidate_prefixes:
-        if cb.startswith(prefix):
-            cell_barcode = cb[len(prefix) :]
-            if cell_barcode:
-                return cell_barcode
+    # Tag_Lig3 builds CB from the complete upstream SB tag followed by L1/L2/L3.
+    if cb.startswith(sb) and len(cb) > len(sb):
+        return cb[len(sb):]
 
     raise ValueError(
         f"Cannot derive canonical cell barcode for sample {sample} group {group_name}: "
@@ -438,6 +426,8 @@ def canonicalize_fastq_comment(
     sample: str,
     group_name: str,
     comment: str,
+    oligo_index: str,
+    corrected_sb: str = None,
     read_group: str = None,
 ) -> str:
     cb = find_tag_value(comment, "CB")
@@ -448,14 +438,16 @@ def canonicalize_fastq_comment(
         )
 
     technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-    output_read_group = read_group if read_group is not None else technical_cell
-    canonical = canonical_cell_id(sample, group_name, technical_cell)
+    canonical = canonical_cell_id(sample, group_name, oligo_index, technical_cell)
+    output_read_group = read_group if read_group is not None else canonical
     tokens = []
     has_rg = False
     has_canonical = False
     for token in comment.replace("\t", " ").split():
         if token.startswith("CB:"):
-            tokens.append(f"CB:Z:{technical_cell}")
+            tokens.append(f"CB:Z:{canonical}")
+        elif token.startswith("SB:"):
+            tokens.append(f"SB:Z:{corrected_sb or sb}")
         elif token.startswith("RG:"):
             tokens.append(f"RG:Z:{output_read_group}")
             has_rg = True
@@ -476,6 +468,8 @@ def canonicalize_dna_fastq_comment(
     group_name: str,
     read_name: str,
     comment: str,
+    oligo_index: str,
+    corrected_sb: str = None,
 ) -> str:
     """Canonicalize DNA cell tags while making RG identify its physical unit."""
     instrument, run, flowcell, lane, _, _, _ = parse_aviti_qname(read_name)
@@ -485,9 +479,8 @@ def canonicalize_dna_fastq_comment(
         raise ValueError(
             f"Missing CB or SB tag while canonicalizing cell ID for sample {sample} group {group_name}"
         )
-    technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
     read_group = aviti_physical_unit(instrument, run, flowcell, lane)
-    return canonicalize_fastq_comment(sample, group_name, comment, read_group=read_group)
+    return canonicalize_fastq_comment(sample, group_name, comment, oligo_index, corrected_sb, read_group=read_group)
 
 
 def load_sb_group_map(path: Path, sample: str):
@@ -504,6 +497,8 @@ def load_sb_group_map(path: Path, sample: str):
             parts = line.split()
             if len(parts) < 3:
                 continue
+            if parts[:3] == ["sample", "sb_group", "sb_bc"]:
+                continue
 
             row_sample, group_name, sb_bc = parts[0], parts[1], parts[2]
             if row_sample != sample:
@@ -513,9 +508,11 @@ def load_sb_group_map(path: Path, sample: str):
                 group_names.append(group_name)
                 group_seen.add(group_name)
 
-            if sb_bc in sb_to_group and sb_to_group[sb_bc] != group_name:
+            injected = parts[7] if len(parts) >= 8 and parts[7] != "-" else ""
+            raw_sb = injected + sb_bc
+            if raw_sb in sb_to_group and sb_to_group[raw_sb] != group_name:
                 raise ValueError(f"SB group conflict for sample {sample} SB {sb_bc}")
-            sb_to_group[sb_bc] = group_name
+            sb_to_group[raw_sb] = group_name
 
     if not sb_to_group:
         raise ValueError(f"No SB group mapping found for sample {sample} in {path}")
@@ -527,11 +524,30 @@ def resolve_group(sample: str, sb_raw: str, sb_to_group):
     if sb_raw in sb_to_group:
         return sb_to_group[sb_raw]
 
-    key = normalize_sb_drop_first(sb_raw)
-    if key in sb_to_group:
-        return sb_to_group[key]
+    raise ValueError(f"SB not found in SB group map for sample {sample}: raw={sb_raw}")
 
-    raise ValueError(f"SB not found in SB group map for sample {sample}: raw={sb_raw} key={key}")
+
+def load_sb_identities(path: Path, sample: str):
+    """Resolve exact upstream tags using the parser's explicit injection format."""
+    identities = {}
+    with path.open() as handle:
+        for line in handle:
+            parts = line.rstrip("\n").split("\t")
+            if parts[:3] == ["sample", "sb_group", "sb_bc"]:
+                continue
+            if not parts or parts[0] != sample:
+                continue
+            if len(parts) < 4 or not parts[3].isascii() or not parts[3].isdigit() or int(parts[3]) <= 0:
+                raise ValueError(f"Missing or invalid oligo index in derived SB map: {line.rstrip()}")
+            sequence, index = parts[2], str(int(parts[3])).zfill(2)
+            injected = parts[7] if len(parts) >= 8 and parts[7] != "-" else ""
+            raw = injected + sequence
+            if raw in identities:
+                raise ValueError(f"Duplicate SB identity row for {sample}/{raw}")
+            identities[raw] = (index, sequence)
+    if not identities:
+        raise ValueError(f"No SB identity mapping for sample {sample}")
+    return identities
 
 
 def write_fastq_record(handle, name: str, comment: str, seq: str, qual: str):

@@ -91,6 +91,7 @@ workflow {
     params.put('aviti_optical_duplicate_distance', avitiOpticalDuplicateDistance)
     params.put('filter_dual_tag_artifacts', filterDualTagArtifacts)
     java.lang.System.setProperty('tresflow.resolvedOutdir', resolvedOutdir)
+    java.lang.System.setProperty('tresflow.resolvedWorkDir', workflow.workDir.toString())
     java.lang.System.setProperty('tresflow.resolvedCoreScriptsDir', resolvedCoreScriptsDir)
 
     def deprecatedCliParams = [
@@ -124,6 +125,7 @@ workflow {
             [
                 outdir          : resolvedOutdir,
                 barcode_defaults: params.barcode_defaults,
+                sb_oligo_lookup : params.sb_oligo_lookup ?: "${projectDir}/assets/sb_oligo_lookup.v1.tsv",
             ]
         )
     }

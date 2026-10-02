@@ -12,13 +12,10 @@
  *   - uncompressed per-group RNA FASTQ pairs for downstream computation
  *   - per-group SAM RG header TSVs named as upstream Split_ReadsV2 outputs
  *
- * Notes:
- *   - The upstream sample-barcode group map example uses full SB strings even though the script comments
- *     discuss dropping an injected leading base. This wrapper follows the actual script logic:
- *     raw SB match first, then drop-first fallback.
+ * The versioned SB map carries explicit normalized indices and upstream injection format.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
 
 process SPLIT_RNA_READS {
     tag "${sampleId}"
@@ -39,7 +36,7 @@ process SPLIT_RNA_READS {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [trimmedR1, trimmedR2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [trimmedR1, trimmedR2])
 
     """
     ${runtimeExports}

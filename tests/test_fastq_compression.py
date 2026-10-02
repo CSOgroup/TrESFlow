@@ -136,41 +136,42 @@ class FastqCompressionTests(unittest.TestCase):
         self.assertNotIn('pigz -f', module_text)
         self.assertIn('.fastq.gz', module_text)
 
-    def test_canonical_cell_id_drops_modality_specific_sb_without_replacing_technical_cb(self):
+    def test_canonical_cell_id_includes_index_across_chemistries(self):
         cell_barcode = "ACGTACGTTGCATGCAGATCGATC"
         rna_comment = f"CB:Z:CAGT{cell_barcode}\tRG:Z:CAGT{cell_barcode}\tUM:Z:TTTT\tSB:Z:CAGT"
         dna_comment = f"CB:Z:AAA{cell_barcode}\tRG:Z:AAA{cell_barcode}\tMO:Z:AGGCTATA\tSB:Z:AAA"
 
-        rna_canonical = SPLIT_RNA.canonicalize_fastq_comment("sample1", "Normal", rna_comment)
+        rna_canonical = SPLIT_RNA.canonicalize_fastq_comment("sample1", "Normal", rna_comment, oligo_index="01")
         dna_canonical = SPLIT_DNA.canonicalize_dna_fastq_comment(
             "sample1",
             "Normal",
             "AV240401:AVT0507:2528453125:1:11104:5031:3419:ACGT",
             dna_comment,
-        )
-        expected = f"sample1_Normal_{cell_barcode}"
+        oligo_index="01")
+        expected = f"sample1_Normal_01_{cell_barcode}"
 
-        self.assertIn(f"CB:Z:{cell_barcode}", rna_canonical)
-        self.assertIn(f"RG:Z:{cell_barcode}", rna_canonical)
+        self.assertIn(f"CB:Z:{expected}", rna_canonical)
+        self.assertIn(f"RG:Z:{expected}", rna_canonical)
         self.assertIn(f"XI:Z:{expected}", rna_canonical)
-        self.assertIn(f"CB:Z:{cell_barcode}", dna_canonical)
+        self.assertIn(f"CB:Z:{expected}", dna_canonical)
         self.assertIn("RG:Z:AV240401:AVT0507:2528453125:L1", dna_canonical)
         self.assertIn(f"XI:Z:{expected}", dna_canonical)
         self.assertIn("SB:Z:CAGT", rna_canonical)
         self.assertIn("SB:Z:AAA", dna_canonical)
 
-    def test_fq_to_sam_uses_raw_technical_cb_for_star_cb_length(self):
+    def test_fq_to_sam_keeps_identity_and_umi_in_separate_attributes(self):
         cell_barcode = "ACGTACGTTGCATGCAGATCGATC"
         umi = "TTTTGGGGAA"
-        canonical = f"Isa_VeryLongGroupName_{cell_barcode}"
-        comment = f"CB:Z:{cell_barcode}\tRG:Z:{cell_barcode}\tUM:Z:{umi}\tSB:Z:CAGT\tXI:Z:{canonical}"
+        canonical = f"Isa_VeryLongGroupName_01_{cell_barcode}"
+        comment = f"CB:Z:{canonical}\tRG:Z:{cell_barcode}\tUM:Z:{umi}\tSB:Z:CAGT\tXI:Z:{canonical}"
 
-        cr_value, other_tags = FQ_TO_SAM.extract_cr_and_others(comment)
+        cr_value, other_tags = FQ_TO_SAM.extract_rna_tags(comment)
 
-        self.assertEqual(cr_value, cell_barcode + umi)
-        self.assertEqual(len(cr_value) - len(umi), len(cell_barcode))
+        self.assertEqual(cr_value, umi)
         self.assertNotIn("Isa_VeryLongGroupName", cr_value)
         self.assertIn(f"XI:Z:{canonical}", other_tags)
+        self.assertIn(f"UR:Z:{umi}", other_tags)
+        self.assertFalse(any(tag.startswith("CR:") for tag in other_tags))
 
 
 if __name__ == "__main__":

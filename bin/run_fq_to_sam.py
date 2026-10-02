@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from itertools import zip_longest
 
 
 def open_maybe_gzip(path: Path, mode: str):
@@ -39,23 +40,27 @@ def parse_header(header: str):
     return parts[0], parts[1]
 
 
-def extract_cr_and_others(comment: str):
-    cb = ""
-    um = ""
+def extract_rna_tags(comment: str):
+    values = {}
     others = []
-
-    for token in comment.replace("\t", " ").split():
-        if token.startswith("CB:"):
-            cb = token.rsplit(":", 1)[-1]
-        elif token.startswith("UM:"):
-            um = token.rsplit(":", 1)[-1]
-        else:
+    for token in comment.split():
+        key = token.split(":", 1)[0]
+        if key in ("CB", "XI", "UM"):
+            values[key] = token.rsplit(":", 1)[-1]
+        if key not in ("CR", "UR"):
             others.append(token)
+    if not values.get("UM") or not values.get("XI") or values.get("CB") != values["XI"]:
+        raise ValueError("RNA FASTQ requires equal full CB/XI and a separate UM tag")
+    others.append(f"UR:Z:{values['UM']}")
+    return values["UM"], others
 
-    if not cb or not um:
-        return "", others
 
-    return cb + um, others
+def has_failed_barcode(comment: str) -> bool:
+    # Upstream Tag/Tag_Lig3 emit an exact NoMatch value on these barcode
+    # attributes. Full cell identifiers may legitimately contain that text.
+    return any(token.split(":", 1)[0] in ("CB", "SB", "MO")
+               and token.rsplit(":", 1)[-1] == "NoMatch"
+               for token in comment.split())
 
 
 def normalize_qname(name1: str, name2: str):
@@ -84,15 +89,19 @@ def mock_fq_to_sam(args):
     with open(args.output_sam, "wt", encoding="utf-8") as out:
         out.write("@HD\tVN:1.6\tSO:unsorted\n")
 
-        for r1_rec, r2_rec in zip(fastq_iter(args.r1), fastq_iter(args.r2)):
+        for r1_rec, r2_rec in zip_longest(fastq_iter(args.r1), fastq_iter(args.r2)):
+            if r1_rec is None or r2_rec is None:
+                raise ValueError("Paired FASTQ streams have unequal EOF")
             r1_name, r1_comment = parse_header(r1_rec[0])
-            r2_name, _ = parse_header(r2_rec[0])
+            r2_name, r2_comment = parse_header(r2_rec[0])
 
-            if "NoMatch" in r1_comment:
+            if has_failed_barcode(r1_comment) or has_failed_barcode(r2_comment):
                 continue
 
-            cr_value, other_tags = extract_cr_and_others(r1_comment)
-            if not cr_value:
+            umi_value, other_tags = extract_rna_tags(r1_comment)
+            if extract_rna_tags(r2_comment) != (umi_value, other_tags):
+                raise ValueError(f"Mate RNA tags differ for {r1_name}")
+            if not umi_value:
                 raise ValueError(f"Missing CB or UM tag in FASTQ comment for {r1_name}")
 
             qname = normalize_qname(r1_name, r2_name)
@@ -100,14 +109,14 @@ def mock_fq_to_sam(args):
                 raise ValueError(f"Mate names do not match: {r1_name} vs {r2_name}")
 
             out.write(
-                f"{qname}\t77\t*\t0\t0\t*\t*\t0\t0\t{r1_rec[1]}\t{r1_rec[3]}\tCR:Z:{cr_value}"
+                f"{qname}\t77\t*\t0\t0\t*\t*\t0\t0\t{r1_rec[1]}\t{r1_rec[3]}"
             )
             for tag in other_tags:
                 out.write(f"\t{tag}")
             out.write("\n")
 
             out.write(
-                f"{qname}\t141\t*\t0\t0\t*\t*\t0\t0\t{r2_rec[1]}\t{r2_rec[3]}\tCR:Z:{cr_value}"
+                f"{qname}\t141\t*\t0\t0\t*\t*\t0\t0\t{r2_rec[1]}\t{r2_rec[3]}"
             )
             for tag in other_tags:
                 out.write(f"\t{tag}")

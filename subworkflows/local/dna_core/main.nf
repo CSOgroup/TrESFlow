@@ -66,21 +66,10 @@ def collectDnaRgHeaders(rgHeaders) {
     }
 }
 
-def parseDnaSplitName(sampleId, splitName) {
-    def suffix = splitName.replaceFirst("^${sampleId}_", '')
-    def tokens = suffix.tokenize('_')
-    if( tokens.size() < 2 ) {
-        throw new IllegalStateException(
-            "Unable to derive DNA group and modality from split output '${splitName}'"
-        )
-    }
-
-    def group = tokens[0]
-    [
-        group      : group,
-        modality   : tokens[1..-1].join('_'),
-        sampleGroup: "${sampleId}_${group}",
-    ]
+def parseDnaSplitName(meta, splitName) {
+    def target = meta.split_targets[splitName]
+    if( !target ) throw new IllegalStateException("Unknown DNA split output '${splitName}' in explicit samplesheet metadata")
+    [group: target.group, modality: target.mark, sampleGroup: target.sample_group]
 }
 
 def selectDnaIndexRead(meta, i1, i2, fieldName) {
@@ -262,11 +251,11 @@ workflow DNA_CORE {
     ch_align_input = ch_align_fastqs
         .join(ch_align_rg)
         .map { splitName, sampleId, metaFromFastq, splitR1, splitR2, sampleIdFromRg, metaFromRg, rgHeader ->
-            def splitMeta = parseDnaSplitName(sampleId, splitName)
+            def splitMeta = parseDnaSplitName(metaFromFastq, splitName)
 
             tuple(
                 splitName,
-                metaFromFastq,
+                metaFromFastq + [group: splitMeta.group, mark: splitMeta.modality],
                 splitMeta.sampleGroup,
                 splitMeta.modality,
                 splitR1,

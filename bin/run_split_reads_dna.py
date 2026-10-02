@@ -7,12 +7,14 @@ import tempfile
 import time
 from collections import OrderedDict
 from pathlib import Path
+from itertools import zip_longest
 
 from tresflow_fastq_utils import (
     canonicalize_dna_fastq_comment,
     fastq_iter,
     find_tag_value,
     load_sb_group_map,
+    load_sb_identities,
     log_event,
     move_split_output,
     parse_header,
@@ -43,6 +45,8 @@ def load_mo_map(path: Path, sample: str, group_names):
                 continue
 
             row_sample = parts[0]
+            if parts[:4] == ["sample", "sb_group", "mark", "mo_bc"] or parts == ["sample", "mark", "mo_bc"]:
+                continue
             if row_sample != sample:
                 continue
 
@@ -124,6 +128,7 @@ def build_output_targets(group_names, mark_names, mappings):
 
 def mock_split(args):
     sb_to_group, group_names = load_sb_group_map(args.sb_group_map, args.sample)
+    identities = load_sb_identities(args.sb_group_map, args.sample)
     mappings, mark_names = load_mo_map(args.mo_map, args.sample, group_names)
     targets = build_output_targets(group_names, mark_names, mappings)
 
@@ -151,15 +156,20 @@ def mock_split(args):
     branch_counts = OrderedDict((target, 0) for target in targets)
 
     try:
-        for r1_rec, r2_rec in zip(fastq_iter(args.r1), fastq_iter(args.r2)):
+        for r1_rec, r2_rec in zip_longest(fastq_iter(args.r1), fastq_iter(args.r2)):
+            if r1_rec is None or r2_rec is None:
+                raise ValueError("Paired FASTQ streams have unequal EOF")
             processed += 1
             r1_name, r1_comment = parse_header(r1_rec[0])
             r2_name, r2_comment = parse_header(r2_rec[0])
             if r1_name != r2_name:
                 raise ValueError(f"Read name mismatch: {r1_name} != {r2_name}")
 
-            if "NoMatch" in r1_comment:
+            if "NoMatch" in r1_comment or "NoMatch" in r2_comment:
                 continue
+            if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag)
+                   for tag in ('CB', 'SB', 'MO')):
+                raise ValueError(f"Mate barcode identity mismatch for {r1_name}")
             accepted += 1
 
             cb = find_tag_value(r1_comment, "CB")
@@ -170,6 +180,7 @@ def mock_split(args):
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
             group_counts[group_name] += 1
+            index, corrected_sb = identities[sb]
             mark_name = find_mark_for_mo(mo, group_name, group_names, mappings)
             if mark_name is None:
                 raise ValueError(f"MO barcode not found for sample {args.sample}: {mo}")
@@ -177,11 +188,13 @@ def mock_split(args):
             key = (group_name, mark_name)
             branch_counts[key] += 1
             r1_comment = canonicalize_dna_fastq_comment(
-                args.sample, group_name, r1_name, r1_comment
+                args.sample, group_name, r1_name, r1_comment, index, corrected_sb
             )
             r2_comment = canonicalize_dna_fastq_comment(
-                args.sample, group_name, r2_name, r2_comment
+                args.sample, group_name, r2_name, r2_comment, index, corrected_sb
             )
+            if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag) for tag in ('CB', 'XI', 'SB')):
+                raise ValueError(f"Mate identity mismatch for {r1_name}")
             r1_rg = find_tag_value(r1_comment, "RG")
             r2_rg = find_tag_value(r2_comment, "RG")
             if r1_rg != r2_rg:

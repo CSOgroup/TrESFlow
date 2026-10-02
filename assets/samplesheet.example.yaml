@@ -13,9 +13,9 @@ samples:
   test_rna:
     groups:
       Normal:
-        sb_barcodes: [CAGT]
+        sb_oligo_indices: ["05"]
       Co2:
-        sb_barcodes: [ACGT]
+        sb_oligo_indices: ["06"]
 
     rna:
       # Legacy scalars remain valid. For technical chunks of this same library,

@@ -60,6 +60,75 @@ class SamplesheetParser {
         ]
     }
 
+    static String normalizeOligoIndex(final Object value, final String fieldName) {
+        if( value instanceof Boolean || !(value instanceof String || value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long || value instanceof BigInteger) ) {
+            throw new IllegalArgumentException("${fieldName} requires positive integers or decimal strings; received '${value}'")
+        }
+        final String text = value.toString()
+        if( !(text ==~ /[0-9]+/) || new BigInteger(text) <= 0 ) {
+            throw new IllegalArgumentException("${fieldName} requires positive decimal indices; received '${value}'")
+        }
+        return new BigInteger(text).toString().padLeft(2, '0')
+    }
+
+    static Map loadOligoLookup(final File file) {
+        if( !file.isFile() ) throw new IllegalArgumentException("SB oligo lookup not found: ${file}")
+        final List<String> lines = file.readLines()
+        if( !lines || lines[0] != 'oligo_index\trna_and_single_dna_sb\tdual_dna_sb' ) {
+            throw new IllegalArgumentException("Invalid SB oligo lookup header: ${file}")
+        }
+        final Map rows = [:]
+        final Map four = [:]
+        final Map dual = [:]
+        lines.drop(1).eachWithIndex { line, n ->
+            final String field = "SB oligo lookup ${file}:${n + 2}"
+            final List parts = line.split('\t', -1).toList()
+            if( parts.size() != 3 ) throw new IllegalArgumentException("${field}: expected three nonempty columns")
+            final String index = normalizeOligoIndex(parts[0], field)
+            if( rows.containsKey(index) ) throw new IllegalArgumentException("${field}: duplicate normalized index '${index}'")
+            if( !(parts[1] ==~ /[ACGT]{4}/) || !(parts[2] ==~ /[ACGT]{3}/) ) {
+                throw new IllegalArgumentException("${field}: requires uppercase A/C/G/T four-base and three-base sequences")
+            }
+            if( four.containsKey(parts[1]) || dual.containsKey(parts[2]) ) {
+                throw new IllegalArgumentException("${field}: ambiguous duplicate chemistry sequence")
+            }
+            rows[index] = [parts[1], parts[2]]
+            four[parts[1]] = index
+            dual[parts[2]] = index
+        }
+        if( rows.isEmpty() ) throw new IllegalArgumentException("SB oligo lookup has no rows: ${file}")
+        return [rows: rows, four: four, dual: dual]
+    }
+
+    private static List<String> requireOligoIndices(final Object value, final String field, final Map lookup) {
+        if( !(value instanceof List) || value.isEmpty() ) throw new IllegalArgumentException("${field} must be a non-empty list")
+        final List<String> indices = value.collect { normalizeOligoIndex(it, field) }
+        if( indices.toSet().size() != indices.size() ) throw new IllegalArgumentException("${field} contains duplicate normalized indices")
+        indices.each { if( !lookup.rows.containsKey(it) ) throw new IllegalArgumentException("${field}: unknown oligo index '${it}'") }
+        return indices
+    }
+
+    private static String requireIdentityName(final Object value, final String field) {
+        final String name = requireString(value, field)
+        if( name != value.toString() || !(name ==~ /[A-Za-z0-9_.-]+/) || name in ['.', '..', 'Unknown'] ) {
+            throw new IllegalArgumentException("${field}: unsupported identity/output name '${name}' (use letters, digits, underscores, dots or hyphens)")
+        }
+        return name
+    }
+
+    private static void registerSerializedName(final Map seen, final String name, final List owner, final String kind) {
+        if( seen.containsKey(name) && seen[name] != owner ) {
+            throw new IllegalArgumentException("Serialized ${kind} collision '${name}': ${seen[name]} vs ${owner}")
+        }
+        seen[name] = owner
+    }
+
+    private static String injectedSbBase(final String firstPass) {
+        if( firstPass == 'first_pass' ) return ''
+        if( firstPass ==~ /first_pass_withBC_[ACGT]/ ) return firstPass[-1]
+        throw new IllegalArgumentException("Unsupported SB upstream tag format '${firstPass}'")
+    }
+
     private static List<Map> parseUnified(
         final Map parsed,
         final File baseDir,
@@ -74,10 +143,16 @@ class SamplesheetParser {
         final String ligationWhitelist = references.ligation_barcode_whitelist
         final File derivedDir = prepareDerivedDir(options)
 
+        final File lookupFile = new File((options.sb_oligo_lookup ?: 'assets/sb_oligo_lookup.v1.tsv').toString())
+        final Map lookup = loadOligoLookup(lookupFile)
+        final String lookupDigest = java.security.MessageDigest.getInstance('SHA-256')
+            .digest(lookupFile.bytes).encodeHex().toString()
+        final Map namespaces = [:]
+        final Map outputs = [:]
         final List<Map> samples = []
 
         ((Map) parsed.samples).each { rawSampleId, rawSampleConfig ->
-            final String sampleId = requireString(rawSampleId, 'samples.<sample_id>')
+            final String sampleId = requireIdentityName(rawSampleId, 'samples.<sample_id>')
             final Map sampleConfig = asMap(rawSampleConfig, "samples.${sampleId}")
             final Map groupsConfig = asMap(sampleConfig.groups, "samples.${sampleId}.groups")
             if( groupsConfig.isEmpty() ) {
@@ -108,9 +183,13 @@ class SamplesheetParser {
                 sampleId,
                 hasRna,
                 hasDna,
-                dnaTagmentation
+                dnaTagmentation,
+                lookup
             )
 
+            groupsConfig.keySet().each { group ->
+                registerSerializedName(namespaces, "${sampleId}_${group}", [sampleId, group.toString()], 'cell namespace')
+            }
             if( hasRna ) {
                 samples << buildRnaRow(
                     sampleId,
@@ -140,8 +219,36 @@ class SamplesheetParser {
                     references
                 )
             }
+            samples.findAll { it.id == sampleId }.each { row ->
+                row.group_sources = normalizedGroups[row.modality + '_sources']
+            }
         }
 
+        samples.each { row ->
+            row.cell_id_version = 'full-cell-v1'
+            row.sb_lookup_sha256 = lookupDigest
+            row.sb_injected_base = injectedSbBase(row.sample_first_pass as String)
+            row.cell_identity_records = row.group_definitions.collectMany { group, sequences ->
+                sequences.collect { sequence ->
+                    [sample: row.id, group: group, modality: row.modality,
+                     chemistry: row.modality == MODALITY_RNA ? 'rna' : "dna_${row.dna_tagmentation}",
+                     oligo_index: lookup[row.modality == MODALITY_DNA && row.dna_tagmentation == TAGMENTATION_DUAL ? 'dual' : 'four'][sequence],
+                     sb_bc: sequence, input_source: row.group_sources[group]]
+                }
+            }
+            row.split_targets = [:]
+            row.group_definitions.keySet().each { group ->
+                final List marks = row.modality == MODALITY_DNA ? row.mark_barcodes[group].keySet().toList() : ['RNA']
+                marks.each { mark ->
+                    final String stem = row.modality == MODALITY_DNA ? "${row.id}_${group}_${mark}" : "${row.id}_${group}"
+                    registerSerializedName(outputs, "${row.modality}:${stem}", [row.id, group, mark], 'output name')
+                    row.split_targets[stem] = [sample: row.id, group: group, mark: mark, sample_group: "${row.id}_${group}"]
+                }
+            }
+            row.remove('group_sources')
+        }
+        writeDerivedText(new File(derivedDir, 'sb_oligo_lookup.v1.tsv'), lookupFile.getText('UTF-8'))
+        writeDerivedText(new File(derivedDir, 'cell_identity_version.txt'), "full-cell-v1\nCB=XI=<sample>_<group>_<oligo_index>_<L1L2L3>\nlookup_sha256=${lookupDigest}\n")
         return attachDerivedArtifacts(derivedDir, samples)
     }
 
@@ -292,7 +399,7 @@ class SamplesheetParser {
             }
         }
 
-        file.text = lines.join('\n') + '\n'
+        writeDerivedText(file, lines.join('\n') + '\n')
         return file
     }
 
@@ -301,7 +408,8 @@ class SamplesheetParser {
         final String sampleId,
         final boolean hasRna,
         final boolean hasDna,
-        final String dnaTagmentation
+        final String dnaTagmentation,
+        final Map lookup
     ) {
         final LinkedHashMap<String, List<String>> rnaGroups = new LinkedHashMap<>()
         final LinkedHashMap<String, List<String>> dnaGroups = new LinkedHashMap<>()
@@ -310,17 +418,25 @@ class SamplesheetParser {
         final LinkedHashMap<String, String> dnaSources = new LinkedHashMap<>()
 
         groupsConfig.each { rawGroupName, rawGroupConfig ->
-            final String groupName = requireString(rawGroupName, "samples.${sampleId}.groups.<group>")
+            final String groupName = requireIdentityName(rawGroupName, "samples.${sampleId}.groups.<group>")
             final Map groupConfig = asMap(rawGroupConfig, "samples.${sampleId}.groups.${groupName}")
 
-            final boolean hasRnaBarcodes = groupConfig.containsKey('rna_sb_barcodes') || groupConfig.containsKey('sb_barcodes')
+            final boolean hasIndices = groupConfig.containsKey('sb_oligo_indices')
+            if( hasIndices && ['sb_barcodes', 'rna_sb_barcodes', 'dna_sb_barcodes'].any { groupConfig.containsKey(it) } ) {
+                throw new IllegalArgumentException("samples.${sampleId}.groups.${groupName}: sb_oligo_indices cannot be combined with sequence-input fields")
+            }
+            final List<String> indices = hasIndices ? requireOligoIndices(groupConfig.sb_oligo_indices,
+                "samples.${sampleId}.groups.${groupName}.sb_oligo_indices", lookup) : []
+            final boolean hasRnaBarcodes = hasIndices || groupConfig.containsKey('rna_sb_barcodes') || groupConfig.containsKey('sb_barcodes')
             if( hasRna && hasRnaBarcodes ) {
-                final Map rnaSelection = selectRnaSbBarcodes(groupConfig, sampleId, groupName)
+                final Map rnaSelection = hasIndices
+                    ? [value: indices.collect { lookup.rows[it][0] }, fieldName: "samples.${sampleId}.groups.${groupName}.sb_oligo_indices"]
+                    : selectRnaSbBarcodes(groupConfig, sampleId, groupName)
                 addGroupBarcodes(rnaGroups, rnaSources, groupName, rnaSelection, RNA_SB_BARCODE_LENGTH)
             }
 
             if( hasDna ) {
-                final boolean hasDnaBarcodes = groupConfig.containsKey('dna_sb_barcodes') ||
+                final boolean hasDnaBarcodes = hasIndices || groupConfig.containsKey('dna_sb_barcodes') ||
                     (dnaTagmentation == TAGMENTATION_SINGLE && groupConfig.containsKey('sb_barcodes'))
                 final boolean hasMarkBarcodes = groupConfig.containsKey('mark_barcodes')
 
@@ -341,7 +457,9 @@ class SamplesheetParser {
                 }
 
                 if( hasDnaBarcodes ) {
-                    final Map dnaSelection = selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+                    final Map dnaSelection = hasIndices
+                        ? [value: indices.collect { lookup.rows[it][dnaTagmentation == TAGMENTATION_DUAL ? 1 : 0] }, fieldName: "samples.${sampleId}.groups.${groupName}.sb_oligo_indices"]
+                        : selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
                     addGroupBarcodes(dnaGroups, dnaSources, groupName, dnaSelection, dnaSbBarcodeLength(dnaTagmentation))
                     dnaMarkBarcodes[groupName] = parseMarkBarcodes(
                         groupConfig.mark_barcodes,
@@ -369,7 +487,35 @@ class SamplesheetParser {
             validateNoGroupBarcodeCollisions(sampleId, 'DNA', dnaGroups)
         }
 
+        final Map indexOwners = [:]
+        [rna: rnaGroups, dna: dnaGroups].each { modality, groups ->
+            final Map reverseLookup = modality == 'dna' && dnaTagmentation == TAGMENTATION_DUAL ? lookup.dual : lookup.four
+            groups.each { group, sequences ->
+                sequences.each { sequence ->
+                    final String index = reverseLookup[sequence]
+                    if( !index ) {
+                        throw new IllegalArgumentException("Unknown ${modality} SB sequence '${sequence}' for sample '${sampleId}' group '${group}' in oligo lookup")
+                    }
+                    if( indexOwners.containsKey(index) && indexOwners[index] != group ) {
+                        throw new IllegalArgumentException("Resolved oligo index collision for sample '${sampleId}': index '${index}' maps to both '${indexOwners[index]}' and '${group}'")
+                    }
+                    indexOwners[index] = group
+                }
+            }
+        }
+        rnaGroups.each { group, sequences ->
+            if( dnaGroups.containsKey(group) ) {
+                final Set rnaIndices = sequences.collect { lookup.four[it] }.toSet()
+                final Map dnaLookup = dnaTagmentation == TAGMENTATION_DUAL ? lookup.dual : lookup.four
+                final Set dnaIndices = dnaGroups[group].collect { dnaLookup[it] }.toSet()
+                if( rnaIndices != dnaIndices ) {
+                    throw new IllegalArgumentException("RNA/DNA resolved index sets differ for sample '${sampleId}' group '${group}': ${rnaIndices} vs ${dnaIndices}")
+                }
+            }
+        }
         return [
+            rna_sources       : rnaSources,
+            dna_sources       : dnaSources,
             rna               : rnaGroups,
             dna               : dnaGroups,
             dna_mark_barcodes : dnaMarkBarcodes,
@@ -405,7 +551,7 @@ class SamplesheetParser {
         final Map<String, String> barcodeToMark = [:]
 
         marksConfig.each { rawMarkName, rawBarcode ->
-            final String markName = requireString(rawMarkName, "${fieldPrefix}.<mark>")
+            final String markName = requireIdentityName(rawMarkName, "${fieldPrefix}.<mark>")
             final String barcode = requireString(rawBarcode, "${fieldPrefix}.${markName}")
             if( barcodeToMark.containsKey(barcode) && barcodeToMark[barcode] != markName ) {
                 throw new IllegalArgumentException(
@@ -511,34 +657,30 @@ class SamplesheetParser {
             ? new File(new File(outdir), 'pipeline_info/derived_contract')
             : File.createTempDir('tresflow_samplesheet_', '')
 
-        if( root.exists() ) {
-            root.eachFile { file -> deleteRecursively(file) }
-        }
         root.mkdirs()
         return root
     }
 
-    private static void deleteRecursively(final File file) {
-        if( file.isDirectory() ) {
-            file.listFiles()?.each { child -> deleteRecursively(child) }
-        }
-        file.delete()
+    private static void writeDerivedText(final File file, final String text) {
+        // Keep unchanged staged contracts stable for Nextflow's default cache.
+        if( !file.isFile() || file.getText('UTF-8') != text ) file.setText(text, 'UTF-8')
     }
 
     private static File writeSbGroupMap(final File derivedDir, final List<Map> samples, final String modality) {
         final File file = new File(derivedDir, "${modality}_sb_group_map.tsv")
-        final List<String> lines = ['sample\tsb_group\tsb_bc']
+        final List<String> lines = ['sample\tsb_group\tsb_bc\toligo_index\tmodality\tchemistry\tinput_source\tsb_injected_base']
 
         samples.collect { it.id }.unique().each { sampleId ->
             final Map row = samples.find { it.id == sampleId }
             row.group_definitions.each { groupName, barcodes ->
                 barcodes.each { barcode ->
-                    lines << "${sampleId}\t${groupName}\t${barcode}"
+                    final Map record = row.cell_identity_records.find { it.group == groupName && it.sb_bc == barcode }
+                    lines << "${sampleId}\t${groupName}\t${barcode}\t${record.oligo_index}\t${modality}\t${record.chemistry}\t${record.input_source}\t${row.sb_injected_base ?: '-'}"
                 }
             }
         }
 
-        file.text = lines.join('\n') + '\n'
+        writeDerivedText(file, lines.join('\n') + '\n')
         return file
     }
 
@@ -610,7 +752,7 @@ class SamplesheetParser {
             }
         }
 
-        file.text = lines.join('\n') + '\n'
+        writeDerivedText(file, lines.join('\n') + '\n')
         return file
     }
 
@@ -625,7 +767,7 @@ class SamplesheetParser {
             (row.mark_barcodes as Map).values().each { groupMarks ->
                 (groupMarks as Map).values().each { barcode -> modalityBarcodes.add(barcode.toString()) }
             }
-            file.text = modalityBarcodes.join('\n') + '\n'
+            writeDerivedText(file, modalityBarcodes.join('\n') + '\n')
             out[row.id] = file.canonicalPath
         }
         return out

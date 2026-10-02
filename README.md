@@ -251,3 +251,8 @@ More detailed documentation is available in:
 
 - [Usage documentation](docs/usage.md)
 - [Pipeline architecture](docs/architecture/implemented_pipeline.md)
+
+Cell identity uses `CB = XI = <sample>_<group>_<oligo_index>_<L1L2L3>`.
+Use group-level `sb_oligo_indices` for chemistry-independent sample partitions;
+legacy nucleotide sequence inputs remain supported. See the
+[cell-identity contract and regeneration guidance](docs/cell_identity.md).

@@ -16,17 +16,6 @@ def open_fastq(path: str):
 
 
 # -----------------------------
-# Normalize SB: by design SB in comment includes injected base as FIRST base.
-# Key is "all bases after the first one".
-# -----------------------------
-def normalize_sb_drop_first(sb: str) -> str:
-	if len(sb) < 2:
-		sys.stderr.write("ERROR: SB tag length < 2: " + sb + "\n")
-		sys.exit(1)
-	return sb[1:]
-
-
-# -----------------------------
 # Hot-path tag extraction from FASTQ comment
 # Tokens like:
 #   CB:Z:AAAA  SB:Z:AGCAT  ...
@@ -100,8 +89,15 @@ def get_cb_sb(comment: str) -> Tuple[str, str]:
 	return cb, sb
 
 
-def canonical_cell_id(sample: str, group_name: str, cell_barcode: str) -> str:
-	return sample + "_" + group_name + "_" + cell_barcode
+def canonical_cell_id(sample: str, group_name: str, oligo_index: str, cell_barcode: str) -> str:
+	return sample + "_" + group_name + "_" + oligo_index + "_" + cell_barcode
+
+
+def get_umi(comment: str) -> str:
+	for token in comment.split():
+		if token.startswith("UM:"):
+			return token[token.rfind(':') + 1:]
+	return ""
 
 
 def is_decimal(value: str) -> bool:
@@ -156,13 +152,6 @@ def cell_barcode_without_sb(cb: str, sb: str, sample: str, group_name: str) -> s
 		if cell:
 			return cell
 
-	if len(sb) > 1:
-		key = normalize_sb_drop_first(sb)
-		if cb.startswith(key):
-			cell = cb[len(key):]
-			if cell:
-				return cell
-
 	sys.stderr.write(
 		"ERROR: Cannot derive canonical cell barcode for sample " + sample +
 		" group " + group_name + ": CB tag '" + cb + "' does not start with SB tag '" + sb + "'\n"
@@ -175,6 +164,8 @@ def canonicalize_fastq_comment(
 	sample: str,
 	group_name: str,
 	comment: str,
+	oligo_index: str,
+	corrected_sb: str,
 	read_group: str = ""
 	) -> str:
 	cb, mo, sb = get_cb_mo_sb(comment)
@@ -189,15 +180,17 @@ def canonicalize_fastq_comment(
 		sys.exit(1)
 
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-	output_read_group = read_group if read_group else technical_cell
-	canonical = canonical_cell_id(sample, group_name, technical_cell)
+	canonical = canonical_cell_id(sample, group_name, oligo_index, technical_cell)
+	output_read_group = read_group if read_group else canonical
 	out: List[str] = []
 	has_rg = False
 	has_canonical = False
 
 	for token in comment.split():
 		if token.startswith("CB:"):
-			out.append("CB:Z:" + technical_cell)
+			out.append("CB:Z:" + canonical)
+		elif token.startswith("SB:"):
+			out.append("SB:Z:" + corrected_sb)
 		elif token.startswith("RG:"):
 			out.append("RG:Z:" + output_read_group)
 			has_rg = True
@@ -219,7 +212,9 @@ def canonicalize_dna_fastq_comment(
 	sample: str,
 	group_name: str,
 	read_name: str,
-	comment: str
+	comment: str,
+	oligo_index: str,
+	corrected_sb: str
 	) -> str:
 	physical_unit = aviti_physical_unit(read_name)
 	cb, _, sb = get_cb_mo_sb(comment)
@@ -231,19 +226,20 @@ def canonicalize_dna_fastq_comment(
 			sample + " group " + group_name + "\n"
 		)
 		sys.exit(1)
-	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-	return canonicalize_fastq_comment(sample, group_name, comment, physical_unit)
+	return canonicalize_fastq_comment(sample, group_name, comment, oligo_index, corrected_sb, physical_unit)
 
 
 # -----------------------------
 # SB group map loading
-# TSV columns: sample<TAB>sb_group<TAB>sb_bc
+# TSV columns: sample, sb_group, sb_bc, oligo_index, modality, chemistry, input_source, sb_injected_base
 # Returns:
 #   sb_to_gid: maps SB key -> group index
 #   idx_to_group: list of group names by index
 # -----------------------------
-def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[str]]:
+def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[str], Dict[str, str], Dict[str, str]]:
 	sb_to_gid: Dict[str, int] = {}
+	sb_to_index: Dict[str, str] = {}
+	sb_to_sequence: Dict[str, str] = {}
 	group_to_gid: Dict[str, int] = {}
 	idx_to_group: List[str] = []
 
@@ -258,13 +254,21 @@ def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[
 			parts = line.split()
 			if len(parts) < 3:
 				continue
+			if parts[:3] == ["sample", "sb_group", "sb_bc"]:
+				continue
 
 			s = parts[0]
 			if s != sample:
 				continue
 
 			gname = parts[1]
-			sb_bc = parts[2]
+			if len(parts) < 4 or not is_decimal(parts[3]) or not parts[3].lstrip("0"):
+				sys.stderr.write("ERROR: Missing or invalid oligo index in derived SB map\n")
+				sys.exit(1)
+			injected = parts[7] if len(parts) >= 8 and parts[7] != "-" else ""
+			sb_bc = injected + parts[2]
+			sb_to_index[sb_bc] = parts[3].lstrip("0").zfill(2)
+			sb_to_sequence[sb_bc] = parts[2]
 
 			if gname in group_to_gid:
 				gid = group_to_gid[gname]
@@ -295,7 +299,7 @@ def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[
 			sys.stderr.write("ERROR: SB group has zero barcodes for sample " + sample + " group " + idx_to_group[g] + "\n")
 			sys.exit(1)
 
-	return sb_to_gid, idx_to_group
+	return sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence
 
 
 # -----------------------------
@@ -325,6 +329,8 @@ def load_mo_map_tsv(map_path: str, sample: str, group_to_gid: Dict[str, int], us
 
 			parts = line.split()
 			if len(parts) < 3:
+				continue
+			if parts[:4] == ["sample", "sb_group", "mark", "mo_bc"] or parts == ["sample", "mark", "mo_bc"]:
 				continue
 
 			s = parts[0]
@@ -452,22 +458,11 @@ def find_mark_for_mo(mo: str, gid: int, mo_list: List[str], mo_gid: List[int], m
 	return -1
 
 
-# -----------------------------
-# Compute gid from SB raw:
-#  - primary key: drop injected base (sb_raw[1:])
-#  - fallback: sb_raw itself (defensive)
-#  - NEVER silently route to gid=0 on mismatch
-# -----------------------------
+# Only exact upstream SB tags from the derived chemistry/injection contract are accepted.
 def gid_from_sb_raw(sample: str, sb_raw: str, sb_to_gid: Dict[str, int]) -> int:
-	# defensive: if some inputs ever already have injected base removed
 	if sb_raw in sb_to_gid:
 		return sb_to_gid[sb_raw]
-
-	key1 = normalize_sb_drop_first(sb_raw)
-	if key1 in sb_to_gid:
-		return sb_to_gid[key1]
-
-	sys.stderr.write("ERROR: SB not found in SB group map for sample " + sample + ": raw=" + sb_raw + " key=" + key1 + "\n")
+	sys.stderr.write("ERROR: SB not found in SB group map for sample " + sample + ": raw=" + sb_raw + "\n")
 	sys.exit(1)
 	return 0
 
@@ -483,9 +478,10 @@ def MakeRecordNameList_DNA(
 		unknown_policy: str = "fail"
 	) -> int:
 
-	use_sb = False
-	if sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none":
-		use_sb = True
+	use_sb = bool(sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none")
+	if not use_sb:
+		sys.stderr.write("ERROR: Versioned SB identity map is required\n")
+		sys.exit(1)
 
 	sys.stdout.write("Initialization\n")
 
@@ -494,11 +490,13 @@ def MakeRecordNameList_DNA(
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
+	sb_to_index: Dict[str, str] = {}
+	sb_to_sequence: Dict[str, str] = {}
 	idx_to_group: List[str] = []
 	group_to_gid: Dict[str, int] = {}
 
 	if use_sb:
-		sb_to_gid, idx_to_group = load_sb_group_map_tsv(sb_group_map_path, sample)
+		sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence = load_sb_group_map_tsv(sb_group_map_path, sample)
 		# build group_to_gid
 		for g in range(len(idx_to_group)):
 			group_to_gid[idx_to_group[g]] = g
@@ -592,9 +590,15 @@ def MakeRecordNameList_DNA(
 			sys.stdout.flush()
 			next_report += 20000
 
+		if rec1.name != rec2.name:
+			sys.stderr.write("ERROR: Paired read name mismatch\n")
+			sys.exit(1)
 		comment = rec1.comment
-		if comment.find("NoMatch") >= 0:
+		if comment.find("NoMatch") >= 0 or rec2.comment.find("NoMatch") >= 0:
 			continue
+		if get_cb_mo_sb(rec1.comment) != get_cb_mo_sb(rec2.comment):
+			sys.stderr.write("ERROR: Mate barcode identity mismatch\n")
+			sys.exit(1)
 		barcode_accepted += 1
 
 		cb, mo, sb_raw = get_cb_mo_sb(comment)
@@ -622,8 +626,8 @@ def MakeRecordNameList_DNA(
 			elif unknown_mode == 2:
 				seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 				seq2 = str(rec2.seq); qual2 = str(rec2.qual)
-				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
-				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
+				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
 				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
 				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
 				unknown_read_groups.add(physical_unit1)
@@ -637,8 +641,8 @@ def MakeRecordNameList_DNA(
 			sys.stderr.write("ERROR: internal: slot not marked used but read mapped to it\n")
 			sys.exit(1)
 
-		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment)
-		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment)
+		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
@@ -646,6 +650,9 @@ def MakeRecordNameList_DNA(
 		rg_sets[slot].add(physical_unit1)
 		branch_counts[slot] += 1
 
+	for remaining in R2_it:
+		sys.stderr.write("ERROR: Paired FASTQ streams have unequal EOF\n")
+		sys.exit(1)
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))
 	sys.stdout.write(" reads...\n")
@@ -726,6 +733,9 @@ def MakeRecordNameList_RNA(
 	# Keep this as a single expression. Codon can incorrectly constant-fold a
 	# boolean initialized False and mutated before use inside the record loop.
 	use_sb = bool(sb_group_map_path and sb_group_map_path != "-" and sb_group_map_path != "none")
+	if not use_sb:
+		sys.stderr.write("ERROR: Versioned SB identity map is required\n")
+		sys.exit(1)
 
 	sys.stdout.write("Initialization\n")
 
@@ -734,9 +744,11 @@ def MakeRecordNameList_RNA(
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
+	sb_to_index: Dict[str, str] = {}
+	sb_to_sequence: Dict[str, str] = {}
 	idx_to_group: List[str] = []
 	if use_sb:
-		sb_to_gid, idx_to_group = load_sb_group_map_tsv(sb_group_map_path, sample)
+		sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence = load_sb_group_map_tsv(sb_group_map_path, sample)
 
 	n_groups = len(idx_to_group) if use_sb else 1
 
@@ -795,9 +807,15 @@ def MakeRecordNameList_RNA(
 			sys.stdout.flush()
 			next_report += 20000
 
+		if rec1.name != rec2.name:
+			sys.stderr.write("ERROR: Paired read name mismatch\n")
+			sys.exit(1)
 		comment = rec1.comment
-		if comment.find("NoMatch") >= 0:
+		if comment.find("NoMatch") >= 0 or rec2.comment.find("NoMatch") >= 0:
 			continue
+		if get_cb_mo_sb(rec1.comment) != get_cb_mo_sb(rec2.comment) or get_umi(rec1.comment) != get_umi(rec2.comment):
+			sys.stderr.write("ERROR: Mate barcode/UMI identity mismatch\n")
+			sys.exit(1)
 		barcode_accepted += 1
 
 		cb, sb_raw = get_cb_sb(comment)
@@ -807,13 +825,12 @@ def MakeRecordNameList_RNA(
 
 		gid = 0
 		if use_sb:
-			# This is the critical part: no fallback to TP3_A on mismatch.
 			gid = gid_from_sb_raw(sample, sb_raw, sb_to_gid)
 		group_counts[gid] += 1
 
 		group_name = idx_to_group[gid] if use_sb else sample
-		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment)
-		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment)
+		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
 		canonical_cb, _ = get_cb_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
@@ -822,6 +839,9 @@ def MakeRecordNameList_RNA(
 		write_fastq_record(r2_fhs[gid], rec2.name, comment2, seq2, qual2)
 		bc_sets[gid].add(canonical_cb)
 
+	for remaining in R2_it:
+		sys.stderr.write("ERROR: Paired FASTQ streams have unequal EOF\n")
+		sys.exit(1)
 	sys.stdout.write("\rFinished processing ")
 	sys.stdout.write(str(processed))
 	sys.stdout.write(" reads...\n")

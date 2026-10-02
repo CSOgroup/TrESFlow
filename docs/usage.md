@@ -166,13 +166,12 @@ and derives the final canonical NoDup BAM and BigWig from it.
 ### `samples.<sample_id>.groups`
 
 `groups` is the source of truth for biological sample-barcode grouping.
-
-- each group key is the biological label that will appear in split outputs
-- `rna_sb_barcodes` and `dna_sb_barcodes` are modality-specific sample barcodes assigned to that logical group.
-- A group participates in RNA when it has `rna_sb_barcodes`; it participates in DNA when it has both `dna_sb_barcodes` and `mark_barcodes`. RNA-only and DNA-only groups may coexist under one sample.
-- Legacy `sb_barcodes` remains supported for single-tagmentation samples. In `dna.tagmentation: dual`, DNA requires explicit 3 nt `dna_sb_barcodes`; they are not derived from RNA barcodes.
-- `mark_barcodes` belongs inside each DNA-participating group and maps mark labels to modality barcodes for that group.
-- sample barcodes must be unique within a sample block
+The preferred group-level field is `sb_oligo_indices: ["01", "02"]`, expanded
+for every modality using its chemistry. Group-level `mark_barcodes` remains
+required when DNA participates. Legacy `sb_barcodes`, `rna_sb_barcodes`, and
+`dna_sb_barcodes` sequences remain supported through the versioned lookup.
+See [cell identity](cell_identity.md) for the full format, chemistry mapping,
+validation rules, modality-only groups, and regeneration requirements.
 
 ### `samples.<sample_id>.rna`
 
@@ -211,11 +210,8 @@ DNA ligation tagging uses the same `Tag_Lig3` correction and output format for b
 - `dual`: ligation source `reads.i1`, L1/L2/L3 starts `41,79,117`
 
 `groups.<group>.mark_barcodes` maps biological mark labels to DNA modality
-barcodes for that group. A group participates in RNA when it defines
-`rna_sb_barcodes` (with legacy `sb_barcodes` retained as a single-tag fallback),
-and participates in DNA when it defines both `dna_sb_barcodes` and
-`mark_barcodes`. RNA-only and DNA-only groups may coexist under one sample;
-the sample-level `rna.reads` and `dna.reads` are each processed once.
+barcodes. Shared `sb_oligo_indices` groups participate in every sample modality;
+modality-specific sequence fields can define RNA-only/DNA-only groups.
 
 ## Derived Internal Contract
 
@@ -227,7 +223,8 @@ The parser in [`lib/SamplesheetParser.groovy`](../lib/SamplesheetParser.groovy) 
 
 These derived files include:
 
-- `rna_sb_group_map.tsv` and/or `dna_sb_group_map.tsv`
+- `rna_sb_group_map.tsv` and/or `dna_sb_group_map.tsv`, with resolved oligo indices, chemistry, and input source
+- `sb_oligo_lookup.v1.tsv` and `cell_identity_version.txt` with lookup SHA-256
 - `dna_mo_map.tsv` when DNA is present
 - per-sample DNA modality whitelist files
 - `input_fastq_provenance.tsv`, with one row per sample, modality, technical
@@ -245,6 +242,7 @@ This keeps the public input contract user-friendly while preserving the split an
 The main public parameters are:
 
 - `--samplesheet`
+- `--sb_oligo_lookup` (optional versioned chemistry lookup override)
 - `--outdir`
 - `--publish_split_fastqs`
 - `--max_cpus`
@@ -297,8 +295,8 @@ calibrated on AVITI 500 data, is expressed in AVITI coordinate units, and is
 not an Illumina pixel-distance setting or a universal Element-defined value.
 Override it only for an independently calibrated dataset.
 
-DNA duplicate grouping remains cell-aware through the corrected 24-base `CB`
-tag. From the complete AVITI identifier
+DNA duplicate grouping uses the complete `CB` cell ID through Picard
+`READ_ONE_BARCODE_TAG`/`READ_TWO_BARCODE_TAG`. From the complete AVITI identifier
 `instrument:run:flowcell:lane:tile:x:y:UMI`, TrESFlow constructs the SAM-safe
 physical unit `instrument:run:flowcell:L<lane>` and writes it as both DNA `RG`
 and `PU`. Chunks from the same run/flowcell/lane therefore share an RG, while a
@@ -306,8 +304,8 @@ different run, flowcell, or lane cannot collide. Unsupported characters in the
 three textual fields are fatal. Every physical-unit header for a logical
 library has the same `LB`, so ordinary genomic/PCR duplicate families can span
 physical units for the same cell while optical comparisons remain unit-local.
-Cell identity is not encoded in DNA `RG`; it remains in `CB`. RNA read-group
-behavior is unchanged.
+Cell identity is carried in equal full `CB`/`XI` tags. RNA read groups carry
+the full identity; called-cell filtering and auditing select `XI`.
 
 The standalone assessor uses the same repository-owned parser, validation,
 normalized model, plots, and HTML renderer as the pipeline:

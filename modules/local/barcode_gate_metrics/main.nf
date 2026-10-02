@@ -3,7 +3,7 @@
  * decisions already recorded by Tag_Lig3. No reads are written or rerouted.
  */
 
-include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
 
 process BARCODE_GATE_METRICS {
     tag "${sampleId}:${modality}"
@@ -23,7 +23,7 @@ process BARCODE_GATE_METRICS {
     def runtimeExports = runtimeShellExports(meta)
     def sbGroupMap = contractMaps[0]
     def moArgument = modality == 'dna' ? "--mo-map \"${contractMaps[1]}\"" : ''
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [r1, r2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [r1, r2])
 
     """
     ${runtimeExports}
