@@ -112,9 +112,11 @@ Notes:
 - `TRES_REPORT_HTML` receives explicit metric-channel inputs, including sample-barcode counts/stats, so report execution waits for the gate/composition, retention, DT, STARsolo, samtools flagstat, Picard, and derived-map producers rather than scanning published output. The entry workflow resolves the report title from the canonical `params.outdir` basename and resolves the checked-out GitHub release tag (or deterministic nearest-release development baseline) offline before passing both values explicitly. Samplesheet group identities are retained as report metadata. The module uses `lib/tresflow_qc`, shared with the standalone assessor, to publish only the self-contained `tres_report.html` and four consolidated TSVs. Applicable plots are generated per independent run from the normalized model, use measured data-derived inline-SVG layouts, and expose browser-side SVG and PNG downloads without publishing plot artifacts. STARsolo `Summary.csv` is authoritative for RNA sequencing saturation; Picard metrics are authoritative for the separately reconciled DNA PCR/library and optical components. FastQC and broader samtools inputs remain in the independent MultiQC collection under `TrES_Stats/qc/`.
 - The active core runtime lives under [`scripts/core_runtime/`](/mnt/dataFast/ahrmad/tresflowdir/TrESFlow/scripts/core_runtime).
 
-The [full-cell-v1 contract](../cell_identity.md) resolves chemistry-specific SB
-sequences to normalized oligo indices before splitting. Both active branches
+The [full-cell-v2 contract](../cell_identity.md) resolves chemistry-specific SB
+sequences to normalized physical oligo indices and explicit logical `sb_index`
+labels before splitting. Logical labels default to the physical index;
+exceptional pairings preserve SB while sharing CB/XI labels. Both active branches
 carry full CB/XI. STAR String mode counts on XI with UM separately; RNA
 filtering/auditing selects XI. Explicit sample/group/mark metadata replaces
-underscore-token parsing. The validated lookup SHA-256 travels through task
-metadata while derived sequence/index maps are staged as path inputs.
+underscore-token parsing. The validated lookup SHA-256 and resolved physical-to-logical mapping
+SHA-256 travel through task metadata while derived sequence/index maps are staged as path inputs.

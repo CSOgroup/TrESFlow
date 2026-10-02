@@ -11,3 +11,7 @@ oligo_index	rna_and_single_dna_sb	dual_dna_sb
 10	TGCA	GCA
 11	CTGA	ATG
 12	TCGA	TAC
+13	GATC	-
+14	TGAC	-
+15	CATG	-
+16	TACG	-

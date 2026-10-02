@@ -169,7 +169,7 @@
                 "sb_oligo_lookup": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "Versioned SB oligo TSV lookup (default assets/sb_oligo_lookup.v1.tsv). All rows are validated."
+                    "description": "Versioned SB oligo TSV lookup (default assets/sb_oligo_lookup.v1.tsv). All physical indices and real sequences are validated; '-' marks unavailable dual-DNA oligos. sb_index pairing labels do not select chemistry sequences."
                 }
             }
         },

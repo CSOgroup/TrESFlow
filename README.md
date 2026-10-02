@@ -60,15 +60,13 @@ samples:
   sample_id:
     groups:
       group_a:
-        rna_sb_barcodes: [AAAA, CCCC]
-        dna_sb_barcodes: [AAA, CCC]
+        sb_oligo_indices: ["01", "02"]
         mark_barcodes:
           H3K27me3: AGGCTATA
           H3K27ac: GCCTCTAT
 
       group_b:
-        rna_sb_barcodes: [GGGG, TTTT]
-        dna_sb_barcodes: [GGG, TTT]
+        sb_oligo_indices: ["03", "04"]
         mark_barcodes:
           H3K27me3: AGGCTATA
           H3K9me3: GCCTCTAT
@@ -102,8 +100,10 @@ samples:
 - A sample may contain RNA, DNA, or both.
 - FASTQs are defined once at sample level. Groups define how reads are assigned downstream.
 - Groups may independently participate in RNA and/or DNA.
-- RNA groups use `rna_sb_barcodes`.
-- DNA groups use `dna_sb_barcodes` together with `mark_barcodes`.
+- Use shared `sb_oligo_indices` for normal corresponding RNA/DNA selections. The physical lookup expands each selected chemistry automatically.
+- Use `rna_sb_oligo_indices` and `dna_sb_oligo_indices` for independent selections or modality-specific groups. Each keeps its actual index in the cell identifier; differing selections warn and continue. List order never declares correspondence.
+- Existing `sb_barcodes`, `rna_sb_barcodes` and `dna_sb_barcodes` sequence inputs retain their precedence and chemistry rules. Shared indices are exclusive with other selectors; modality indices conflict with sequence selectors that apply to that modality. Shared `sb_barcodes` applies to RNA and single DNA; dual DNA indices may coexist with that RNA input.
+- DNA groups require `mark_barcodes`. Indices 13–16 exist for RNA/single DNA; their dual sequences are unavailable (`-`) and cannot be selected for dual DNA.
 - The same DNA modality barcode may represent different marks in different groups.
 - `dna.reads.i2` is required for `single` tagmentation and optional for `dual`.
 - FASTQ inputs may be a single path, a comma-separated list, or a YAML sequence. Multiple entries represent ordered technical FASTQ chunks from the same library, and corresponding read roles must contain the same number of entries.
@@ -112,7 +112,32 @@ samples:
 - `references.rna_ref_dir` must point to a STAR index when RNA is present.
 - DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
 
-For example:
+For an experimenter mismatch, exceptionally declare `sb_oligo_pairings`:
+
+```yaml
+B:
+  sb_oligo_pairings:
+    - sb_index: "07"
+      rna_oligo_index: "07"
+      dna_oligo_index: "10"
+  mark_barcodes:
+    H3K27ac: GCCTCTAT
+```
+
+This explicitly declares RNA physical oligo 07 and DNA physical oligo 10 to
+represent one biological partition, labelled 07. Pairing changes identity
+labels while retaining actual chemistry-specific `SB` sequences. Each present
+modality requires exactly one physical index or singular sequence selector
+(`rna_sb_barcode` / `dna_sb_barcode`). Omitted modalities are permitted; at
+least one must be present. Pairing is exclusive with all other group selectors.
+Normal corresponding selections should use the normal interface above.
+Warnings appear before preflight on every launch, including resume, and are
+saved with the resolved mapping under `pipeline_info`. See the
+[cell-identity contract](docs/cell_identity.md),
+[pairing example](assets/samplesheet.sb-pairings.example.yaml), and
+[YAML samplesheet schema](assets/samplesheet.schema.json).
+
+For multiple technical FASTQ chunks:
 
 ```yaml
 rna:
@@ -252,7 +277,8 @@ More detailed documentation is available in:
 - [Usage documentation](docs/usage.md)
 - [Pipeline architecture](docs/architecture/implemented_pipeline.md)
 
-Cell identity uses `CB = XI = <sample>_<group>_<oligo_index>_<L1L2L3>`.
+Cell identity uses `CB = XI = <sample>_<group>_<sb_index>_<L1L2L3>`, where
+`sb_index` defaults to the physical `oligo_index` unless explicitly paired.
 Use group-level `sb_oligo_indices` for chemistry-independent sample partitions;
 legacy nucleotide sequence inputs remain supported. See the
 [cell-identity contract and regeneration guidance](docs/cell_identity.md).

@@ -31,6 +31,14 @@ def run(command, **kwargs):
     return result.stdout
 
 
+def nextflow_test_env(home):
+    """Use the same installed distribution as parser tests, without downloads."""
+    jar = find_nextflow_jar()
+    assert jar, 'Installed Nextflow distribution required'
+    version = jar.name.removeprefix('nextflow-').removesuffix('-one.jar')
+    return dict(os.environ, NXF_HOME=str(home), NXF_OFFLINE='true', NXF_BIN=str(jar), NXF_VER=version)
+
+
 def parse_cases(root, cases, lookup=LOOKUP):
     """Validate many independent sheets in one real Groovy JVM."""
     root.mkdir(parents=True, exist_ok=True)
@@ -48,7 +56,7 @@ def parse_cases(root, cases, lookup=LOOKUP):
       def results = cases.collect { entry ->
         try {
           def contract = parser.parseContract(entry[0], [outdir: entry[1], barcode_defaults: defaults, sb_oligo_lookup: args[2]])
-          return [samples: contract.samples]
+          return [samples: contract.samples, warnings: contract.sb_identity_warnings]
         } catch(IllegalArgumentException e) { return [error: e.message] }
       }
       println groovy.json.JsonOutput.toJson(results)
@@ -119,17 +127,14 @@ def test_all_invalid_index_inputs_and_sequence_combinations(tmp_path):
     for field in ('sb_barcodes', 'rna_sb_barcodes', 'dna_sb_barcodes'):
         cases.append(sheet({'B':group(sb_oligo_indices=['01'], **{field:['GCAT']})}))
     cases += [
-        sheet({'B':group(rna_sb_barcodes=['GCAT'], dna_sb_barcodes=['AGT'])}),
         sheet({'B':group(rna_sb_barcodes=['AAAA'], dna_sb_barcodes=['GAT'])}),
         sheet({'B':group(rna_sb_barcodes=['GCAT'], dna_sb_barcodes=['AAA'])}),
         sheet({'B':group(sb_barcodes=['GCAT'])}), # legacy dual must be explicit
         sheet({'B':{'sb_oligo_indices':[1]}}), # DNA mark required
         sheet({'B':group(sb_oligo_indices=[1]), 'K422_B':group(sb_oligo_indices=['01'])}),
-        sheet({'B':{'rna_sb_barcodes':['GCAT']}, 'K422_B':group(dna_sb_barcodes=['GAT'])}),
     ]
     results = parse_cases(tmp_path, cases)
     assert all('error' in result for result in results), results
-    assert 'index sets differ' in results[-7]['error']
 
 
 def test_namespaces_and_output_collisions_are_rejected(tmp_path):
@@ -146,15 +151,15 @@ def test_namespaces_and_output_collisions_are_rejected(tmp_path):
 def test_lookup_validation_and_extensibility(tmp_path):
     original = LOOKUP.read_text()
     valid = tmp_path / 'extended.tsv'
-    valid.write_text(original + '13\tAAAA\tAAA\n100\tCCCC\tCCC\n')
-    result = parse_cases(tmp_path/'valid', [sheet({'K422_B':group(sb_oligo_indices=[13,'00100'])})], valid)[0]
+    valid.write_text(original + '17\tAAAA\tAAA\n100\tCCCC\tCCC\n')
+    result = parse_cases(tmp_path/'valid', [sheet({'K422_B':group(sb_oligo_indices=[17,'00100'])})], valid)[0]
     assert 'error' not in result, result
-    assert {r['oligo_index'] for r in result['samples'][0]['cell_identity_records']} == {'13','100'}
+    assert {r['oligo_index'] for r in result['samples'][0]['cell_identity_records']} == {'17','100'}
     mutations = [
-        original + '001\tAAAA\tAAA\n', original + '13\tGCAT\tAAA\n', original + '13\tAAAA\tGAT\n',
-        original + '13\t\tAAA\n', original + '13\taaaa\tAAA\n', original + '13\tAAAN\tAAA\n',
-        original + '13\tAAA\tAAA\n', original + '13\tAAAA\tAAAA\n',
-        original + '13\tAAAA\tAAA\textra\n', original.replace('oligo_index','index',1),
+        original + '001\tAAAA\tAAA\n', original + '17\tGCAT\tAAA\n', original + '17\tAAAA\tGAT\n',
+        original + '17\t\tAAA\n', original + '17\taaaa\tAAA\n', original + '17\tAAAN\tAAA\n',
+        original + '17\tAAA\tAAA\n', original + '17\tAAAA\tAAAA\n',
+        original + '17\tAAAA\tAAA\textra\n', original.replace('oligo_index','index',1),
         original + '\n', original.splitlines()[0]+'\n',
     ]
     defaults = GROOVY_PARSE[GROOVY_PARSE.index('def defaults = '):GROOVY_PARSE.index('def contract = ')]
@@ -170,6 +175,10 @@ def test_lookup_validation_and_extensibility(tmp_path):
     errors=json.loads(run(['java','-cp',find_nextflow_jar(),'groovy.ui.GroovyMain','-e',script,'--',
                           REPO/'lib/SamplesheetParser.groovy',tmp_path/'lookups.json']))
     assert 'accepted' not in errors
+    # These must test sequence validation, rather than the now-present row 13
+    # causing every mutation to fail early as a duplicate physical index.
+    assert all('ambiguous duplicate chemistry sequence' in errors[i] for i in (1, 2))
+    assert all('requires uppercase' in errors[i] for i in range(3, 8))
 
 
 def test_exact_tonsil_tags_and_cross_chemistry_identity():
@@ -448,7 +457,8 @@ def test_real_star_rejected_umis_and_unassigned_reads_keep_identity(tmp_path):
          'filtered_alignment_count':len(filtered),'genuine_conflict_rejected':True},indent=2)+'\n')
 
 
-def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path):
+@pytest.mark.parametrize('paired', [False, True])
+def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path, paired):
     assert shutil.which('STAR') and shutil.which('samtools'), 'Real STAR/samtools required'
     genome=''.join(random.Random(81).choices('ACGT',k=100000))
     (tmp_path/'genome.fa').write_text('>chr1\n'+genome+'\n')
@@ -457,7 +467,17 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path):
     run(['STAR','--runMode','genomeGenerate','--genomeDir',index,'--genomeFastaFiles',tmp_path/'genome.fa',
          '--sjdbGTFfile',tmp_path/'genes.gtf','--sjdbOverhang','49','--genomeSAindexNbases','5','--genomeChrBinNbits','10','--runThreadN','1'],cwd=tmp_path)
     # Use real splitter + real FqToSAM, with two different SBs and the same UMI.
-    out=split_fixture(tmp_path/'split','rna','real')
+    sb_map = None
+    logical_indices = ('01', '02')
+    if paired:
+        parsed = parse_cases(tmp_path/'contract', [sheet({'K422_B':group(sb_oligo_pairings=[
+            {'sb_index':'07', 'rna_oligo_index':'01', 'dna_oligo_index':'10'},
+            {'sb_index':'13', 'rna_oligo_index':'02', 'dna_oligo_index':'07'},
+        ])})])[0]
+        assert 'error' not in parsed, parsed
+        sb_map = parsed['samples'][0]['sb_group_map']
+        logical_indices = ('07', '13')
+    out=split_fixture(tmp_path/'split','rna','real', sb_map=sb_map)
     complement=str.maketrans('ACGT','TGCA')
     for mate,start,reverse in [('R1',200,False),('R2',300,True)]:
         p=out/f'VTD11_VTR12_K422_B_{mate}.fastq';lines=p.read_text().splitlines()
@@ -473,7 +493,7 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path):
     (tmp_path/'align.sh').write_text(script)
     shutil.copyfile(REPO/'scripts/core_runtime/NormalizeRnaBamTags.py',tmp_path/'NormalizeRnaBamTags.py')
     run(['bash',tmp_path/'align.sh','fixture',usam,index,tmp_path,'1'],cwd=tmp_path)
-    expected=[f'VTD11_VTR12_K422_B_{idx}_{LIGATIONS}' for idx in ('01','02')]
+    expected=[f'VTD11_VTR12_K422_B_{idx}_{LIGATIONS}' for idx in logical_indices]
     solo=tmp_path/'fixture.Solo.outGeneFull'
     for layer in ('raw','filtered'):
         assert (solo/layer/'barcodes.tsv').read_text().splitlines()==expected
@@ -490,7 +510,8 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path):
         tags=dict(t.split(':',2)[::2] for t in tokens)
         assert tags['CB']==tags['XI'] and tags['CB'] in expected
         assert sum(t.startswith('CB:') for t in tokens)==1
-        assert tags['UR']==tags['UB']=='ACGTACGTAC'
+        assert tags['UR']==tags['UB']==tags['UM']=='ACGTACGTAC'
+        assert tags['SB'] == ('GCAT' if tags['CB'] == expected[0] else 'CGAT')
     # Production called-cell filter and its audit use exactly the same XI set.
     (tmp_path/'canonical.txt').write_text('chr1\n')
     run(['bash',REPO/'scripts/core_runtime/RNA_FILTERED_BAM.sh','fixture',solo,bam,tmp_path/'canonical.txt',tmp_path,'1'])
@@ -530,12 +551,23 @@ def test_identity_normalization_rejects_nonplaceholder_conflicts_and_missing_inp
             module.normalize_record(line)
 
 
-def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path):
+@pytest.mark.parametrize('paired', [False, True])
+def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path, paired):
     assert shutil.which('bwa-mem2') and shutil.which('samtools'), 'Real bwa-mem2/samtools required'
     genome=''.join(random.Random(91).choices('ACGT',k=100000))
     fasta=tmp_path/'genome.fa';fasta.write_text('>chr1\n'+genome+'\n')
     run(['bwa-mem2','index',fasta],cwd=tmp_path)
-    out=split_fixture(tmp_path/'split','dna','real',('GAT','AGT'))
+    sb_map = None
+    logical_indices = ('01','02')
+    if paired:
+        parsed = parse_cases(tmp_path/'contract', [sheet({'K422_B':group(sb_oligo_pairings=[
+            {'sb_index':'07','rna_oligo_index':'07','dna_oligo_index':'01'},
+            {'sb_index':'13','rna_oligo_index':'13','dna_oligo_index':'02'},
+        ])})])[0]
+        assert 'error' not in parsed, parsed
+        sb_map = parsed['samples'][1]['sb_group_map']
+        logical_indices = ('07','13')
+    out=split_fixture(tmp_path/'split','dna','real',('GAT','AGT'),sb_map=sb_map)
     complement=str.maketrans('ACGT','TGCA')
     for mate,start,reverse in [('R1',200,False),('R2',400,True)]:
         p=out/f'VTD11_VTR12_K422_B_H3K27ac_{mate}.fastq';lines=p.read_text().splitlines()
@@ -555,10 +587,33 @@ def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path):
          out/'SAM_RG_Header_VTD11_VTR12_K422_B_H3K27ac.tsv',fasta,'100000',tmp_path],cwd=tmp_path,env=environment)
     records=run(['samtools','view',tmp_path/'VTD11_VTR12_K422_B_H3K27ac.bam']).splitlines()
     assert len(records)==32
-    expected={f'VTD11_VTR12_K422_B_{index}_{LIGATIONS}' for index in ('01','02')}
+    expected={f'VTD11_VTR12_K422_B_{index}_{LIGATIONS}' for index in logical_indices}
     for record in records:
         tags=dict(t.split(':',2)[::2] for t in record.split('\t')[11:])
         assert tags['CB']==tags['XI'] and tags['CB'] in expected
         assert tags['SB'] in ('GAT','AGT') and tags['RG']=='I:R:F:L1'
     header=run(['samtools','view','-H',tmp_path/'VTD11_VTR12_K422_B_H3K27ac.bam'])
     assert '\tLB:TEST\tPU:I:R:F:L1' in header
+
+    if paired:
+        stem = 'VTD11_VTR12_K422_B_H3K27ac'
+        aligned = tmp_path/f'{stem}.bam'
+        marked = tmp_path/f'{stem}_MarkedDup.bam'
+        run(['gatk','--java-options','-Xmx1g -XX:-UsePerfData','MarkDuplicates',
+             '--INPUT',aligned,'--OUTPUT',marked,'--METRICS_FILE',tmp_path/'duplicates.metrics',
+             '--REMOVE_DUPLICATES','false','--READ_ONE_BARCODE_TAG','CB','--READ_TWO_BARCODE_TAG','SB',
+             '--READ_NAME_REGEX',r'^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$',
+             '--OPTICAL_DUPLICATE_PIXEL_DISTANCE','10','--CREATE_INDEX','false','--VALIDATION_STRINGENCY','SILENT'])
+        canonical=tmp_path/'canonical.txt';canonical.write_text('chr1\n')
+        normalized=tmp_path/'normalized_MarkedDup.bam'
+        run(['bash',REPO/'scripts/core_runtime/FilterCanonicalBam.sh',marked,normalized,canonical,'1','normal'])
+        nodup=tmp_path/f'{stem}_NoDup.bam'
+        run(['bash',REPO/'scripts/core_runtime/SplitDuplicatesDNA.sh',normalized,nodup,tmp_path/'nodup.bai',
+             tmp_path/'mapped.txt',tmp_path/'warning.tsv','1','VTD11_VTR12','K422_B','H3K27ac',stem])
+        nodup_records=run(['samtools','view',nodup]).splitlines()
+        assert len(nodup_records)==4  # one surviving pair for each shared identity
+        assert {dict(t.split(':',2)[::2] for t in r.split('\t')[11:])['CB'] for r in nodup_records}==expected
+        for r in run(['samtools','view',marked]).splitlines()+nodup_records:
+            tags=dict(t.split(':',2)[::2] for t in r.split('\t')[11:])
+            assert tags['CB']==tags['XI'] and tags['CB'] in expected
+            assert tags['SB'] in ('GAT','AGT') and tags['RG']=='I:R:F:L1'

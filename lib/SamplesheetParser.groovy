@@ -42,7 +42,8 @@ class SamplesheetParser {
         final String libraryName = requireString(parsed.library_name, 'library_name')
         final Map runtime = resolveRuntime(parsed, baseDir, options)
         final Map references = resolveReferences(parsed, baseDir)
-        final List<Map> samples = parseUnified(parsed, baseDir, libraryName, options, references)
+        final Map resolved = parseUnified(parsed, baseDir, libraryName, options, references)
+        final List<Map> samples = resolved.samples
         samples.each { row ->
             row.runtime_env_prefix = runtime['env_prefix']
             row.runtime_tmpdir = runtime['tmpdir']
@@ -57,6 +58,7 @@ class SamplesheetParser {
                 dna: samples.any { row -> row.modality == MODALITY_DNA },
             ],
             samples     : samples,
+            sb_identity_warnings: resolved.warnings,
         ]
     }
 
@@ -86,15 +88,15 @@ class SamplesheetParser {
             if( parts.size() != 3 ) throw new IllegalArgumentException("${field}: expected three nonempty columns")
             final String index = normalizeOligoIndex(parts[0], field)
             if( rows.containsKey(index) ) throw new IllegalArgumentException("${field}: duplicate normalized index '${index}'")
-            if( !(parts[1] ==~ /[ACGT]{4}/) || !(parts[2] ==~ /[ACGT]{3}/) ) {
-                throw new IllegalArgumentException("${field}: requires uppercase A/C/G/T four-base and three-base sequences")
+            if( !(parts[1] ==~ /[ACGT]{4}/) || !(parts[2] == '-' || parts[2] ==~ /[ACGT]{3}/) ) {
+                throw new IllegalArgumentException("${field}: requires uppercase A/C/G/T four-base and three-base sequences (or '-' for unavailable dual DNA)")
             }
-            if( four.containsKey(parts[1]) || dual.containsKey(parts[2]) ) {
+            if( four.containsKey(parts[1]) || (parts[2] != '-' && dual.containsKey(parts[2])) ) {
                 throw new IllegalArgumentException("${field}: ambiguous duplicate chemistry sequence")
             }
             rows[index] = [parts[1], parts[2]]
             four[parts[1]] = index
-            dual[parts[2]] = index
+            if( parts[2] != '-' ) dual[parts[2]] = index
         }
         if( rows.isEmpty() ) throw new IllegalArgumentException("SB oligo lookup has no rows: ${file}")
         return [rows: rows, four: four, dual: dual]
@@ -129,7 +131,7 @@ class SamplesheetParser {
         throw new IllegalArgumentException("Unsupported SB upstream tag format '${firstPass}'")
     }
 
-    private static List<Map> parseUnified(
+    private static Map parseUnified(
         final Map parsed,
         final File baseDir,
         final String libraryName,
@@ -150,6 +152,7 @@ class SamplesheetParser {
         final Map namespaces = [:]
         final Map outputs = [:]
         final List<Map> samples = []
+        final List<String> warnings = []
 
         ((Map) parsed.samples).each { rawSampleId, rawSampleConfig ->
             final String sampleId = requireIdentityName(rawSampleId, 'samples.<sample_id>')
@@ -219,13 +222,15 @@ class SamplesheetParser {
                     references
                 )
             }
+            warnings.addAll(normalizedGroups.warnings)
             samples.findAll { it.id == sampleId }.each { row ->
                 row.group_sources = normalizedGroups[row.modality + '_sources']
+                row.group_identities = normalizedGroups[row.modality + '_identities']
             }
         }
 
         samples.each { row ->
-            row.cell_id_version = 'full-cell-v1'
+            row.cell_id_version = 'full-cell-v2'
             row.sb_lookup_sha256 = lookupDigest
             row.sb_injected_base = injectedSbBase(row.sample_first_pass as String)
             row.cell_identity_records = row.group_definitions.collectMany { group, sequences ->
@@ -233,9 +238,12 @@ class SamplesheetParser {
                     [sample: row.id, group: group, modality: row.modality,
                      chemistry: row.modality == MODALITY_RNA ? 'rna' : "dna_${row.dna_tagmentation}",
                      oligo_index: lookup[row.modality == MODALITY_DNA && row.dna_tagmentation == TAGMENTATION_DUAL ? 'dual' : 'four'][sequence],
-                     sb_bc: sequence, input_source: row.group_sources[group]]
+                     sb_bc: sequence, input_source: row.group_identities[group][sequence].input_source,
+                     sb_index: row.group_identities[group][sequence].sb_index]
                 }
             }
+            row.sb_mapping_sha256 = java.security.MessageDigest.getInstance('SHA-256')
+                .digest(groovy.json.JsonOutput.toJson(row.cell_identity_records).getBytes('UTF-8')).encodeHex().toString()
             row.split_targets = [:]
             row.group_definitions.keySet().each { group ->
                 final List marks = row.modality == MODALITY_DNA ? row.mark_barcodes[group].keySet().toList() : ['RNA']
@@ -246,10 +254,27 @@ class SamplesheetParser {
                 }
             }
             row.remove('group_sources')
+            row.remove('group_identities')
         }
         writeDerivedText(new File(derivedDir, 'sb_oligo_lookup.v1.tsv'), lookupFile.getText('UTF-8'))
-        writeDerivedText(new File(derivedDir, 'cell_identity_version.txt'), "full-cell-v1\nCB=XI=<sample>_<group>_<oligo_index>_<L1L2L3>\nlookup_sha256=${lookupDigest}\n")
-        return attachDerivedArtifacts(derivedDir, samples)
+        writeDerivedText(new File(derivedDir, 'cell_identity_version.txt'), "full-cell-v2\nCB=XI=<sample>_<group>_<sb_index>_<L1L2L3>\nsb_index=physical oligo_index unless explicitly paired; SB=actual corrected chemistry sequence\nlookup_sha256=${lookupDigest}\n")
+        final List<Map> attached = attachDerivedArtifacts(derivedDir, samples)
+        final File infoDir = options.outdir?.toString()?.trim() ? derivedDir.parentFile : derivedDir
+        writeDerivedText(new File(infoDir, 'sb_identity_warnings.txt'), warnings
+            ? warnings.collect { delimitIdentityWarning(it) }.join('\n\n') + '\n'
+            : 'No SB identity warnings.\n')
+        final List<String> audit = ['sample\tsb_group\tsb_bc\toligo_index\tmodality\tchemistry\tinput_source\tsb_injected_base\tsb_index']
+        samples.each { row ->
+            row.cell_identity_records.each { r ->
+                audit << "${r.sample}\t${r.group}\t${r.sb_bc}\t${r.oligo_index}\t${r.modality}\t${r.chemistry}\t${r.input_source}\t${row.sb_injected_base ?: '-'}\t${r.sb_index}"
+            }
+        }
+        writeDerivedText(new File(infoDir, 'sb_physical_to_logical.tsv'), audit.join('\n') + '\n')
+        return [samples: attached, warnings: warnings]
+    }
+
+    static String delimitIdentityWarning(final String warning) {
+        return "================ SB IDENTITY WARNING ================\n${warning}\n====================================================="
     }
 
     private static Map buildRnaRow(
@@ -416,124 +441,184 @@ class SamplesheetParser {
         final LinkedHashMap<String, Map<String, String>> dnaMarkBarcodes = new LinkedHashMap<>()
         final LinkedHashMap<String, String> rnaSources = new LinkedHashMap<>()
         final LinkedHashMap<String, String> dnaSources = new LinkedHashMap<>()
+        final Map identities = [rna: [:], dna: [:]]
+        final List<String> warnings = []
+        final List<String> selectors = ['sb_oligo_indices', 'rna_sb_oligo_indices', 'dna_sb_oligo_indices',
+                                        'sb_barcodes', 'rna_sb_barcodes', 'dna_sb_barcodes']
 
         groupsConfig.each { rawGroupName, rawGroupConfig ->
             final String groupName = requireIdentityName(rawGroupName, "samples.${sampleId}.groups.<group>")
-            final Map groupConfig = asMap(rawGroupConfig, "samples.${sampleId}.groups.${groupName}")
-
-            final boolean hasIndices = groupConfig.containsKey('sb_oligo_indices')
-            if( hasIndices && ['sb_barcodes', 'rna_sb_barcodes', 'dna_sb_barcodes'].any { groupConfig.containsKey(it) } ) {
-                throw new IllegalArgumentException("samples.${sampleId}.groups.${groupName}: sb_oligo_indices cannot be combined with sequence-input fields")
+            final String field = "samples.${sampleId}.groups.${groupName}"
+            final Map groupConfig = asMap(rawGroupConfig, field)
+            final boolean paired = groupConfig.containsKey('sb_oligo_pairings')
+            final boolean shared = groupConfig.containsKey('sb_oligo_indices')
+            if( paired && selectors.any { groupConfig.containsKey(it) } ) {
+                throw new IllegalArgumentException("${field}: sb_oligo_pairings cannot be combined with other barcode-selection fields")
             }
-            final List<String> indices = hasIndices ? requireOligoIndices(groupConfig.sb_oligo_indices,
-                "samples.${sampleId}.groups.${groupName}.sb_oligo_indices", lookup) : []
-            final boolean hasRnaBarcodes = hasIndices || groupConfig.containsKey('rna_sb_barcodes') || groupConfig.containsKey('sb_barcodes')
-            if( hasRna && hasRnaBarcodes ) {
-                final Map rnaSelection = hasIndices
-                    ? [value: indices.collect { lookup.rows[it][0] }, fieldName: "samples.${sampleId}.groups.${groupName}.sb_oligo_indices"]
-                    : selectRnaSbBarcodes(groupConfig, sampleId, groupName)
-                addGroupBarcodes(rnaGroups, rnaSources, groupName, rnaSelection, RNA_SB_BARCODE_LENGTH)
+            if( shared && selectors.findAll { it != 'sb_oligo_indices' }.any { groupConfig.containsKey(it) } ) {
+                throw new IllegalArgumentException("${field}: sb_oligo_indices cannot be combined with other barcode-selection fields")
             }
-
-            if( hasDna ) {
-                final boolean hasDnaBarcodes = hasIndices || groupConfig.containsKey('dna_sb_barcodes') ||
-                    (dnaTagmentation == TAGMENTATION_SINGLE && groupConfig.containsKey('sb_barcodes'))
-                final boolean hasMarkBarcodes = groupConfig.containsKey('mark_barcodes')
-
-                if( hasMarkBarcodes && !hasDnaBarcodes ) {
-                    if( dnaTagmentation == TAGMENTATION_DUAL ) {
-                        // Preserve the established, actionable dual-tag error.
-                        selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+            final List<String> sharedIndices = shared ? requireOligoIndices(groupConfig.sb_oligo_indices, "${field}.sb_oligo_indices", lookup) : []
+            final Map selected = paired
+                ? resolvePairings(groupConfig.sb_oligo_pairings, field, hasRna, hasDna, dnaTagmentation, lookup)
+                : [rna: [:], dna: [:]]
+            if( !paired ) {
+                [rna: hasRna, dna: hasDna].each { modality, present ->
+                    final String indexField = "${modality}_sb_oligo_indices"
+                    final String sequenceField = "${modality}_sb_barcodes"
+                    final boolean specificIndices = groupConfig.containsKey(indexField)
+                    if( specificIndices && (groupConfig.containsKey(sequenceField) ||
+                        (groupConfig.containsKey('sb_barcodes') && (modality == MODALITY_RNA || dnaTagmentation == TAGMENTATION_SINGLE))) ) {
+                        throw new IllegalArgumentException("${field}: conflicting selectors ${indexField} and sequence-input fields")
                     }
-                    throw new IllegalArgumentException(
-                        "samples.${sampleId}.groups.${groupName}.mark_barcodes requires " +
-                        "a DNA sample-barcode field (dna_sb_barcodes; or sb_barcodes for single tagmentation)"
-                    )
-                }
-                if( hasDnaBarcodes && !hasMarkBarcodes ) {
-                    throw new IllegalArgumentException(
-                        "Missing required field: samples.${sampleId}.groups.${groupName}.mark_barcodes for DNA group"
-                    )
-                }
-
-                if( hasDnaBarcodes ) {
-                    final Map dnaSelection = hasIndices
-                        ? [value: indices.collect { lookup.rows[it][dnaTagmentation == TAGMENTATION_DUAL ? 1 : 0] }, fieldName: "samples.${sampleId}.groups.${groupName}.sb_oligo_indices"]
-                        : selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
-                    addGroupBarcodes(dnaGroups, dnaSources, groupName, dnaSelection, dnaSbBarcodeLength(dnaTagmentation))
-                    dnaMarkBarcodes[groupName] = parseMarkBarcodes(
-                        groupConfig.mark_barcodes,
-                        sampleId,
-                        groupName
-                    )
-                }
-            }
-        }
-
-        if( hasRna ) {
-            if( rnaGroups.isEmpty() ) {
-                throw new IllegalArgumentException(
-                    "samples.${sampleId} has RNA reads but no group with rna_sb_barcodes"
-                )
-            }
-            validateNoGroupBarcodeCollisions(sampleId, 'RNA', rnaGroups)
-        }
-        if( hasDna ) {
-            if( dnaGroups.isEmpty() ) {
-                throw new IllegalArgumentException(
-                    "samples.${sampleId} has DNA reads but no group with dna_sb_barcodes and mark_barcodes"
-                )
-            }
-            validateNoGroupBarcodeCollisions(sampleId, 'DNA', dnaGroups)
-        }
-
-        final Map indexOwners = [:]
-        [rna: rnaGroups, dna: dnaGroups].each { modality, groups ->
-            final Map reverseLookup = modality == 'dna' && dnaTagmentation == TAGMENTATION_DUAL ? lookup.dual : lookup.four
-            groups.each { group, sequences ->
-                sequences.each { sequence ->
-                    final String index = reverseLookup[sequence]
-                    if( !index ) {
-                        throw new IllegalArgumentException("Unknown ${modality} SB sequence '${sequence}' for sample '${sampleId}' group '${group}' in oligo lookup")
+                    // Validate explicit index lists even when a modality is absent.
+                    final List<String> indices = specificIndices ? requireOligoIndices(groupConfig[indexField], "${field}.${indexField}", lookup) : sharedIndices
+                    final boolean hasSequences = groupConfig.containsKey(sequenceField) ||
+                        (groupConfig.containsKey('sb_barcodes') && (modality == MODALITY_RNA || dnaTagmentation == TAGMENTATION_SINGLE))
+                    if( present && (shared || specificIndices || hasSequences) ) {
+                        final boolean dual = modality == MODALITY_DNA && dnaTagmentation == TAGMENTATION_DUAL
+                        final String source = "${field}.${shared ? 'sb_oligo_indices' : indexField}"
+                        final Map selection = shared || specificIndices
+                            ? [value: indices.collect { physicalSequence(it, dual, source, lookup) }, fieldName: source]
+                            : (modality == MODALITY_RNA ? selectRnaSbBarcodes(groupConfig, sampleId, groupName)
+                                : selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation))
+                        requireBarcodeList(selection.value, selection.fieldName, dual ? 3 : 4).each { sequence ->
+                            final String index = physicalIndex(sequence, dual, selection.fieldName, lookup)
+                            selected[modality][sequence] = [sb_index: index, input_source: selection.fieldName]
+                        }
                     }
-                    if( indexOwners.containsKey(index) && indexOwners[index] != group ) {
-                        throw new IllegalArgumentException("Resolved oligo index collision for sample '${sampleId}': index '${index}' maps to both '${indexOwners[index]}' and '${group}'")
-                    }
-                    indexOwners[index] = group
                 }
             }
-        }
-        rnaGroups.each { group, sequences ->
-            if( dnaGroups.containsKey(group) ) {
-                final Set rnaIndices = sequences.collect { lookup.four[it] }.toSet()
-                final Map dnaLookup = dnaTagmentation == TAGMENTATION_DUAL ? lookup.dual : lookup.four
-                final Set dnaIndices = dnaGroups[group].collect { dnaLookup[it] }.toSet()
+
+            if( !selected.rna.isEmpty() ) {
+                rnaGroups[groupName] = selected.rna.keySet().toList()
+                rnaSources[groupName] = selected.rna.values().first().input_source
+                identities.rna[groupName] = selected.rna
+            }
+            final boolean hasDnaBarcodes = !selected.dna.isEmpty()
+            final boolean hasMarks = groupConfig.containsKey('mark_barcodes')
+            if( hasDna && hasMarks && !hasDnaBarcodes ) {
+                if( !paired && dnaTagmentation == TAGMENTATION_DUAL ) {
+                    selectDnaSbBarcodes(groupConfig, sampleId, groupName, dnaTagmentation)
+                }
+                throw new IllegalArgumentException("${field}.mark_barcodes requires a DNA sample-barcode field (dna_sb_barcodes, dna_sb_oligo_indices or a DNA pairing)")
+            }
+            if( hasDnaBarcodes && !hasMarks ) {
+                throw new IllegalArgumentException("Missing required field: ${field}.mark_barcodes for DNA group")
+            }
+            if( hasDnaBarcodes ) {
+                dnaGroups[groupName] = selected.dna.keySet().toList()
+                dnaSources[groupName] = selected.dna.values().first().input_source
+                identities.dna[groupName] = selected.dna
+                dnaMarkBarcodes[groupName] = parseMarkBarcodes(groupConfig.mark_barcodes, sampleId, groupName)
+            }
+
+            if( paired ) {
+                final Set labels = (selected.rna.values() + selected.dna.values()).collect { it.sb_index }.toSet()
+                labels.each { label ->
+                    final Map physical = [:]
+                    ['rna', 'dna'].each { modality ->
+                        final def entry = selected[modality].find { sequence, record -> record.sb_index == label }
+                        if( entry ) physical[modality] = [index: physicalIndex(entry.key, modality == 'dna' && dnaTagmentation == TAGMENTATION_DUAL, field, lookup), sequence: entry.key]
+                    }
+                    if( physical.values().any { it.index != label } ) {
+                        final String rna = physical.rna ? "${physical.rna.index} (${physical.rna.sequence})" : 'omitted'
+                        final String dna = physical.dna ? "${physical.dna.index} (${physical.dna.sequence})" : 'omitted'
+                        warnings << "Sample '${sampleId}', group '${groupName}': actual RNA oligo ${rna}; actual DNA oligo ${dna}; DNA chemistry ${dnaTagmentation ?: 'not selected'}; shared sb_index ${label}. " +
+                            (physical.rna && physical.dna
+                                ? (physical.rna.index != physical.dna.index
+                                    ? 'The samplesheet explicitly declares these different physical oligos to represent one biological partition.'
+                                    : 'The samplesheet explicitly declares these physical oligos to represent one biological partition under a remapped identity label.')
+                                : 'The samplesheet explicitly assigns this physical oligo to the biological partition identified by sb_index; the other modality is omitted.') +
+                            ' Pairing changes CB/XI identity labels and retains the actual chemistry-specific SB sequences.'
+                    }
+                }
+            } else if( !selected.rna.isEmpty() && !selected.dna.isEmpty() ) {
+                final Set rnaIndices = selected.rna.values().collect { it.sb_index }.toSet()
+                final Set dnaIndices = selected.dna.values().collect { it.sb_index }.toSet()
                 if( rnaIndices != dnaIndices ) {
-                    throw new IllegalArgumentException("RNA/DNA resolved index sets differ for sample '${sampleId}' group '${group}': ${rnaIndices} vs ${dnaIndices}")
+                    warnings << "Sample '${sampleId}', group '${groupName}': independent RNA oligos ${describeSelection(selected.rna, false, lookup)} and DNA oligos ${describeSelection(selected.dna, dnaTagmentation == TAGMENTATION_DUAL, lookup)} differ; DNA chemistry ${dnaTagmentation}. " +
+                        'No explicit pairing was declared. Each modality retains its actual oligo index as sb_index, so unmatched full identifiers will differ. Correspondence is never inferred from list order.'
                 }
             }
         }
-        return [
-            rna_sources       : rnaSources,
-            dna_sources       : dnaSources,
-            rna               : rnaGroups,
-            dna               : dnaGroups,
-            dna_mark_barcodes : dnaMarkBarcodes,
-            rna_source_summary: summarizeSources(rnaSources.values()),
-            dna_source_summary: summarizeSources(dnaSources.values()),
-        ]
+
+        [rna: rnaGroups, dna: dnaGroups].each { modality, groups ->
+            if( (modality == MODALITY_RNA ? hasRna : hasDna) && groups.isEmpty() ) {
+                throw new IllegalArgumentException("samples.${sampleId} has ${modality.toUpperCase()} reads but no group with ${modality}_sb_barcodes${modality == MODALITY_DNA ? ' and mark_barcodes' : ''}")
+            }
+            validateNoGroupBarcodeCollisions(sampleId, modality.toUpperCase(), groups)
+        }
+        // Same physical oligo in different modalities has unambiguous routing;
+        // group namespaces remain explicit and distinct.
+        rnaGroups.each { rnaGroup, rnaSequences ->
+            dnaGroups.each { dnaGroup, dnaSequences ->
+                if( rnaGroup != dnaGroup ) {
+                    final Set overlap = rnaSequences.collect { lookup.four[it] }.toSet().intersect(
+                        dnaSequences.collect { (dnaTagmentation == TAGMENTATION_DUAL ? lookup.dual : lookup.four)[it] }.toSet())
+                    if( overlap ) warnings << "Sample '${sampleId}': physical oligo indices ${overlap} occur in RNA group '${rnaGroup}' and DNA group '${dnaGroup}' (DNA chemistry ${dnaTagmentation}). Routing is unambiguous within each modality; their full identifiers differ because their group namespaces differ."
+                }
+            }
+        }
+        return [rna_sources: rnaSources, dna_sources: dnaSources, rna: rnaGroups, dna: dnaGroups,
+                rna_identities: identities.rna, dna_identities: identities.dna, warnings: warnings,
+                dna_mark_barcodes: dnaMarkBarcodes, rna_source_summary: summarizeSources(rnaSources.values()),
+                dna_source_summary: summarizeSources(dnaSources.values())]
     }
 
-    private static void addGroupBarcodes(
-        final LinkedHashMap<String, List<String>> groups,
-        final LinkedHashMap<String, String> sources,
-        final String groupName,
-        final Map selection,
-        final int expectedLength
-    ) {
-        final String fieldName = selection.fieldName as String
-        groups[groupName] = requireBarcodeList(selection.value, fieldName, expectedLength)
-        sources[groupName] = fieldName
+    private static String physicalSequence(final String index, final boolean dual, final String field, final Map lookup) {
+        if( !lookup.rows.containsKey(index) ) throw new IllegalArgumentException("${field}: unknown oligo index '${index}'")
+        final String sequence = lookup.rows[index][dual ? 1 : 0]
+        if( sequence == '-' ) throw new IllegalArgumentException("${field}: physical oligo '${index}' has no available dual-DNA sequence. Select an available physical dna_oligo_index/dna_sb_oligo_indices or use RNA/single DNA; sb_index is only an identity label. No dual sequence will be inferred or substituted.")
+        return sequence
+    }
+
+    private static String physicalIndex(final String sequence, final boolean dual, final String field, final Map lookup) {
+        final String index = (dual ? lookup.dual : lookup.four)[sequence]
+        if( !index ) throw new IllegalArgumentException("${field}: Unknown SB sequence '${sequence}' for ${dual ? 'dual DNA' : 'RNA/single DNA'} in oligo lookup")
+        return index
+    }
+
+    private static String describeSelection(final Map selected, final boolean dual, final Map lookup) {
+        return selected.keySet().collect { "${physicalIndex(it, dual, 'SB selection', lookup)} (${it})" }.join(', ')
+    }
+
+    private static Map resolvePairings(final Object value, final String field, final boolean hasRna,
+                                      final boolean hasDna, final String dnaTagmentation, final Map lookup) {
+        final String prefix = "${field}.sb_oligo_pairings"
+        if( !(value instanceof List) || value.isEmpty() ) throw new IllegalArgumentException("${prefix} must be a non-empty list")
+        final Map selected = [rna: [:], dna: [:]]
+        final Map logical = [rna: [:], dna: [:]]
+        value.eachWithIndex { raw, n ->
+            final String entryField = "${prefix}[${n + 1}]"
+            final Map entry = asMap(raw, entryField)
+            final List allowed = ['sb_index', 'rna_oligo_index', 'dna_oligo_index', 'rna_sb_barcode', 'dna_sb_barcode']
+            if( entry.keySet().any { !(it in allowed) } ) throw new IllegalArgumentException("${entryField}: unknown pairing fields ${entry.keySet().findAll { !(it in allowed) }}; use sb_index and physical modality selectors")
+            final String label = normalizeOligoIndex(entry.sb_index, "${entryField}.sb_index")
+            boolean anyModality = false
+            [rna: hasRna, dna: hasDna].each { modality, present ->
+                final String indexField = "${modality}_oligo_index"
+                final String sequenceField = "${modality}_sb_barcode"
+                final List fields = [indexField, sequenceField].findAll { entry.containsKey(it) }
+                if( fields.size() > 1 ) throw new IllegalArgumentException("${entryField}: exactly one ${modality} selector is required; ${indexField} conflicts with ${sequenceField}")
+                if( fields ) {
+                    anyModality = true
+                    if( !present ) throw new IllegalArgumentException("${entryField}: ${modality} selector requires a sample ${modality} reads block")
+                    final boolean dual = modality == MODALITY_DNA && dnaTagmentation == TAGMENTATION_DUAL
+                    final String source = "${entryField}.${fields[0]}"
+                    final String sequence = fields[0] == indexField
+                        ? physicalSequence(normalizeOligoIndex(entry[indexField], source), dual, source, lookup)
+                        : requireBarcodeList([entry[sequenceField]], source, dual ? 3 : 4).first()
+                    physicalIndex(sequence, dual, source, lookup)
+                    if( selected[modality].containsKey(sequence) ) throw new IllegalArgumentException("${entryField}: physical ${modality} barcode '${sequence}' is reused for multiple partitions")
+                    if( logical[modality].containsKey(label) ) throw new IllegalArgumentException("${entryField}: sb_index '${label}' allows at most one physical oligo per modality (${modality})")
+                    selected[modality][sequence] = [sb_index: label, input_source: source]
+                    logical[modality][label] = sequence
+                }
+            }
+            if( !anyModality ) throw new IllegalArgumentException("${entryField}: at least one modality selector is required")
+        }
+        return selected
     }
 
     private static LinkedHashMap<String, String> parseMarkBarcodes(
@@ -668,14 +753,14 @@ class SamplesheetParser {
 
     private static File writeSbGroupMap(final File derivedDir, final List<Map> samples, final String modality) {
         final File file = new File(derivedDir, "${modality}_sb_group_map.tsv")
-        final List<String> lines = ['sample\tsb_group\tsb_bc\toligo_index\tmodality\tchemistry\tinput_source\tsb_injected_base']
+        final List<String> lines = ['sample\tsb_group\tsb_bc\toligo_index\tmodality\tchemistry\tinput_source\tsb_injected_base\tsb_index']
 
         samples.collect { it.id }.unique().each { sampleId ->
             final Map row = samples.find { it.id == sampleId }
             row.group_definitions.each { groupName, barcodes ->
                 barcodes.each { barcode ->
                     final Map record = row.cell_identity_records.find { it.group == groupName && it.sb_bc == barcode }
-                    lines << "${sampleId}\t${groupName}\t${barcode}\t${record.oligo_index}\t${modality}\t${record.chemistry}\t${record.input_source}\t${row.sb_injected_base ?: '-'}"
+                    lines << "${sampleId}\t${groupName}\t${barcode}\t${record.oligo_index}\t${modality}\t${record.chemistry}\t${record.input_source}\t${row.sb_injected_base ?: '-'}\t${record.sb_index}"
                 }
             }
         }

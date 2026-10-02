@@ -141,13 +141,13 @@ class FastqCompressionTests(unittest.TestCase):
         rna_comment = f"CB:Z:CAGT{cell_barcode}\tRG:Z:CAGT{cell_barcode}\tUM:Z:TTTT\tSB:Z:CAGT"
         dna_comment = f"CB:Z:AAA{cell_barcode}\tRG:Z:AAA{cell_barcode}\tMO:Z:AGGCTATA\tSB:Z:AAA"
 
-        rna_canonical = SPLIT_RNA.canonicalize_fastq_comment("sample1", "Normal", rna_comment, oligo_index="01")
+        rna_canonical = SPLIT_RNA.canonicalize_fastq_comment("sample1", "Normal", rna_comment, sb_index="01")
         dna_canonical = SPLIT_DNA.canonicalize_dna_fastq_comment(
             "sample1",
             "Normal",
             "AV240401:AVT0507:2528453125:1:11104:5031:3419:ACGT",
             dna_comment,
-        oligo_index="01")
+        sb_index="01")
         expected = f"sample1_Normal_01_{cell_barcode}"
 
         self.assertIn(f"CB:Z:{expected}", rna_canonical)

@@ -56,10 +56,10 @@ class AvitiReadGroupTests(unittest.TestCase):
         )
         lane1 = FASTQ_UTILS.canonicalize_dna_fastq_comment(
             "sample", "group", "AV240401:AVT0507:FC:1:11104:5031:3419:UMI1", comment
-        , oligo_index="01")
+        , sb_index="01")
         lane2 = FASTQ_UTILS.canonicalize_dna_fastq_comment(
             "sample", "group", "AV240401:AVT0507:FC:2:11104:5031:3419:UMI2", comment
-        , oligo_index="01")
+        , sb_index="01")
 
         self.assertEqual(FASTQ_UTILS.find_tag_value(lane1, "CB"), f"sample_group_01_{CELL_BARCODE}")
         self.assertEqual(FASTQ_UTILS.find_tag_value(lane2, "CB"), f"sample_group_01_{CELL_BARCODE}")
@@ -83,7 +83,7 @@ class AvitiReadGroupTests(unittest.TestCase):
             FASTQ_UTILS.find_tag_value(
                 FASTQ_UTILS.canonicalize_dna_fastq_comment(
                     "sample", "group", qname, comment
-                , oligo_index="01"),
+                , sb_index="01"),
                 "RG",
             )
             for qname in qnames
@@ -99,7 +99,7 @@ class AvitiReadGroupTests(unittest.TestCase):
                 "group",
                 "INST/unsafe:RUN1:FC1:1:11104:5031:3419:U1",
                 comment,
-            oligo_index="01")
+            sb_index="01")
 
     def test_physical_unit_field_boundaries_cannot_collapse(self):
         first = FASTQ_UTILS.aviti_physical_unit("INST.RUN", "R1", "FC", 1)
@@ -120,7 +120,7 @@ class AvitiReadGroupTests(unittest.TestCase):
                     "group",
                     f"AV240401:AVT0507:FC:{lane}:11104:5031:3419:UMI{index}",
                     comment,
-                oligo_index="01")
+                sb_index="01")
                 observed_cells.add(FASTQ_UTILS.find_tag_value(canonical, "CB"))
                 read_groups.add(FASTQ_UTILS.find_tag_value(canonical, "RG"))
 

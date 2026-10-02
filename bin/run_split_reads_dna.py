@@ -180,7 +180,7 @@ def mock_split(args):
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
             group_counts[group_name] += 1
-            index, corrected_sb = identities[sb]
+            identity = identities[sb]
             mark_name = find_mark_for_mo(mo, group_name, group_names, mappings)
             if mark_name is None:
                 raise ValueError(f"MO barcode not found for sample {args.sample}: {mo}")
@@ -188,10 +188,10 @@ def mock_split(args):
             key = (group_name, mark_name)
             branch_counts[key] += 1
             r1_comment = canonicalize_dna_fastq_comment(
-                args.sample, group_name, r1_name, r1_comment, index, corrected_sb
+                args.sample, group_name, r1_name, r1_comment, identity.sb_index, identity.sb_bc
             )
             r2_comment = canonicalize_dna_fastq_comment(
-                args.sample, group_name, r2_name, r2_comment, index, corrected_sb
+                args.sample, group_name, r2_name, r2_comment, identity.sb_index, identity.sb_bc
             )
             if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag) for tag in ('CB', 'XI', 'SB')):
                 raise ValueError(f"Mate identity mismatch for {r1_name}")

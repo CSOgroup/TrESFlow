@@ -29,7 +29,9 @@ Ownership rules:
 - keep behavior aligned with the validated workflow unless a deliberate contract change is documented
 - prefer targeted readability improvements over large rewrites of biological logic
 
-Splitting and RNA SAM transport implement [full-cell-v1](../../docs/cell_identity.md).
-SB identity maps require a normalized `oligo_index` column. STAR uses String
+Splitting and RNA SAM transport implement [full-cell-v2](../../docs/cell_identity.md).
+SB identity maps retain a normalized physical `oligo_index` and append logical
+`sb_index` (defaulting to the physical index in older maps). Splitters construct
+CB/XI from `sb_index` and retain the actual corrected SB sequence. STAR uses String
 barcodes from separate XI/UM attributes; it never slices a namespaced ID to
 find a UMI. BAM tag normalization checks every alignment class.

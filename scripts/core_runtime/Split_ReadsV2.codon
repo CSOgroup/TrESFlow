@@ -89,8 +89,8 @@ def get_cb_sb(comment: str) -> Tuple[str, str]:
 	return cb, sb
 
 
-def canonical_cell_id(sample: str, group_name: str, oligo_index: str, cell_barcode: str) -> str:
-	return sample + "_" + group_name + "_" + oligo_index + "_" + cell_barcode
+def canonical_cell_id(sample: str, group_name: str, sb_index: str, cell_barcode: str) -> str:
+	return sample + "_" + group_name + "_" + sb_index + "_" + cell_barcode
 
 
 def get_umi(comment: str) -> str:
@@ -164,7 +164,7 @@ def canonicalize_fastq_comment(
 	sample: str,
 	group_name: str,
 	comment: str,
-	oligo_index: str,
+	sb_index: str,
 	corrected_sb: str,
 	read_group: str = ""
 	) -> str:
@@ -180,7 +180,7 @@ def canonicalize_fastq_comment(
 		sys.exit(1)
 
 	technical_cell = cell_barcode_without_sb(cb, sb, sample, group_name)
-	canonical = canonical_cell_id(sample, group_name, oligo_index, technical_cell)
+	canonical = canonical_cell_id(sample, group_name, sb_index, technical_cell)
 	output_read_group = read_group if read_group else canonical
 	out: List[str] = []
 	has_rg = False
@@ -213,7 +213,7 @@ def canonicalize_dna_fastq_comment(
 	group_name: str,
 	read_name: str,
 	comment: str,
-	oligo_index: str,
+	sb_index: str,
 	corrected_sb: str
 	) -> str:
 	physical_unit = aviti_physical_unit(read_name)
@@ -226,35 +226,43 @@ def canonicalize_dna_fastq_comment(
 			sample + " group " + group_name + "\n"
 		)
 		sys.exit(1)
-	return canonicalize_fastq_comment(sample, group_name, comment, oligo_index, corrected_sb, physical_unit)
+	return canonicalize_fastq_comment(sample, group_name, comment, sb_index, corrected_sb, physical_unit)
 
 
 # -----------------------------
 # SB group map loading
-# TSV columns: sample, sb_group, sb_bc, oligo_index, modality, chemistry, input_source, sb_injected_base
+# TSV columns: sample, sb_group, sb_bc, oligo_index, modality, chemistry, input_source, sb_injected_base, sb_index
 # Returns:
 #   sb_to_gid: maps SB key -> group index
 #   idx_to_group: list of group names by index
 # -----------------------------
-def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[str], Dict[str, str], Dict[str, str]]:
+def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[str], Dict[str, str], Dict[str, str], Dict[str, str]]:
 	sb_to_gid: Dict[str, int] = {}
-	sb_to_index: Dict[str, str] = {}
+	sb_to_oligo_index: Dict[str, str] = {}
 	sb_to_sequence: Dict[str, str] = {}
+	sb_to_sb_index: Dict[str, str] = {}
 	group_to_gid: Dict[str, int] = {}
 	idx_to_group: List[str] = []
 
+	logical_column = -1
 	with open(path, "r") as f:
 		for line in f:
-			line = line.rstrip()
+			line = line.rstrip("\r\n")
 			if not line:
 				continue
 			if line[0] == '#':
 				continue
 
-			parts = line.split()
+			# Keep TSV fields exact: whitespace in an index is invalid, and
+			# empty columns must not shift physical or logical metadata.
+			# Retain legacy whitespace-separated maps without sb_index.
+			parts = line.split("\t") if logical_column >= 0 or "\t" in line else line.split()
 			if len(parts) < 3:
 				continue
 			if parts[:3] == ["sample", "sb_group", "sb_bc"]:
+				for column, name in enumerate(parts):
+					if name == "sb_index":
+						logical_column = column
 				continue
 
 			s = parts[0]
@@ -267,8 +275,15 @@ def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[
 				sys.exit(1)
 			injected = parts[7] if len(parts) >= 8 and parts[7] != "-" else ""
 			sb_bc = injected + parts[2]
-			sb_to_index[sb_bc] = parts[3].lstrip("0").zfill(2)
+			sb_to_oligo_index[sb_bc] = parts[3].lstrip("0").zfill(2)
 			sb_to_sequence[sb_bc] = parts[2]
+			label = parts[3]
+			if logical_column >= 0:
+				if len(parts) <= logical_column or not is_decimal(parts[logical_column]) or not parts[logical_column].lstrip("0"):
+					sys.stderr.write("ERROR: Missing or invalid sb_index in derived SB map\n")
+					sys.exit(1)
+				label = parts[logical_column]
+			sb_to_sb_index[sb_bc] = label.lstrip("0").zfill(2)
 
 			if gname in group_to_gid:
 				gid = group_to_gid[gname]
@@ -278,11 +293,9 @@ def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[
 				idx_to_group.append(gname)
 
 			if sb_bc in sb_to_gid:
-				if sb_to_gid[sb_bc] != gid:
-					sys.stderr.write("ERROR: SB group conflict for sample " + sample + " SB " + sb_bc + "\n")
-					sys.exit(1)
-			else:
-				sb_to_gid[sb_bc] = gid
+				sys.stderr.write("ERROR: Duplicate SB identity row for sample " + sample + " SB " + sb_bc + "\n")
+				sys.exit(1)
+			sb_to_gid[sb_bc] = gid
 
 	if len(sb_to_gid) == 0:
 		sys.stderr.write("ERROR: No SB group mapping found for sample " + sample + " in " + path + "\n")
@@ -299,7 +312,7 @@ def load_sb_group_map_tsv(path: str, sample: str) -> Tuple[Dict[str, int], List[
 			sys.stderr.write("ERROR: SB group has zero barcodes for sample " + sample + " group " + idx_to_group[g] + "\n")
 			sys.exit(1)
 
-	return sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence
+	return sb_to_gid, idx_to_group, sb_to_oligo_index, sb_to_sequence, sb_to_sb_index
 
 
 # -----------------------------
@@ -490,13 +503,14 @@ def MakeRecordNameList_DNA(
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
-	sb_to_index: Dict[str, str] = {}
+	sb_to_oligo_index: Dict[str, str] = {}
 	sb_to_sequence: Dict[str, str] = {}
+	sb_to_sb_index: Dict[str, str] = {}
 	idx_to_group: List[str] = []
 	group_to_gid: Dict[str, int] = {}
 
 	if use_sb:
-		sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence = load_sb_group_map_tsv(sb_group_map_path, sample)
+		sb_to_gid, idx_to_group, sb_to_oligo_index, sb_to_sequence, sb_to_sb_index = load_sb_group_map_tsv(sb_group_map_path, sample)
 		# build group_to_gid
 		for g in range(len(idx_to_group)):
 			group_to_gid[idx_to_group[g]] = g
@@ -626,8 +640,8 @@ def MakeRecordNameList_DNA(
 			elif unknown_mode == 2:
 				seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 				seq2 = str(rec2.seq); qual2 = str(rec2.qual)
-				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
-				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+				comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
+				comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
 				write_fastq_record(unknown_r1, rec1.name, comment1, seq1, qual1)
 				write_fastq_record(unknown_r2, rec2.name, comment2, seq2, qual2)
 				unknown_read_groups.add(physical_unit1)
@@ -641,8 +655,8 @@ def MakeRecordNameList_DNA(
 			sys.stderr.write("ERROR: internal: slot not marked used but read mapped to it\n")
 			sys.exit(1)
 
-		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
-		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+		comment1 = canonicalize_dna_fastq_comment(sample, group_name, rec1.name, rec1.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
+		comment2 = canonicalize_dna_fastq_comment(sample, group_name, rec2.name, rec2.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
 		write_fastq_record(r1_fhs[slot], rec1.name, comment1, seq1, qual1)
@@ -744,11 +758,12 @@ def MakeRecordNameList_RNA(
 	R2_it = iter(R2_gen)
 
 	sb_to_gid: Dict[str, int] = {}
-	sb_to_index: Dict[str, str] = {}
+	sb_to_oligo_index: Dict[str, str] = {}
 	sb_to_sequence: Dict[str, str] = {}
+	sb_to_sb_index: Dict[str, str] = {}
 	idx_to_group: List[str] = []
 	if use_sb:
-		sb_to_gid, idx_to_group, sb_to_index, sb_to_sequence = load_sb_group_map_tsv(sb_group_map_path, sample)
+		sb_to_gid, idx_to_group, sb_to_oligo_index, sb_to_sequence, sb_to_sb_index = load_sb_group_map_tsv(sb_group_map_path, sample)
 
 	n_groups = len(idx_to_group) if use_sb else 1
 
@@ -829,8 +844,8 @@ def MakeRecordNameList_RNA(
 		group_counts[gid] += 1
 
 		group_name = idx_to_group[gid] if use_sb else sample
-		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
-		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment, sb_to_index[sb_raw], sb_to_sequence[sb_raw])
+		comment1 = canonicalize_fastq_comment(sample, group_name, rec1.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
+		comment2 = canonicalize_fastq_comment(sample, group_name, rec2.comment, sb_to_sb_index[sb_raw], sb_to_sequence[sb_raw])
 		canonical_cb, _ = get_cb_sb(comment1)
 		seq1 = str(rec1.seq); qual1 = str(rec1.qual)
 		seq2 = str(rec2.seq); qual2 = str(rec2.qual)
