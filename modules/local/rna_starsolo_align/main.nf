@@ -42,21 +42,7 @@ process RNA_STARSOLO_ALIGN {
         ${runtimeExports}
 
         input_pairs="\$(awk '\$1 !~ /^@/ { n++ } END { print int(n / 2) }' "${usam}")"
-        mkdir -p "${splitName}.Solo.outGeneFull/filtered"
-
-        cat > "${splitName}.Solo.outGeneFull/filtered/barcodes.tsv" <<'EOF'
-mock_barcode
-EOF
-
-        cat > "${splitName}.Solo.outGeneFull/filtered/features.tsv" <<'EOF'
-mock_feature\tmock_feature\tGene Expression
-EOF
-
-        cat > "${splitName}.Solo.outGeneFull/filtered/matrix.mtx" <<'EOF'
-%%MatrixMarket matrix coordinate integer general
-1 1 1
-1 1 1
-EOF
+        "\$PYTHON3_BIN" "${projectDir}/bin/mock_starsolo_outputs.py" "${usam}" "${splitName}.Solo.outGeneFull"
 
         printf 'mock aligned bam for %s %s pairs\n' "${splitName}" "\${input_pairs}" > "${splitName}.Aligned.sortedByCoord.out.bam"
         cat > "${splitName}.Log.final.out" <<EOF
@@ -97,17 +83,6 @@ EOF
                        Number of chimeric reads |	0
                             % of chimeric reads |	0.00%
 EOF
-        cat > "${splitName}.Solo.outGeneFull/Summary.csv" <<EOF
-Number of Reads,\${input_pairs}
-Sequencing Saturation,0.25
-Reads Mapped to Genome: Unique+Multiple,1.00
-Reads Mapped to Genome: Unique,1.00
-Reads Mapped to GeneFull: Unique+Multiple GeneFull,1.00
-Reads Mapped to GeneFull: Unique GeneFull,1.00
-Estimated Number of Cells,1
-UMIs in Cells,100
-EOF
-
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \
           "report/${splitName}.Solo.summary.csv"

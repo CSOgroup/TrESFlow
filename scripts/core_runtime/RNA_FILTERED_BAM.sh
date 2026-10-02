@@ -55,7 +55,7 @@ bash "${script_dir}/FilterCanonicalBam.sh" \
     --validation-summary "${FILTER_VALIDATION}" \
     --exclude-flags 0x100 \
     --require-flags 0x1,0x2 \
-    --tag-file RG:"${BARCODES}"
+    --tag-file XI:"${BARCODES}"
 
 expected_pairs="$(awk -F '\t' '$2 == "called_cell_pairs" { print $3 }' "${RETENTION_METRICS}")"
 observed_pairs="$(awk -F '\t' '$1 == "primary_r1_records" { print $2 }' "${FILTER_VALIDATION}")"

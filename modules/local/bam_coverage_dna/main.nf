@@ -42,10 +42,10 @@ process BAM_COVERAGE_DNA {
     def mode = task.ext.mock ? 'mock' : 'real'
     def runtimeExports = runtimeShellExports(meta)
     def sampleId = meta.id as String
-    def suffix = splitName.replaceFirst("^${sampleId}_", '')
-    def tokens = suffix.tokenize('_')
-    def groupName = tokens ? tokens[0] : ''
-    def markName = tokens.size() > 1 ? tokens[1..-1].join('_') : ''
+    def target = meta.split_targets[splitName]
+    if( !target ) throw new IllegalStateException("Unknown DNA output '${splitName}' in explicit samplesheet metadata")
+    def groupName = target.group as String
+    def markName = target.mark as String
 
     if( mode == 'mock' ) {
         """

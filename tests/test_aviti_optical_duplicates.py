@@ -24,7 +24,7 @@ def load_module(name, relative_path):
 REPORT = load_module("aviti_report", "bin/render_tres_report.py")
 AVITI_REGEX = r"^(?:[^:]+:){4}([0-9]+):([0-9]+):([0-9]+):[^:]+$"
 CELL_BARCODE = "ACGTACGTTGCATGCAGATCGATC"
-OTHER_CELL_BARCODE = "TGCATGCAACGTACGTCTAGCTAG"
+OTHER_CELL_BARCODE = f"sample_group_02_{CELL_BARCODE}"
 
 
 def read_picard_metrics(path):
@@ -56,13 +56,13 @@ class AvitiReadGroupTests(unittest.TestCase):
         )
         lane1 = FASTQ_UTILS.canonicalize_dna_fastq_comment(
             "sample", "group", "AV240401:AVT0507:FC:1:11104:5031:3419:UMI1", comment
-        )
+        , oligo_index="01")
         lane2 = FASTQ_UTILS.canonicalize_dna_fastq_comment(
             "sample", "group", "AV240401:AVT0507:FC:2:11104:5031:3419:UMI2", comment
-        )
+        , oligo_index="01")
 
-        self.assertEqual(FASTQ_UTILS.find_tag_value(lane1, "CB"), CELL_BARCODE)
-        self.assertEqual(FASTQ_UTILS.find_tag_value(lane2, "CB"), CELL_BARCODE)
+        self.assertEqual(FASTQ_UTILS.find_tag_value(lane1, "CB"), f"sample_group_01_{CELL_BARCODE}")
+        self.assertEqual(FASTQ_UTILS.find_tag_value(lane2, "CB"), f"sample_group_01_{CELL_BARCODE}")
         self.assertEqual(
             FASTQ_UTILS.find_tag_value(lane1, "RG"), "AV240401:AVT0507:FC:L1"
         )
@@ -83,7 +83,7 @@ class AvitiReadGroupTests(unittest.TestCase):
             FASTQ_UTILS.find_tag_value(
                 FASTQ_UTILS.canonicalize_dna_fastq_comment(
                     "sample", "group", qname, comment
-                ),
+                , oligo_index="01"),
                 "RG",
             )
             for qname in qnames
@@ -99,7 +99,7 @@ class AvitiReadGroupTests(unittest.TestCase):
                 "group",
                 "INST/unsafe:RUN1:FC1:1:11104:5031:3419:U1",
                 comment,
-            )
+            oligo_index="01")
 
     def test_physical_unit_field_boundaries_cannot_collapse(self):
         first = FASTQ_UTILS.aviti_physical_unit("INST.RUN", "R1", "FC", 1)
@@ -120,7 +120,7 @@ class AvitiReadGroupTests(unittest.TestCase):
                     "group",
                     f"AV240401:AVT0507:FC:{lane}:11104:5031:3419:UMI{index}",
                     comment,
-                )
+                oligo_index="01")
                 observed_cells.add(FASTQ_UTILS.find_tag_value(canonical, "CB"))
                 read_groups.add(FASTQ_UTILS.find_tag_value(canonical, "RG"))
 
@@ -165,7 +165,7 @@ class AvitiReadGroupTests(unittest.TestCase):
             r1.write_text(fastq_text, encoding="utf-8")
             r2.write_text(fastq_text, encoding="utf-8")
             sb_map = root / "sb.tsv"
-            sb_map.write_text("sample\tgroup\tAAA\n", encoding="utf-8")
+            sb_map.write_text("sample\tgroup\tAAA\t01\n", encoding="utf-8")
             mo_map = root / "mo.tsv"
             mo_map.write_text("sample\tgroup\tH3K27ac\tMARKA\n", encoding="utf-8")
             output = root / "output"
@@ -225,7 +225,7 @@ class AvitiReadGroupTests(unittest.TestCase):
         self.assertIn("aviti_optical_duplicate_distance = 10", nextflow_config)
         self.assertEqual(parameter["default"], 10)
         self.assertEqual(parameter["minimum"], 0)
-        self.assertIn("--BARCODE_TAG CB", module_config)
+        self.assertIn("--READ_ONE_BARCODE_TAG CB --READ_TWO_BARCODE_TAG SB", module_config)
         self.assertIn("--REMOVE_DUPLICATES false", module_config)
         self.assertIn("--READ_NAME_REGEX", module_config)
         self.assertIn(AVITI_REGEX[:-1], module_config)
@@ -275,10 +275,11 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
             "@RG\tID:AV240401:AVT0507:FC:L2\tSM:sample\tLB:logical_library\tPU:AV240401:AVT0507:FC:L2\tPL:ELEMENT",
         ]
 
-        def add_pair(qname, lane, first_position, mate_position, cell_barcode=CELL_BARCODE):
+        def add_pair(qname, lane, first_position, mate_position, cell_barcode=f"sample_group_01_{CELL_BARCODE}"):
             rg = f"AV240401:AVT0507:FC:L{lane}"
             template_length = mate_position + 49 - first_position + 1
-            tags = f"RG:Z:{rg}\tCB:Z:{cell_barcode}"
+            sb = "CGAT" if cell_barcode == OTHER_CELL_BARCODE else "GCAT"
+            tags = f"RG:Z:{rg}\tCB:Z:{cell_barcode}\tXI:Z:{cell_barcode}\tSB:Z:{sb}"
             lines.append(
                 f"{qname}\t99\tchr1\t{first_position}\t60\t50M\t=\t{mate_position}\t"
                 f"{template_length}\t{sequence}\t{quality}\t{tags}"
@@ -313,6 +314,12 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
                 first + 100,
             )
 
+        # Coordinate-sorted GATK leaves secondary/supplementary flags intact;
+        # every alignment class must keep its canonical identity.
+        full = f"sample_group_01_{CELL_BARCODE}"
+        for flag in (355, 2147):
+            lines.append(f"AV240401:AVT0507:FC:1:99999:{flag}:1:SUPP\t{flag}\tchr1\t40001\t60\t50M\t=\t40101\t150\t{sequence}\t{quality}\tRG:Z:AV240401:AVT0507:FC:L1\tCB:Z:{full}\tXI:Z:{full}\tSB:Z:GCAT")
+
         sam.write_text("\n".join(lines) + "\n", encoding="utf-8")
         subprocess.run(
             [self.samtools, "sort", "-o", str(bam), str(sam)],
@@ -338,8 +345,10 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
             str(metrics),
             "--REMOVE_DUPLICATES",
             "false",
-            "--BARCODE_TAG",
+            "--READ_ONE_BARCODE_TAG",
             "CB",
+            "--READ_TWO_BARCODE_TAG",
+            "SB",
             "--READ_NAME_REGEX",
             AVITI_REGEX,
             "--OPTICAL_DUPLICATE_PIXEL_DISTANCE",
@@ -380,6 +389,27 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout.splitlines()
+            canonical = root / "canonical.txt"
+            canonical.write_text("chr1\n")
+            normalized = root / "canonical_MarkedDup.bam"
+            subprocess.run(["bash", str(REPO_ROOT / "scripts/core_runtime/FilterCanonicalBam.sh"),
+                            str(output10), str(normalized), str(canonical), "1", "normal"],
+                           check=True, capture_output=True, text=True)
+            nodup = root / "canonical_NoDup.bam"
+            subprocess.run(["bash", str(REPO_ROOT / "scripts/core_runtime/SplitDuplicatesDNA.sh"),
+                            str(normalized), str(nodup), str(root / "nodup.bai"),
+                            str(root / "mapped.txt"), str(root / "warning.tsv"),
+                            "1", "sample", "group", "mark", "sample_group_mark"],
+                           check=True, capture_output=True, text=True)
+            nodup_records = subprocess.check_output([self.samtools, "view", str(nodup)], text=True).splitlines()
+            for line in marked_records + nodup_records:
+                tags = dict(t.split(":", 2)[::2] for t in line.split("\t")[11:])
+                self.assertEqual(tags["CB"], tags["XI"])
+                self.assertIn(tags["CB"], (f"sample_group_01_{CELL_BARCODE}", OTHER_CELL_BARCODE))
+            self.assertTrue(any(int(line.split("\t")[1]) & 0x100 for line in nodup_records))
+            self.assertTrue(any(int(line.split("\t")[1]) & 0x800 for line in nodup_records))
+            self.assertTrue(all(not int(line.split("\t")[1]) & 0x400 for line in nodup_records))
+
 
         # Shared LB + CB keeps all three coordinate-identical molecules in one
         # genomic family, so two read pairs are marked duplicate across units.
@@ -400,6 +430,35 @@ class PicardAvitiIntegrationTests(unittest.TestCase):
             int(metrics10["ESTIMATED_LIBRARY_SIZE"]),
             int(metrics0["ESTIMATED_LIBRARY_SIZE"]),
         )
+
+    def test_distinct_indices_cannot_merge_through_picard_string_hash_collision(self):
+        if not self.gatk or not self.samtools:
+            self.skipTest("gatk and samtools are required")
+        # Picard read-barcode attributes use Java String.hashCode. These valid
+        # decimal indices have the same hash even with an equal prefix/suffix.
+        first_index, second_index = "17380651986", "79011245153"
+        def java_hash(value):
+            result = 0
+            for character in value:
+                result = (31 * result + ord(character)) & 0xffffffff
+            return result
+        first = f"sample_group_{first_index}_{CELL_BARCODE}"
+        second = f"sample_group_{second_index}_{CELL_BARCODE}"
+        self.assertEqual(java_hash(first), java_hash(second))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            self.make_synthetic_bam(root)
+            text = (root / "input.sam").read_text().replace(f"sample_group_01_{CELL_BARCODE}", first).replace(OTHER_CELL_BARCODE, second)
+            (root / "input.sam").write_text(text)
+            bam = root / "collision.bam"
+            subprocess.run([self.samtools, "sort", "-o", str(bam), str(root / "input.sam")], check=True, capture_output=True)
+            output, metrics = self.run_markduplicates(root, bam, 10)
+            records = subprocess.check_output([self.samtools, "view", str(output)], text=True).splitlines()
+        self.assertEqual(int(metrics["READ_PAIR_DUPLICATES"]), 2)
+        self.assertEqual(int(metrics["READ_PAIR_OPTICAL_DUPLICATES"]), 1)
+        other = [r for r in records if f"CB:Z:{second}" in r]
+        self.assertEqual(len(other), 2)
+        self.assertTrue(all(not int(r.split("\t")[1]) & 0x400 for r in other))
 
 
 if __name__ == "__main__":

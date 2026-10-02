@@ -17,7 +17,7 @@
  *   - uncompressed trim_galore paired-end FASTQs named with the standard _val_1 / _val_2 suffixes
  */
 
-include { runtimeShellExports; intermediateFastqCleanupCommand } from '../runtime_support/main'
+include { runtimeShellExports; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
 
 process TRIM_DNA_FASTQS {
     tag "${sampleId}"
@@ -33,7 +33,7 @@ process TRIM_DNA_FASTQS {
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
     def runtimeExports = runtimeShellExports(meta)
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", [taggedR1, taggedR2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [taggedR1, taggedR2])
 
     """
     ${runtimeExports}

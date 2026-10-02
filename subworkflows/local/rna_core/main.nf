@@ -36,13 +36,13 @@ def asRnaPathList(value) {
 def pairRnaSplitFastqs(sampleId, splitR1s, splitR2s) {
     def r1ByGroup = asRnaPathList(splitR1s).collectEntries { path ->
         def group = path.getName()
-            .replaceFirst("^${sampleId}_", '')
+            .substring(sampleId.toString().length() + 1)
             .replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')
         [(group): path]
     }
     def r2ByGroup = asRnaPathList(splitR2s).collectEntries { path ->
         def group = path.getName()
-            .replaceFirst("^${sampleId}_", '')
+            .substring(sampleId.toString().length() + 1)
             .replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')
         [(group): path]
     }
@@ -159,7 +159,7 @@ workflow RNA_CORE {
     ch_rna_split_pairs = SPLIT_RNA_READS.out.split_fastqs
         .flatMap { sampleId, meta, splitR1s, splitR2s ->
             pairRnaSplitFastqs(sampleId, splitR1s, splitR2s).collect { split ->
-                tuple(split.splitName, sampleId, meta, split.r1, split.r2)
+                tuple(split.splitName, sampleId, meta + [group: meta.split_targets[split.splitName].group], split.r1, split.r2)
             }
         }
 

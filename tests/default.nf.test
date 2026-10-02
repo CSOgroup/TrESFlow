@@ -345,11 +345,11 @@ nextflow_pipeline {
                 { assert !statsDir.listFiles().any { it.name.contains(".sankey.") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith(".upset.html") } },
                 { assert !statsDir.listFiles().any { it.name.endsWith("tag_records.tsv") } },
-                { assert tagRecords.contains("CB:Z:AAAACGTACGTTGCATGCAGATCGATC") },
+                { assert tagRecords.contains("CB:Z:GATACGTACGTTGCATGCAGATCGATC") },
                 { assert tagRecords.contains("L1:Z:ACGTACGT") },
                 { assert tagRecords.contains("L2:Z:TGCATGCA") },
                 { assert tagRecords.contains("L3:Z:GATCGATC") },
-                { assert tagRecords.contains("SB:Z:AAA") },
+                { assert tagRecords.contains("SB:Z:GAT") },
                 { assert tagRecords.contains("MO:Z:AGGCTATA") },
                 { assert complexityRows[0].optical_duplicate_pairs == "0" },
                 { assert complexityRows[0].estimated_library_size == "0" },
@@ -509,7 +509,7 @@ nextflow_pipeline {
             assertAll(
                 { assert !workflow.success },
                 { assert output.contains("DNA sample barcode collision") },
-                { assert output.contains("AAA") }
+                { assert output.contains("GAT") }
             )
         }
     }

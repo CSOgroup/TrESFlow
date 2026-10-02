@@ -309,3 +309,9 @@ With `--cleanup_work true`, generated FASTQs are reclaimed at these successful l
 Consumer-local staged entries are unlinked after that consumer succeeds, independently of whether Nextflow staged them as symlinks, copies, or hardlinks. The producer cleanup process receives exact paths as values, never stages them, validates that they are regular FASTQs inside the work directory, and performs no glob or recursive deletion. Samplesheet inputs are excluded from every cleanup channel. Compressed split FASTQs remain available for `publishDir`, and all published outputs remain outside the early-cleanup target set.
 
 Nextflow still cleans successful task directories after the workflow finishes successfully. On failure, producer cleanup barriers whose consumers did not all finish do not fire. With cleanup enabled, `-resume` can recompute tasks whose FASTQ cache outputs are gone; cleanup tasks are non-cacheable so recreated intermediates are reclaimed again. Set `--cleanup_work false` to disable both early FASTQ reclamation and successful-run work cleanup for debugging or a more cache-friendly run.
+
+Cell barcode outputs use [full-cell-v1](cell_identity.md):
+`CB = XI = <sample>_<group>_<oligo_index>_<L1L2L3>`. This includes published
+RNA raw/filtered barcodes and per-cell statistics, RNA BAMs, and DNA
+aligned/MarkedDup/NoDup BAMs. `SB` stays chemistry-specific; DNA marks share
+one cell identity. Older counted/deduplicated outputs require regeneration.

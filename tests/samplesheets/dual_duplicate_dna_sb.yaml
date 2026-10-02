@@ -13,11 +13,11 @@ samples:
   dual_duplicate:
     groups:
       Normal:
-        dna_sb_barcodes: [AAA]
+        dna_sb_barcodes: [GAT]
         mark_barcodes:
           H3K27ac: AGGCTATA
       Co2:
-        dna_sb_barcodes: [AAA]
+        dna_sb_barcodes: [GAT]
         mark_barcodes:
           H3K27me3: GCCTCTAT
 

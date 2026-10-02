@@ -6,7 +6,7 @@
  * publication is enabled.
  */
 
-include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
 
 process COMPRESS_SPLIT_FASTQS {
     tag "${modality}.${sampleId}"
@@ -25,7 +25,7 @@ process COMPRESS_SPLIT_FASTQS {
     def runtimeExports = runtimeShellExports(meta)
     def fastqs = (splitR1s instanceof List ? splitR1s : [splitR1s]) + (splitR2s instanceof List ? splitR2s : [splitR2s])
     def fastqArgs = fastqs.collect { fastq -> "\"${fastq}\"" }.join(' ')
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', workflow.workDir, "${projectDir}/bin/cleanup_intermediate_fastqs.py", fastqs)
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", fastqs)
 
     """
     ${runtimeExports}

@@ -30,14 +30,14 @@ class WorkflowSupport {
         final Map<String, Object> r1ByGroup = asPathList(splitR1s).collectEntries { path ->
             final String name = path.getName()
             final String group = name
-                .replaceFirst("^${sampleId}_", '')
+                .substring(sampleId.length() + 1)
                 .replaceFirst('_R1\\.(?:fastq|fq)(?:\\.gz)?$', '')
             [(group): path]
         }
         final Map<String, Object> r2ByGroup = asPathList(splitR2s).collectEntries { path ->
             final String name = path.getName()
             final String group = name
-                .replaceFirst("^${sampleId}_", '')
+                .substring(sampleId.length() + 1)
                 .replaceFirst('_R2\\.(?:fastq|fq)(?:\\.gz)?$', '')
             [(group): path]
         }
@@ -91,21 +91,10 @@ class WorkflowSupport {
         }
     }
 
-    static Map parseDnaSplitName(final String sampleId, final String splitName) {
-        final String suffix = splitName.replaceFirst("^${sampleId}_", '')
-        final List<String> tokens = suffix.tokenize('_')
-        if( tokens.size() < 2 ) {
-            throw new IllegalStateException(
-                "Unable to derive DNA group and modality from split output '${splitName}'"
-            )
-        }
-
-        final String group = tokens[0]
-        return [
-            group     : group,
-            modality  : tokens[1..-1].join('_'),
-            sampleGroup: "${sampleId}_${group}",
-        ]
+    static Map parseDnaSplitName(final Map meta, final String splitName) {
+        final Map target = meta.split_targets[splitName]
+        if( !target ) throw new IllegalStateException("Unknown DNA split '${splitName}' in explicit samplesheet metadata")
+        return [group: target.group, modality: target.mark, sampleGroup: target.sample_group]
     }
 
     static void validateReferenceContract(

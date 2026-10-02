@@ -16,6 +16,7 @@ The current core runtime set is:
 - `Split_ReadsV2.codon`
 - `FqToSAM.codon`
 - `RNA_STARSOLO_ALIGN.sh`
+- `NormalizeRnaBamTags.py`
 - `RNA_FILTERED_BAM.sh`
 - `RNA_COVERAGE.sh`
 - `AlignDNA.sh`
@@ -27,3 +28,8 @@ Ownership rules:
 - edits to files in this directory are pipeline changes and should be reviewed like any other repo code
 - keep behavior aligned with the validated workflow unless a deliberate contract change is documented
 - prefer targeted readability improvements over large rewrites of biological logic
+
+Splitting and RNA SAM transport implement [full-cell-v1](../../docs/cell_identity.md).
+SB identity maps require a normalized `oligo_index` column. STAR uses String
+barcodes from separate XI/UM attributes; it never slices a namespaced ID to
+find a UMI. BAM tag normalization checks every alignment class.

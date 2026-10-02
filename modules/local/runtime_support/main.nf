@@ -40,6 +40,12 @@ def runtimeOutdir() {
     return value
 }
 
+def runtimeWorkDir() {
+    def value = java.lang.System.getProperty('tresflow.resolvedWorkDir')
+    if( !value ) throw new IllegalStateException('TrESFlow resolved work directory is not initialized')
+    return value
+}
+
 def runtimeCoreScriptsDir() {
     def value = java.lang.System.getProperty('tresflow.resolvedCoreScriptsDir')
     if( !value ) {

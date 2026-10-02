@@ -7,12 +7,14 @@ import tempfile
 import time
 from collections import OrderedDict
 from pathlib import Path
+from itertools import zip_longest
 
 from tresflow_fastq_utils import (
     canonicalize_fastq_comment,
     fastq_iter,
     find_tag_value,
     load_sb_group_map,
+    load_sb_identities,
     log_event,
     move_split_output,
     parse_header,
@@ -26,6 +28,7 @@ from tresflow_fastq_utils import (
 
 def mock_split(args):
     sb_to_group, group_names = load_sb_group_map(args.sb_group_map, args.sample)
+    identities = load_sb_identities(args.sb_group_map, args.sample)
 
     r1_handles = OrderedDict()
     r2_handles = OrderedDict()
@@ -49,15 +52,20 @@ def mock_split(args):
     group_counts = OrderedDict((group_name, 0) for group_name in group_names)
 
     try:
-        for r1_rec, r2_rec in zip(fastq_iter(args.r1), fastq_iter(args.r2)):
+        for r1_rec, r2_rec in zip_longest(fastq_iter(args.r1), fastq_iter(args.r2)):
+            if r1_rec is None or r2_rec is None:
+                raise ValueError("Paired FASTQ streams have unequal EOF")
             processed += 1
             r1_name, r1_comment = parse_header(r1_rec[0])
             r2_name, r2_comment = parse_header(r2_rec[0])
             if r1_name != r2_name:
                 raise ValueError(f"Read name mismatch: {r1_name} != {r2_name}")
 
-            if "NoMatch" in r1_comment:
+            if "NoMatch" in r1_comment or "NoMatch" in r2_comment:
                 continue
+            if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag)
+                   for tag in ('CB', 'SB', 'MO', 'UM')):
+                raise ValueError(f"Mate barcode/UMI identity mismatch for {r1_name}")
             accepted += 1
 
             cb = find_tag_value(r1_comment, "CB")
@@ -67,8 +75,11 @@ def mock_split(args):
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
             group_counts[group_name] += 1
-            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment)
-            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment)
+            index, corrected_sb = identities[sb]
+            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment, index, corrected_sb)
+            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment, index, corrected_sb)
+            if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag) for tag in ('CB', 'XI', 'SB', 'UM')):
+                raise ValueError(f"Mate identity/UMI mismatch for {r1_name}")
             canonical_cb = find_tag_value(r1_comment, "CB")
             write_fastq_record(r1_handles[group_name], r1_name, r1_comment, r1_rec[1], r1_rec[3])
             write_fastq_record(r2_handles[group_name], r2_name, r2_comment, r2_rec[1], r2_rec[3])

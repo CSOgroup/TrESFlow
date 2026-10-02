@@ -165,6 +165,11 @@
                     "type": "string",
                     "description": "Base URL used to load remote nf-core/configs institutional profiles.",
                     "default": "https://raw.githubusercontent.com/nf-core/configs/master"
+                },
+                "sb_oligo_lookup": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Versioned SB oligo TSV lookup (default assets/sb_oligo_lookup.v1.tsv). All rows are validated."
                 }
             }
         },

@@ -54,14 +54,14 @@ class ReadRetentionMetricTests(unittest.TestCase):
                 "@SQ\tSN:chrUn\tLN:1000\n"
                 "@RG\tID:cell1\tSM:test\n"
                 "@RG\tID:other\tSM:test\n"
-                f"keep\t99\tchr1\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tRG:Z:cell1\n"
-                f"keep\t147\tchr1\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tRG:Z:cell1\n"
-                f"other_cell\t99\tchr1\t201\t60\t20M\t=\t251\t70\t{sequence}\t{quality}\tRG:Z:other\n"
-                f"other_cell\t147\tchr1\t251\t60\t20M\t=\t201\t-70\t{sequence}\t{quality}\tRG:Z:other\n"
-                f"not_paired\t64\tchr1\t301\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tRG:Z:cell1\n"
-                f"not_paired\t128\tchr1\t351\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tRG:Z:cell1\n"
-                f"noncanonical\t99\tchrUn\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tRG:Z:cell1\n"
-                f"noncanonical\t147\tchrUn\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tRG:Z:cell1\n",
+                f"keep\t99\tchr1\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n"
+                f"keep\t147\tchr1\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n"
+                f"other_cell\t99\tchr1\t201\t60\t20M\t=\t251\t70\t{sequence}\t{quality}\tXI:Z:sample_group_02_ACGT\tRG:Z:other\n"
+                f"other_cell\t147\tchr1\t251\t60\t20M\t=\t201\t-70\t{sequence}\t{quality}\tXI:Z:sample_group_02_ACGT\tRG:Z:other\n"
+                f"not_paired\t64\tchr1\t301\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n"
+                f"not_paired\t128\tchr1\t351\t60\t20M\t*\t0\t0\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n"
+                f"noncanonical\t99\tchrUn\t101\t60\t20M\t=\t151\t70\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n"
+                f"noncanonical\t147\tchrUn\t151\t60\t20M\t=\t101\t-70\t{sequence}\t{quality}\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1\n",
                 encoding="utf-8",
             )
             aligned_bam = root / f"{sample}.Aligned.sortedByCoord.out.bam"
@@ -74,7 +74,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             subprocess.run([samtools, "index", str(aligned_bam)], check=True)
             solo = root / "solo" / "filtered"
             solo.mkdir(parents=True)
-            (solo / "barcodes.tsv").write_text("cell1\n", encoding="utf-8")
+            (solo / "barcodes.tsv").write_text("sample_group_01_ACGT\n", encoding="utf-8")
             canonical = root / "canonical.txt"
             canonical.write_text("chr1\n", encoding="utf-8")
             env = os.environ.copy()
@@ -443,7 +443,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             write_fastq(r1, comments)
             write_fastq(r2, comments)
             sb_map = root / "sb.tsv"
-            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            sb_map.write_text("sample\tgroup1\tAAA\t01\n", encoding="utf-8")
             mo_map = root / "mo.tsv"
             mo_map.write_text("sample\tgroup1\tH3K27ac\tMARKA\n", encoding="utf-8")
             output = root / "output"
@@ -477,7 +477,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
                     encoding="utf-8"
                 ).splitlines()[0]
                 self.assertIn("@RG\tID:AV240401:AVT0507:2528453125:L1\tSM:sample\tLB:library\tPU:AV240401:AVT0507:2528453125:L1", header)
-                self.assertIn("CB:Z:ACGT", split_header)
+                self.assertIn("CB:Z:sample_group1_01_ACGT", split_header)
                 self.assertIn("RG:Z:AV240401:AVT0507:2528453125:L1", split_header)
 
     def test_real_codon_rna_split_emits_retention_metrics(self):
@@ -501,9 +501,9 @@ class ReadRetentionMetricTests(unittest.TestCase):
             write_fastq(r2, comments)
             sb_map = root / "rna_sb_group_map.tsv"
             sb_map.write_text(
-                "sample\tsb_group\tsb_bc\n"
-                f"{sample_id}\talpha\tAAAA\n"
-                f"{sample_id}\tbeta\tCCCC\n",
+                "sample\tsb_group\tsb_bc\toligo_index\tmodality\tchemistry\tinput_source\tsb_injected_base\n"
+                f"{sample_id}\talpha\tAAAA\t01\trna\trna\ttest\tT\n"
+                f"{sample_id}\tbeta\tCCCC\t02\trna\trna\ttest\tG\n",
                 encoding="utf-8",
             )
             output = root / "output"
@@ -561,11 +561,11 @@ class ReadRetentionMetricTests(unittest.TestCase):
                 1,
             )
             self.assertIn(
-                "SB:Z:TAAAA",
+                "SB:Z:AAAA",
                 (output / f"{sample_id}_alpha_R1.fastq").read_text(),
             )
             self.assertIn(
-                "SB:Z:GCCCC",
+                "SB:Z:CCCC",
                 (output / f"{sample_id}_beta_R1.fastq").read_text(),
             )
 
@@ -593,7 +593,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             write_fastq(r1, comments)
             write_fastq(r2, comments)
             sb_map = root / "sb.tsv"
-            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            sb_map.write_text("sample\tgroup1\tAAA\t01\n", encoding="utf-8")
             mo_map = root / "mo.tsv"
             mo_map.write_text("sample\tgroup1\tH3K27ac\tMARKA\n", encoding="utf-8")
 
@@ -658,7 +658,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             comments = [
-                "CB:Z:AAAACGT\tSB:Z:AAAA\tUM:Z:TTTT",
+                "CB:Z:AAAAACGT\tSB:Z:AAAA\tUM:Z:TTTT",
                 "CB:Z:NoMatch\tSB:Z:AAAA\tUM:Z:TTTT",
                 "CB:Z:CCCCACGT\tSB:Z:CCCC\tUM:Z:TTTT",
             ]
@@ -667,7 +667,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             write_fastq(r1, comments)
             write_fastq(r2, comments)
             sb_map = root / "sb.tsv"
-            sb_map.write_text("sample\tgroup1\tAAAA\nsample\tgroup2\tCCCC\n", encoding="utf-8")
+            sb_map.write_text("sample\tgroup1\tAAAA\t01\nsample\tgroup2\tCCCC\t01\n", encoding="utf-8")
 
             SPLIT_RNA.mock_split(
                 SimpleNamespace(
@@ -700,7 +700,7 @@ class ReadRetentionMetricTests(unittest.TestCase):
             write_fastq(r1, comments)
             write_fastq(r2, comments)
             sb_map = root / "sb.tsv"
-            sb_map.write_text("sample\tgroup1\tAAA\n", encoding="utf-8")
+            sb_map.write_text("sample\tgroup1\tAAA\t01\n", encoding="utf-8")
             mo_map = root / "mo.tsv"
             mo_map.write_text(
                 "sample\tgroup1\tH3K27ac\tMARKA\n"
@@ -734,15 +734,15 @@ class ReadRetentionMetricTests(unittest.TestCase):
             canonical = root / "canonical.txt"
             canonical.write_text("chr1\n", encoding="utf-8")
             cells = root / "barcodes.tsv"
-            cells.write_text("cell1\n", encoding="utf-8")
+            cells.write_text("sample_group_01_ACGT\n", encoding="utf-8")
             output = root / "metrics.tsv"
             sam = "\n".join(
                 [
-                    "p1\t99\tchr1\t1\t60\t20M\t=\t100\t0\tACGT\tIIII\tRG:Z:cell1",
-                    "p2\t65\tchr1\t2\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:other",
-                    "p3\t65\tchrUn\t3\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
-                    "p4\t64\tchr1\t4\t60\t20M\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
-                    "p5\t69\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\tRG:Z:cell1",
+                    "p1\t99\tchr1\t1\t60\t20M\t=\t100\t0\tACGT\tIIII\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1",
+                    "p2\t65\tchr1\t2\t60\t20M\t*\t0\t0\tACGT\tIIII\tXI:Z:sample_group_02_ACGT\tRG:Z:other",
+                    "p3\t65\tchrUn\t3\t60\t20M\t*\t0\t0\tACGT\tIIII\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1",
+                    "p4\t64\tchr1\t4\t60\t20M\t*\t0\t0\tACGT\tIIII\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1",
+                    "p5\t69\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\tXI:Z:sample_group_01_ACGT\tRG:Z:cell1",
                 ]
             ) + "\n"
 

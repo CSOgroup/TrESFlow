@@ -23,9 +23,9 @@ def read_values(path: Path) -> set[str]:
     return values
 
 
-def rg_value(fields: list[str]) -> str | None:
+def identity_value(fields: list[str]) -> str | None:
     for field in fields[11:]:
-        if field.startswith("RG:Z:"):
+        if field.startswith("XI:Z:"):
             return field[5:]
     return None
 
@@ -77,7 +77,7 @@ def main() -> int:
             continue
         counts["canonical_pairs"] += 1
 
-        if rg_value(fields) not in called:
+        if identity_value(fields) not in called:
             continue
         counts["called_cell_pairs"] += 1
 

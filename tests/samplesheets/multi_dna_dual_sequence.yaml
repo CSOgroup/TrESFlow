@@ -17,7 +17,7 @@ samples:
   multi_dna_dual:
     groups:
       Normal:
-        dna_sb_barcodes: [AAA]
+        dna_sb_barcodes: [GAT]
         mark_barcodes:
           H3K27ac: AGGCTATA
     dna:

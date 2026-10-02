@@ -126,7 +126,7 @@ def rna_sample(reads):
 def dna_sample(reads, tagmentation="dual"):
     group = {
         "mark_barcodes": {"mark": "AGGCTATA"},
-        "dna_sb_barcodes": ["AAA"],
+        "dna_sb_barcodes": ["GAT"],
     }
     if tagmentation == "single":
         group = {"mark_barcodes": {"mark": "TTTACGTA"}, "sb_barcodes": ["CGTA"]}

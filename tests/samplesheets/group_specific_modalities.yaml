@@ -20,12 +20,12 @@ samples:
       RNA_only:
         rna_sb_barcodes: [CAGT]
       DNA_only:
-        dna_sb_barcodes: [AAA]
+        dna_sb_barcodes: [GAT]
         mark_barcodes:
           MarkA: AGGCTATA
           MarkB: GCCTCTAT
       DNA_only_2:
-        dna_sb_barcodes: [CCC]
+        dna_sb_barcodes: [AGT]
         mark_barcodes:
           MarkB: AGGCTATA
 
