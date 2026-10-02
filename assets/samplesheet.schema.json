@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrESFlow hierarchical YAML samplesheet",
+  "description": "Normal selectors first; sb_oligo_pairings is an exceptional declaration for experimenter mismatches. The runtime parser checks physical lookup availability, normalized uniqueness and routing.",
+  "type": "object",
+  "required": [
+    "library_name",
+    "runtime",
+    "references",
+    "samples"
+  ],
+  "properties": {
+    "library_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime": {
+      "type": "object"
+    },
+    "references": {
+      "type": "object"
+    },
+    "samples": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "properties": {
+          "groups": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "$ref": "#/$defs/group"
+            }
+          },
+          "rna": {
+            "type": "object"
+          },
+          "dna": {
+            "type": "object",
+            "required": [
+              "tagmentation"
+            ],
+            "properties": {
+              "tagmentation": {
+                "$ref": "#/$defs/dna_tagmentation"
+              }
+            }
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "rna"
+            ]
+          },
+          {
+            "required": [
+              "dna"
+            ]
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "dna"
+              ],
+              "properties": {
+                "dna": {
+                  "required": [
+                    "tagmentation"
+                  ],
+                  "properties": {
+                    "tagmentation": {
+                      "$ref": "#/$defs/single_tagmentation"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "groups": {
+                  "additionalProperties": {
+                    "not": {
+                      "required": [
+                        "dna_sb_oligo_indices",
+                        "sb_barcodes"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "index": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]*[1-9][0-9]*$"
+        }
+      ]
+    },
+    "index_list": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/index"
+      }
+    },
+    "sequence_list": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[\\u0000-\\u0020]*[ACGT]{3,4}[\\u0000-\\u0020]*$"
+      }
+    },
+    "pairing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sb_index"
+      ],
+      "properties": {
+        "sb_index": {
+          "$ref": "#/$defs/index"
+        },
+        "rna_oligo_index": {
+          "$ref": "#/$defs/index"
+        },
+        "dna_oligo_index": {
+          "$ref": "#/$defs/index"
+        },
+        "rna_sb_barcode": {
+          "type": "string",
+          "pattern": "^[\\u0000-\\u0020]*[ACGT]{4}[\\u0000-\\u0020]*$"
+        },
+        "dna_sb_barcode": {
+          "type": "string",
+          "pattern": "^[\\u0000-\\u0020]*[ACGT]{3,4}[\\u0000-\\u0020]*$"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "rna_oligo_index"
+          ]
+        },
+        {
+          "required": [
+            "dna_oligo_index"
+          ]
+        },
+        {
+          "required": [
+            "rna_sb_barcode"
+          ]
+        },
+        {
+          "required": [
+            "dna_sb_barcode"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "rna_oligo_index",
+              "rna_sb_barcode"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "dna_oligo_index",
+              "dna_sb_barcode"
+            ]
+          }
+        }
+      ]
+    },
+    "group": {
+      "type": "object",
+      "properties": {
+        "sb_oligo_indices": {
+          "$ref": "#/$defs/index_list"
+        },
+        "rna_sb_oligo_indices": {
+          "$ref": "#/$defs/index_list"
+        },
+        "dna_sb_oligo_indices": {
+          "$ref": "#/$defs/index_list"
+        },
+        "sb_barcodes": {
+          "$ref": "#/$defs/sequence_list"
+        },
+        "rna_sb_barcodes": {
+          "$ref": "#/$defs/sequence_list"
+        },
+        "dna_sb_barcodes": {
+          "$ref": "#/$defs/sequence_list"
+        },
+        "sb_oligo_pairings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/pairing"
+          }
+        },
+        "mark_barcodes": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "sb_oligo_indices"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "rna_sb_oligo_indices"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "dna_sb_oligo_indices"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "rna_sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_pairings",
+              "dna_sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_indices",
+              "rna_sb_oligo_indices"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_indices",
+              "dna_sb_oligo_indices"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_indices",
+              "sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_indices",
+              "rna_sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "sb_oligo_indices",
+              "dna_sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "rna_sb_oligo_indices",
+              "rna_sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "rna_sb_oligo_indices",
+              "sb_barcodes"
+            ]
+          }
+        },
+        {
+          "not": {
+            "required": [
+              "dna_sb_oligo_indices",
+              "dna_sb_barcodes"
+            ]
+          }
+        }
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "sb_oligo_indices"
+          ]
+        },
+        {
+          "required": [
+            "rna_sb_oligo_indices"
+          ]
+        },
+        {
+          "required": [
+            "dna_sb_oligo_indices"
+          ]
+        },
+        {
+          "required": [
+            "sb_barcodes"
+          ]
+        },
+        {
+          "required": [
+            "rna_sb_barcodes"
+          ]
+        },
+        {
+          "required": [
+            "dna_sb_barcodes"
+          ]
+        },
+        {
+          "required": [
+            "sb_oligo_pairings"
+          ]
+        }
+      ]
+    },
+    "single_tagmentation": {
+      "type": "string",
+      "pattern": "^[\\u0000-\\u0020]*[sS][iI][nN][gG][lL][eE][\\u0000-\\u0020]*$"
+    },
+    "dual_tagmentation": {
+      "type": "string",
+      "pattern": "^[\\u0000-\\u0020]*[dD][uU][aA][lL][\\u0000-\\u0020]*$"
+    },
+    "dna_tagmentation": {
+      "description": "Chemistry names are trimmed and case-insensitive, as in the runtime parser.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/single_tagmentation"
+        },
+        {
+          "$ref": "#/$defs/dual_tagmentation"
+        }
+      ]
+    }
+  }
+}

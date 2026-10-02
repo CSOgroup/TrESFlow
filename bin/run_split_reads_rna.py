@@ -75,9 +75,9 @@ def mock_split(args):
 
             group_name = resolve_group(args.sample, sb, sb_to_group)
             group_counts[group_name] += 1
-            index, corrected_sb = identities[sb]
-            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment, index, corrected_sb)
-            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment, index, corrected_sb)
+            identity = identities[sb]
+            r1_comment = canonicalize_fastq_comment(args.sample, group_name, r1_comment, identity.sb_index, identity.sb_bc)
+            r2_comment = canonicalize_fastq_comment(args.sample, group_name, r2_comment, identity.sb_index, identity.sb_bc)
             if any(find_tag_value(r1_comment, tag) != find_tag_value(r2_comment, tag) for tag in ('CB', 'XI', 'SB', 'UM')):
                 raise ValueError(f"Mate identity/UMI mismatch for {r1_name}")
             canonical_cb = find_tag_value(r1_comment, "CB")

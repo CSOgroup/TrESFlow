@@ -272,6 +272,8 @@ Expected files include:
 - `execution_trace.tsv`
 - `flowchart.html`
 - `runtime_contract.tsv`
+- `sb_identity_warnings.txt`: readable validated remapping/independent-selection warnings, emitted before preflight on every launch including resume
+- `sb_physical_to_logical.tsv`: resolved sample/group/modality/chemistry, physical `oligo_index` and sequence, logical `sb_index` and source fields
 - `warnings/*.zero_mapped_nodup_bam.tsv` when DNA NoDup BAMs have zero mapped reads and bamCoverage is skipped
 
 When the YAML contains group and DNA mark definitions, the parser also writes:
@@ -282,7 +284,8 @@ pipeline_info/derived_contract/
 
 with files such as:
 
-- `sb_group_map.tsv`
+- `rna_sb_group_map.tsv` and `dna_sb_group_map.tsv` (physical `oligo_index` retained, logical `sb_index` appended)
+- `sb_oligo_lookup.v1.tsv` and `cell_identity_version.txt`
 - `dna_mo_map.tsv`
 - per-sample DNA modality whitelist files
 
@@ -310,8 +313,9 @@ Consumer-local staged entries are unlinked after that consumer succeeds, indepen
 
 Nextflow still cleans successful task directories after the workflow finishes successfully. On failure, producer cleanup barriers whose consumers did not all finish do not fire. With cleanup enabled, `-resume` can recompute tasks whose FASTQ cache outputs are gone; cleanup tasks are non-cacheable so recreated intermediates are reclaimed again. Set `--cleanup_work false` to disable both early FASTQ reclamation and successful-run work cleanup for debugging or a more cache-friendly run.
 
-Cell barcode outputs use [full-cell-v1](cell_identity.md):
-`CB = XI = <sample>_<group>_<oligo_index>_<L1L2L3>`. This includes published
+Cell barcode outputs use [full-cell-v2](cell_identity.md):
+`CB = XI = <sample>_<group>_<sb_index>_<L1L2L3>`. This includes published
 RNA raw/filtered barcodes and per-cell statistics, RNA BAMs, and DNA
 aligned/MarkedDup/NoDup BAMs. `SB` stays chemistry-specific; DNA marks share
-one cell identity. Older counted/deduplicated outputs require regeneration.
+one cell identity. Without explicit pairing, `sb_index` is the actual physical
+`oligo_index`; pairing changes identity labels while retaining physical SB. Older counted/deduplicated outputs require regeneration.

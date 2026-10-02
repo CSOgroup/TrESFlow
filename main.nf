@@ -133,6 +133,12 @@ workflow {
         error e.message
     }
 
+    // Emit validated identity declarations on every launch, including resume,
+    // before runtime/reference preflight or any process submission.
+    samplesheetContract.sb_identity_warnings.each { warning ->
+        log.warn samplesheetParser.delimitIdentityWarning(warning)
+    }
+
     def runtimeConfig = samplesheetContract['runtime'] as Map
     def referenceConfig = samplesheetContract['references'] as Map
     def modalityConfig = samplesheetContract['modalities'] as Map

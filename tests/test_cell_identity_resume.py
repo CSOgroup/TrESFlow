@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from test_full_cell_identity import nextflow_test_env
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -36,7 +38,7 @@ def test_lookup_content_and_identity_changes_invalidate_resumed_tasks(tmp_path):
     command=['nextflow','run',str(REPO),'-profile','test','-ansi-log','false','-work-dir',str(tmp_path/'work'),
              '--samplesheet',str(samplesheet),'--outdir',str(tmp_path/'out'), '--sb_oligo_lookup',str(lookup),
              '--cleanup_work','false','--publish_split_fastqs','true']
-    env=dict(os.environ,NXF_HOME=str(tmp_path/'nxf_home'),NXF_OFFLINE='true')
+    env=nextflow_test_env(tmp_path/'nxf_home')
     def execute(number,resume=False):
         trace=tmp_path/f'trace{number}.tsv'
         result=subprocess.run(command+['-with-trace',str(trace)]+(['-resume'] if resume else []),
@@ -61,7 +63,7 @@ def test_lookup_content_and_identity_changes_invalidate_resumed_tasks(tmp_path):
     # Change content at the same path, preserving byte size and mtime. The
     # explicit SHA-256 in metadata must invalidate even standard path caching.
     stat=lookup.stat()
-    lookup.write_text(lookup.read_text().replace('05\tCAGT\tGTC','13\tCAGT\tGTC'))
+    lookup.write_text(lookup.read_text().replace('05\tCAGT\tGTC','17\tCAGT\tGTC'))
     os.utime(lookup,ns=(stat.st_atime_ns,stat.st_mtime_ns))
     assert lookup.stat().st_size==stat.st_size
     third=execute(3,True)
@@ -72,6 +74,34 @@ def test_lookup_content_and_identity_changes_invalidate_resumed_tasks(tmp_path):
     import gzip
     fastq=tmp_path/'out/rna_split_fastqs/cache_sample_Normal_R1.fastq.gz'
     with gzip.open(fastq,'rt') as handle:text=handle.read()
-    assert 'CB:Z:cache_sample_Normal_13_' in text
+    assert 'CB:Z:cache_sample_Normal_17_' in text
     barcodes=(tmp_path/'out/rna_align/cache_sample_Normal.Solo.outGeneFull/raw/barcodes.tsv').read_text()
-    assert 'cache_sample_Normal_13_' in barcodes and '_05_' not in barcodes
+    assert 'cache_sample_Normal_17_' in barcodes and '_05_' not in barcodes
+
+    # Switch to explicit pairing with unchanged physical sequences, then change
+    # only the logical sb_index at the same samplesheet path on another resume.
+    normal = sheet['samples']['cache_sample']['groups']['Normal']
+    normal.pop('rna_sb_barcodes'); normal.pop('dna_sb_barcodes')
+    normal['sb_oligo_pairings'] = [{'sb_index':'42', 'rna_sb_barcode':'CAGT', 'dna_sb_barcode':'GTC'}]
+    samplesheet.write_text(yaml.safe_dump(sheet, sort_keys=False))
+    fourth = execute(4, True)
+    physical_before = list(csv.DictReader((tmp_path/'out/pipeline_info/sb_physical_to_logical.tsv').open(), delimiter='\t'))
+    normal['sb_oligo_pairings'][0]['sb_index'] = '43'
+    samplesheet.write_text(yaml.safe_dump(sheet, sort_keys=False))
+    fifth = execute(5, True)
+    for stage in stages + downstream_stages:
+        assert rows(stage, fourth) and rows(stage, fifth), stage
+        assert all(r['status']=='COMPLETED' for r in rows(stage, fifth)), (stage, fifth)
+        assert {r['hash'] for r in rows(stage, fourth)}.isdisjoint({r['hash'] for r in rows(stage, fifth)})
+    physical_after = list(csv.DictReader((tmp_path/'out/pipeline_info/sb_physical_to_logical.tsv').open(), delimiter='\t'))
+    assert [{k:v for k,v in r.items() if k!='sb_index'} for r in physical_before] == [
+        {k:v for k,v in r.items() if k!='sb_index'} for r in physical_after]
+    assert {r['sb_index'] for r in physical_after if r['sb_group']=='Normal'} == {'43'}
+    for number, label in [(4,'42'), (5,'43')]:
+        log = (tmp_path/f'run{number}.log').read_text()
+        assert 'SB IDENTITY WARNING' in log and f'shared sb_index {label}' in log
+    assert 'shared sb_index 43' in (tmp_path/'.nextflow.log').read_text()
+    assert 'shared sb_index 43' in (tmp_path/'out/pipeline_info/sb_identity_warnings.txt').read_text()
+    with gzip.open(fastq, 'rt') as handle: text = handle.read()
+    assert 'CB:Z:cache_sample_Normal_43_' in text and 'SB:Z:CAGT' in text
+    assert 'cache_sample_Normal_43_' in (tmp_path/'out/rna_align/cache_sample_Normal.Solo.outGeneFull/raw/barcodes.tsv').read_text()

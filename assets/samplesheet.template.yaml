@@ -25,6 +25,7 @@ samples:
     groups:
       # A group may be RNA-only, DNA-only, or participate in both modalities.
       group_a:
+        # Normal corresponding selections expand the selected chemistries.
         sb_oligo_indices: ["01", "02"]
         mark_barcodes:
           H3K27me3: AGGCTATA
@@ -58,3 +59,10 @@ samples:
         i1: /run1/sample_DNA_I1.fq.gz, /run2/sample_DNA_I1.fq.gz
         r1: /run1/sample_DNA_R1.fq.gz, /run2/sample_DNA_R1.fq.gz
         r2: /run1/sample_DNA_R2.fq.gz, /run2/sample_DNA_R2.fq.gz
+
+# Independent selections can instead use rna_sb_oligo_indices and
+# dna_sb_oligo_indices. Differences warn and keep their actual indices in IDs.
+# Indices 13–16 are available only for RNA/single DNA (dual column is '-').
+# Exceptional experimenter mismatches: replace all group selectors with
+# sb_oligo_pairings; see samplesheet.sb-pairings.example.yaml. Pairing changes
+# logical sb_index labels and retains actual chemistry-specific SB sequences.

@@ -1,0 +1,43 @@
+# Exceptional experimenter mismatches; use normal sb_oligo_indices for
+# corresponding selections. Physical sequences remain SB; sb_index labels CB/XI.
+# This example uses the small test fixtures, not production reads.
+library_name: TESTLIB
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+references:
+  species: human
+  root: testdata/TrESFlow_References
+  ligation_barcode_whitelist: testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+  rna_ref_dir: testdata/TrESFlow_References/rna/human/star
+  dna_ref_dir: testdata/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: testdata/TrESFlow_References/dna/human/blacklist.bed
+  dna_chrom_sizes: testdata/TrESFlow_References/dna/human/chrom.sizes
+  dna_effective_genome_size: 12
+samples:
+  test_rna:
+    groups:
+      Normal:
+        sb_oligo_pairings:
+        - sb_index: '05'
+          rna_oligo_index: '05'
+          dna_oligo_index: '01'
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+      RNA13_DNA07:
+        sb_oligo_pairings:
+        - sb_index: '13'
+          rna_sb_barcode: GATC
+          dna_sb_barcode: GAC
+        mark_barcodes:
+          H3K27ac: GCCTCTAT
+    rna:
+      reads:
+        i1: testdata/test_rna_I1.fastq
+        r1: testdata/test_rna_R1.fastq
+        r2: testdata/test_rna_R2.fastq
+    dna:
+      tagmentation: dual
+      reads:
+        i1: testdata/test_dna_I1_dual_lig.fastq
+        r1: testdata/test_dna_R1.fastq
+        r2: testdata/test_dna_R2.fastq

@@ -1,20 +1,20 @@
-# Cell identity: full-cell-v1
+# Cell identity: full-cell-v2
 
 From splitting onward, `CB` and `XI` contain the same complete cell identifier:
 
 ```text
-<sample_id>_<group_name>_<sb_oligo_index>_<L1L2L3>
+<sample_id>_<group_name>_<sb_index>_<L1L2L3>
 ```
 
 `sample_id` is the key under `samples`, and `group_name` is the group key.
 L1/L2/L3 retain their existing corrected, concatenated order. The positive
-oligo index has at least two decimal digits (`1` → `01`, `12` → `12`,
+`sb_index` has at least two decimal digits (`1` → `01`, `12` → `12`,
 `100` → `100`). Library name, modality, DNA mark, SB nucleotide sequence and
 UMI are excluded. `SB` retains the corrected chemistry-specific sequence;
 RNA `UM`/`UR` retain the extracted UMI, and STAR `UB` retains the corrected UMI.
 
 The versioned [lookup TSV](../assets/sb_oligo_lookup.v1.tsv) is the runtime
-source of truth. It records biological partitions shared across chemistries,
+source of truth for physical oligos. It records corresponding physical oligos across chemistries,
 using the mapping supplied from the corrected `BarcodesRefSimple(2).xlsx`.
 Excel and Excel-reading packages are not runtime dependencies. RNA always
 uses `rna_and_single_dna_sb`, as does single-tag DNA. Dual-tag DNA uses
@@ -24,7 +24,14 @@ computed by truncation or reverse complementation.
 For example, index `07` resolves to RNA/single-DNA `GCTA` and dual-DNA `GAC`.
 Index `10` resolves to `TGCA` and `GCA`. With equal sample, group and ligations,
 these different chemistry sequences produce equal full identifiers. All DNA
-marks for a cell share its identifier.
+marks for a cell share its identifier. Without pairing, `sb_index` is the
+actual physical `oligo_index`, so existing valid samplesheets keep their IDs.
+Indices 13–16 resolve to `GATC`, `TGAC`, `CATG`, `TACG` for RNA/single DNA.
+Their dual-DNA column is explicitly unavailable (`-`). Unavailable entries
+are excluded from reverse lookup and sequence uniqueness checks; all real
+sequences and normalized indices are validated, including unused rows.
+Selecting an unavailable physical dual oligo fails validation. It is never
+inferred, truncated or substituted. Mappings 03=`GACT` and 11=`CTGA` remain intact.
 
 ## Samplesheet input
 
@@ -47,36 +54,103 @@ samples:
 
 DNA participation still requires group-level `mark_barcodes`. To define
 RNA-only or DNA-only groups within a multimodal sample, use the respective
-`rna_sb_barcodes` or `dna_sb_barcodes` sequence field. Existing sequence input
+`rna_sb_oligo_indices` / `dna_sb_oligo_indices`, or their existing
+`rna_sb_barcodes` / `dna_sb_barcodes` sequence fields. Existing sequence input
 is supported and resolved through the lookup. RNA selects `rna_sb_barcodes`
 when present, otherwise `sb_barcodes`; single-tag DNA selects
 `dna_sb_barcodes`, otherwise `sb_barcodes`. Legacy dual-tag input requires
 explicit three-base `dna_sb_barcodes`, together with the RNA four-base input
-when RNA participates. Only the new index field expands chemistries
+when RNA participates. Only index selectors expand chemistries
 implicitly. The original Tonsil1 samplesheet therefore remains valid.
+
+Independent modality selections can differ. The parser warns and continues,
+retaining each actual index in its identifier. Matching sets in different
+orders are equivalent; list order never establishes correspondence.
+
+```yaml
+B:
+  rna_sb_oligo_indices: ["07", "13"]
+  dna_sb_oligo_indices: ["10", "07"]
+  mark_barcodes:
+    H3K27ac: GCCTCTAT
+```
+
+Shared `sb_oligo_indices` is exclusive with all other barcode selectors.
+Modality index lists may be mixed with the *other* modality's index or sequence
+input, but conflict with their own modality's sequence field or shared
+`sb_barcodes` when it applies to that modality. Dual DNA indices may coexist
+with shared `sb_barcodes` used for RNA. Existing sequence-only precedence remains intact.
+
+### Exceptional explicit pairing
+
+Use `sb_oligo_pairings` only when the samplesheet must explicitly correct an
+experimenter mismatch between physical oligos representing one biological
+partition. Standard corresponding selections use the normal interface.
+
+```yaml
+B:
+  sb_oligo_pairings:
+    - sb_index: "07"
+      rna_oligo_index: "07"
+      dna_oligo_index: "10"
+    - sb_index: "13"
+      rna_sb_barcode: GATC
+      dna_sb_barcode: GAC
+  mark_barcodes:
+    H3K27ac: GCCTCTAT
+```
+
+For dual DNA, the first entry selects RNA `GCTA` (physical 07) and DNA `GCA`
+(physical 10), both labelled `07`. The second selects RNA physical 13 and
+DNA physical 07, both labelled `13`. This succeeds even though physical 13
+has no dual sequence: the selected dual oligo is 07. `sb_index` is an identity
+label and is never used to select chemistry sequences. Any strictly positive
+decimal label is permitted, including one absent from the physical lookup.
+
+Each entry requires `sb_index` and at least one modality. Each present modality
+requires exactly one of `rna_oligo_index` / `rna_sb_barcode`, or
+`dna_oligo_index` / `dna_sb_barcode`. Sequence selectors are singular exact
+chemistry-specific lookup sequences. Omission means a modality-specific
+partition; it does not create an inferred counterpart. Complementary entries
+may share a label, but each shared identity permits at most one physical
+oligo per modality. All selectors require the corresponding sample reads
+block. Pairing is exclusive with every other group barcode-selection field.
+
+Pairing applies only within the same sample and group. It changes CB/XI and
+matrix/per-cell identity labels while preserving physical SB, molecular UMIs,
+DNA marks and AVITI read groups. Physical `oligo_index` remains independent
+of logical `sb_index` in derived records and audits.
+
+After the complete samplesheet validates, every nontrivial remapping emits a
+clearly delimited Nextflow warning before runtime/reference preflight or any
+processing. It names the sample/group, actual indices and sequences, selected
+DNA chemistry and shared `sb_index`, and states that the samplesheet declares
+one biological partition. Independent mismatches warn that unmatched full
+identifiers differ. Cross-modality reuse across different groups warns about
+distinct namespaces when routing remains unambiguous. Warnings are emitted
+again on resumed runs, require no confirmation and do not pause processing.
 
 The parser rejects:
 
-- Indices combined with any sequence-input field in one group.
+- Conflicting selectors, missing/extra pairing fields, and reused physical
+  barcodes or multiple physical oligos per shared identity within a modality.
 - Booleans, floats, nondecimal strings, whitespace, zero/negative indices,
-  empty lists, unknown indices and duplicates after normalization, including
-  `[1, "01"]`.
-- Unknown sequences and sequences of the wrong chemistry length.
-- Ambiguous lookup rows: missing/extra/empty columns, duplicate normalized
-  indices or sequences in either column, lowercase or non-ACGT sequences,
-  and four-base/three-base length violations. The entire table is checked,
-  including unused rows.
-- Index or sequence collisions across groups in one sample, including
-  collisions between separate modality-only groups.
-- Different RNA/DNA resolved index sets in a shared group. Order may differ.
-- Names that would collapse distinct sample/group namespaces or output
-  stems. Names are retained exactly and may contain underscores, dots and
-  hyphens, including `K422_A`/`K422_B`; whitespace, path/shell characters and
-  reserved `Unknown` names are rejected.
+  empty lists, unknown physical indices and duplicates after normalization.
+- Unknown sequences, wrong chemistry lengths, and unavailable selected dual
+  oligos. The logical label alone never requires a physical lookup row.
+- Malformed lookup rows, duplicate normalized indices, duplicate real
+  sequences, lowercase/non-ACGT sequences and length violations. Only the
+  explicit `-` in the dual column is an unavailable sentinel.
+- Physical barcode collisions across groups within one sample and modality.
+- Names that collapse distinct sample/group namespaces or output stems.
+  Names may retain underscores, dots and hyphens; namespaces are explicit
+  metadata and are never inferred by splitting underscores.
 
-Additional positive indices require only valid unique TSV rows. There is no
-12- or 99-index limit. `--sb_oligo_lookup /path/to/lookup.tsv` selects another
-complete table; its chemistry constraints still apply.
+Additional positive physical indices require valid unique TSV rows. There is
+no 12- or 99-index limit. `--sb_oligo_lookup /path/to/lookup.tsv` selects another
+complete table. The [samplesheet schema](../assets/samplesheet.schema.json)
+covers selector structure for editor/tool validation; the parser additionally
+checks normalized uniqueness, chemistry availability and routing.
 
 ## Derived files and task hashing
 
@@ -85,9 +159,12 @@ complete table; its chemistry constraints still apply.
 lookup SHA-256. Each modality's SB map has these tab-separated columns:
 
 ```text
-sample  sb_group  sb_bc  oligo_index  modality  chemistry  input_source  sb_injected_base
+sample  sb_group  sb_bc  oligo_index  modality  chemistry  input_source  sb_injected_base  sb_index
 ```
 
+`oligo_index` retains the actual physical lookup index; the appended
+`sb_index` supplies the logical identity used by both splitters. Older maps
+without that appended field default to their physical index.
 The first three columns retain their original names and meaning for QC and
 report readers. `chemistry` is `rna`, `dna_single` or `dna_dual`;
 `input_source` is the original samplesheet field path. `sb_injected_base` is
@@ -99,7 +176,12 @@ there is no blind drop-first lookup or guessed prefix.
 
 `dna_mo_map.tsv` retains `sample`, `sb_group`, `mark`, `mo_bc`.
 DNA modality whitelists and `input_fastq_provenance.tsv` retain their contracts.
-Metadata carries `cell_id_version`, `sb_lookup_sha256`, complete resolved
+`pipeline_info/sb_identity_warnings.txt` saves readable warnings (or explicitly
+records no warnings). `pipeline_info/sb_physical_to_logical.tsv` audits all
+resolved modality mappings with the same columns as the SB maps. These files
+are regenerated after successful validation on every launch, including resume.
+
+Metadata carries `cell_id_version`, `sb_lookup_sha256`, `sb_mapping_sha256`, complete resolved
 `cell_identity_records`, and `split_targets`, an explicit output stem →
 sample/group/mark mapping. Group and mark names are never recovered by
 splitting on underscores.
@@ -107,7 +189,7 @@ splitting on underscores.
 The derived maps are Nextflow `path` inputs to tagging, splitting and QC.
 The entire lookup's content digest and resolved identities are `val` metadata
 through both active graphs, including STAR and nf-core GATK. A lookup or
-identity change therefore changes hashes even at an unchanged pathname and
+identity change, including a change only to `sb_index` or pairing, therefore changes hashes even at an unchanged pathname and
 with unchanged size/mtime. Identical derived files are preserved byte-for-byte
 without rewriting their timestamps. Cleanup passes the work directory as a
 stable string rather than a filesystem object whose timestamp changes during
@@ -122,7 +204,7 @@ STAR 2.7.11b is configured with `--soloCBtype String`,
 `--soloInputSAMattrBarcodeSeq XI UM`, and `--soloCBwhitelist None`.
 `--soloCBlen 24` remains a valid parameter-validation placeholder; String
 mode reads the two attributes independently. Counting, UMI deduplication and
-cell calling distinguish oligo indices before any aggregation. Production
+cell calling distinguish logical SB indices before any aggregation. Production
 alignment, gene, UMI and EmptyDrops settings remain intact.
 
 Raw/filtered barcode TSVs, matrices and per-cell statistics consequently use
@@ -177,7 +259,7 @@ exercise.
 Run the generated-fixture evidence in the configured environment:
 
 ```bash
-python -m pytest -q tests/test_full_cell_identity.py tests/test_aviti_optical_duplicates.py tests/test_cell_identity_resume.py
+python -m pytest -q tests/test_full_cell_identity.py tests/test_sb_index_pairings.py tests/test_aviti_optical_duplicates.py tests/test_cell_identity_resume.py
 nf-test test tests/default.nf.test tests/multi_fastq.nf.test tests/canonical_bam_filter.nf.test --profile test --ci
 ```
 
