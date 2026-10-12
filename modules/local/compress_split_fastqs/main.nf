@@ -10,7 +10,7 @@ include { runtimeShellExports; runtimeOutdir; intermediateFastqCleanupCommand; r
 
 process COMPRESS_SPLIT_FASTQS {
     tag "${modality}.${sampleId}"
-    label 'process_single'
+    label 'process_compression'
 
     publishDir { "${runtimeOutdir()}/${modality}_split_fastqs" }, mode: 'copy', overwrite: true, pattern: "*_R[12].fastq.gz"
 

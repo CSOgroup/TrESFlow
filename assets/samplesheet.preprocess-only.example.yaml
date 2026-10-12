@@ -1,0 +1,23 @@
+# No genome references. Set env_prefix and replace reads for your experiment.
+# Bundled 16 nt genomic mates are below the real 20 nt trimming threshold;
+# they exercise empty exports. Replace them with your library for populated exports.
+# NXF_OFFLINE=true nextflow run . --preprocess_only true \
+#   --samplesheet assets/samplesheet.preprocess-only.example.yaml --outdir results/preprocess
+library_name: PREPROCESS_POOL
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+
+references:
+  ligation_barcode_whitelist: testdata/TrESFlow_References/ligation_barcode_whitelist.txt
+
+samples:
+  pool:
+    groups:
+      PoolA:
+        sb_oligo_indices: ["05"]
+    rna:
+      reads:
+        i1: testdata/test_rna_I1.fastq
+        r1: testdata/test_rna_R1.fastq
+        r2: testdata/test_rna_R2.fastq

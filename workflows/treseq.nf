@@ -108,8 +108,8 @@ workflow TRESEQ {
         .set { ch_dna_samples }
 
     // RNA and DNA run as independent branches under the same samplesheet contract.
-    RNA_CORE(ch_rna_samples)
-    DNA_CORE(ch_dna_samples)
+    RNA_CORE(ch_rna_samples, reportMetadata.preprocess_only)
+    DNA_CORE(ch_dna_samples, reportMetadata.preprocess_only)
 
     Channel
         .fromList(sampleRows)
@@ -118,36 +118,47 @@ workflow TRESEQ {
 
     FASTQC(ch_raw_fastqs_for_fastqc)
 
-    // Combined Samtools sidecar QC does not alter the TrESFlow data path; one
-    // task per BAM emits the standardized QC text files.
-    ch_rna_bams_for_qc = RNA_CORE.out.internal_filtered_bams.map { splitName, meta, bam ->
-        tuple(qcMeta(meta, "rna.${splitName}.filtered_cells", 'rna', 'filtered_cells', splitName), bam, [], false)
+    ch_samtools_flagstat = Channel.empty()
+    ch_samtools_stats = Channel.empty()
+    ch_samtools_idxstats = Channel.empty()
+    ch_samtools_quickcheck = Channel.empty()
+    if( !reportMetadata.preprocess_only ) {
+        // Combined Samtools sidecar QC does not alter the TrESFlow data path; one
+        // task per BAM emits the standardized QC text files.
+        ch_rna_bams_for_qc = RNA_CORE.out.internal_filtered_bams.map { splitName, meta, bam ->
+            tuple(qcMeta(meta, "rna.${splitName}.filtered_cells", 'rna', 'filtered_cells', splitName), bam, [], false)
+        }
+
+        ch_dna_aligned_bams_for_qc = DNA_CORE.out.aligned_bams
+            .join(DNA_CORE.out.aligned_bais)
+            .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+                tuple(qcMeta(metaFromBam, "dna.${splitName}.aligned", 'dna', 'aligned', splitName), bam, bai, true)
+            }
+
+        ch_dna_markeddup_bams_for_qc = DNA_CORE.out.markeddup_bams
+            .join(DNA_CORE.out.markeddup_bais)
+            .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+                tuple(qcMeta(metaFromBam, "dna.${splitName}.markeddup", 'dna', 'markeddup', splitName), bam, bai, true)
+            }
+
+        ch_dna_nodup_bams_for_qc = DNA_CORE.out.nodup_bams
+            .join(DNA_CORE.out.nodup_bais)
+            .map { splitName, metaFromBam, bam, metaFromBai, bai ->
+                tuple(qcMeta(metaFromBam, "dna.${splitName}.nodup", 'dna', 'nodup', splitName), bam, bai, true)
+            }
+
+        ch_bams_for_samtools_qc = ch_rna_bams_for_qc
+            .mix(ch_dna_aligned_bams_for_qc)
+            .mix(ch_dna_markeddup_bams_for_qc)
+            .mix(ch_dna_nodup_bams_for_qc)
+
+        SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc)
+
+        ch_samtools_flagstat = SAMTOOLS_BAM_QC.out.flagstat
+        ch_samtools_stats = SAMTOOLS_BAM_QC.out.stats
+        ch_samtools_idxstats = SAMTOOLS_BAM_QC.out.idxstats
+        ch_samtools_quickcheck = SAMTOOLS_BAM_QC.out.quickcheck
     }
-
-    ch_dna_aligned_bams_for_qc = DNA_CORE.out.aligned_bams
-        .join(DNA_CORE.out.aligned_bais)
-        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
-            tuple(qcMeta(metaFromBam, "dna.${splitName}.aligned", 'dna', 'aligned', splitName), bam, bai, true)
-        }
-
-    ch_dna_markeddup_bams_for_qc = DNA_CORE.out.markeddup_bams
-        .join(DNA_CORE.out.markeddup_bais)
-        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
-            tuple(qcMeta(metaFromBam, "dna.${splitName}.markeddup", 'dna', 'markeddup', splitName), bam, bai, true)
-        }
-
-    ch_dna_nodup_bams_for_qc = DNA_CORE.out.nodup_bams
-        .join(DNA_CORE.out.nodup_bais)
-        .map { splitName, metaFromBam, bam, metaFromBai, bai ->
-            tuple(qcMeta(metaFromBam, "dna.${splitName}.nodup", 'dna', 'nodup', splitName), bam, bai, true)
-        }
-
-    ch_bams_for_samtools_qc = ch_rna_bams_for_qc
-        .mix(ch_dna_aligned_bams_for_qc)
-        .mix(ch_dna_markeddup_bams_for_qc)
-        .mix(ch_dna_nodup_bams_for_qc)
-
-    SAMTOOLS_BAM_QC(ch_bams_for_samtools_qc)
 
     ch_barcode_report_files = RNA_CORE.out.barcode_report_files
         .mix(DNA_CORE.out.barcode_report_files)
@@ -163,10 +174,10 @@ workflow TRESEQ {
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
         .mix(FASTQC.out.zip.map { meta, zip -> zip })
-        .mix(SAMTOOLS_BAM_QC.out.flagstat.map { meta, flagstat -> flagstat })
-        .mix(SAMTOOLS_BAM_QC.out.stats.map { meta, stats -> stats })
-        .mix(SAMTOOLS_BAM_QC.out.idxstats.map { meta, idxstats -> idxstats })
-        .mix(SAMTOOLS_BAM_QC.out.quickcheck.map { meta, report -> report })
+        .mix(ch_samtools_flagstat.map { meta, flagstat -> flagstat })
+        .mix(ch_samtools_stats.map { meta, stats -> stats })
+        .mix(ch_samtools_idxstats.map { meta, idxstats -> idxstats })
+        .mix(ch_samtools_quickcheck.map { meta, report -> report })
 
     ch_report_barcode_files = ch_barcode_report_files.filter { reportFile ->
         def name = reportFile.getName()
@@ -182,6 +193,7 @@ workflow TRESEQ {
 
     ch_report_source_files = ch_report_barcode_files
         .mix(RNA_CORE.out.split_retention_metrics.map { sampleId, meta, metrics -> metrics })
+        .mix(RNA_CORE.out.export_retention_metrics.map { sampleId, meta, metrics -> metrics })
         .mix(RNA_CORE.out.filter_retention_metrics.map { splitName, meta, metrics -> metrics })
         .mix(DNA_CORE.out.split_retention_metrics.map { sampleId, meta, metrics -> metrics })
         .mix(DNA_CORE.out.alignment_retention_metrics.map { splitName, meta, metrics -> metrics })
@@ -189,13 +201,14 @@ workflow TRESEQ {
         .mix(RNA_CORE.out.aligned_solo_report_summaries.map { splitName, meta, reportSoloSummary -> reportSoloSummary })
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
-        .mix(SAMTOOLS_BAM_QC.out.flagstat.map { meta, flagstat -> flagstat })
+        .mix(ch_samtools_flagstat.map { meta, flagstat -> flagstat })
         .mix(ch_report_contract_files)
 
     ch_tres_report_input = ch_report_source_files
         .collect()
         .map { files -> tuple([
             id              : 'tresflow',
+            preprocess_only : reportMetadata.preprocess_only,
             report_title    : reportMetadata.report_title,
             pipeline_version: reportMetadata.pipeline_version,
             filter_dual_tag_artifacts: params.filter_dual_tag_artifacts,
@@ -259,10 +272,10 @@ workflow TRESEQ {
     dna_coverage_bigwigs        = DNA_CORE.out.coverage_bigwigs
     dna_coverage_warnings       = DNA_CORE.out.coverage_warnings
     dna_barcode_reports         = DNA_CORE.out.barcode_reports
-    samtools_flagstat           = SAMTOOLS_BAM_QC.out.flagstat
-    samtools_stats              = SAMTOOLS_BAM_QC.out.stats
-    samtools_idxstats           = SAMTOOLS_BAM_QC.out.idxstats
-    samtools_quickcheck         = SAMTOOLS_BAM_QC.out.quickcheck
+    samtools_flagstat           = ch_samtools_flagstat
+    samtools_stats              = ch_samtools_stats
+    samtools_idxstats           = ch_samtools_idxstats
+    samtools_quickcheck         = ch_samtools_quickcheck
     fastqc_html                 = FASTQC.out.html
     fastqc_zip                  = FASTQC.out.zip
     multiqc_report              = MULTIQC.out.report

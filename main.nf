@@ -50,7 +50,9 @@ workflow {
     def rawCoreScriptsDir = params.get('core_scripts_dir')
     def avitiOpticalDuplicateDistance = null
     def filterDualTagArtifacts = null
+    def preprocessOnly = null
     try {
+        preprocessOnly = parseBooleanParameter(params.get('preprocess_only'), 'preprocess_only')
         avitiOpticalDuplicateDistance = parseNonNegativeIntegerParameter(
             params.get('aviti_optical_duplicate_distance'),
             'aviti_optical_duplicate_distance'
@@ -90,6 +92,10 @@ workflow {
     params.put('core_scripts_dir', resolvedCoreScriptsDir)
     params.put('aviti_optical_duplicate_distance', avitiOpticalDuplicateDistance)
     params.put('filter_dual_tag_artifacts', filterDualTagArtifacts)
+    params.put('preprocess_only', preprocessOnly)
+    if( preprocessOnly ) {
+        log.info 'Preprocessing-only mode: enabling gzip split FASTQ publication; --publish_split_fastqs false is overridden. Alignment and downstream BAM/coverage stages will not run.'
+    }
     java.lang.System.setProperty('tresflow.resolvedOutdir', resolvedOutdir)
     java.lang.System.setProperty('tresflow.resolvedWorkDir', workflow.workDir.toString())
     java.lang.System.setProperty('tresflow.resolvedCoreScriptsDir', resolvedCoreScriptsDir)
@@ -123,6 +129,7 @@ workflow {
         samplesheetContract = samplesheetParser.parseContract(
             resolvedSamplesheet,
             [
+                preprocess_only : preprocessOnly,
                 outdir          : resolvedOutdir,
                 barcode_defaults: params.barcode_defaults,
                 sb_oligo_lookup : params.sb_oligo_lookup ?: "${projectDir}/assets/sb_oligo_lookup.v1.tsv",
@@ -145,6 +152,7 @@ workflow {
     def runtimeParams = [
         runtime_env_prefix: runtimeConfig['env_prefix'],
         runtime_tmpdir    : runtimeConfig['tmpdir'],
+        preprocess_only   : preprocessOnly,
     ]
     def sampleRows = samplesheetContract['samples'] as List<Map>
 
@@ -166,23 +174,26 @@ workflow {
     workflowSupport.validateReferenceContract(
         referenceConfig,
         modalityConfig,
-        sampleRows
+        sampleRows,
+        preprocessOnly
     )
-    def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
-        runtimeParams,
-        projectDir.toString(),
-        resolvedOutdir,
-        referenceConfig,
-        modalityConfig
-    )
-    sampleRows.each { row ->
-        def chromosomeContract = canonicalChromosomeContracts[row.modality]
-        if( !chromosomeContract ) {
-            error "Missing canonical chromosome contract for modality '${row.modality}'"
+    if( !preprocessOnly ) {
+        def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
+            runtimeParams,
+            projectDir.toString(),
+            resolvedOutdir,
+            referenceConfig,
+            modalityConfig
+        )
+        sampleRows.each { row ->
+            def chromosomeContract = canonicalChromosomeContracts[row.modality]
+            if( !chromosomeContract ) {
+                error "Missing canonical chromosome contract for modality '${row.modality}'"
+            }
+            row.canonical_chromosomes = chromosomeContract.allowlist
+            row.canonical_chrom_sizes = chromosomeContract.chrom_sizes
+            row.chromosome_naming = chromosomeContract.style
         }
-        row.canonical_chromosomes = chromosomeContract.allowlist
-        row.canonical_chrom_sizes = chromosomeContract.chrom_sizes
-        row.chromosome_naming = chromosomeContract.style
     }
     runtimeSupport.writeRuntimeContract(
         resolvedOutdir,
@@ -194,6 +205,7 @@ workflow {
     TRESEQ(
         sampleRows,
         [
+            preprocess_only : preprocessOnly,
             report_title    : reportTitle,
             pipeline_version: pipelineReleaseVersion,
         ]

@@ -224,7 +224,15 @@ class RuntimeSupport {
     }
 
     static List<Map> standardRuntimeTools(final Map params) {
-        return STANDARD_RUNTIME_TOOLS.collect { tool ->
+        // Full mode retains its existing executable contract. Preprocessing
+        // still requires the real tagging toolchain, paired trimming and gzip.
+        final List<Map> tools = params.preprocess_only == true
+            ? STANDARD_RUNTIME_TOOLS.findAll { it.binary in ['python3', 'cutadapt', 'trim_galore', 'codon', 'pigz'] } + [
+                [name: 'fastqc', binary: 'fastqc'],
+                [name: 'multiqc', binary: 'multiqc'],
+            ]
+            : STANDARD_RUNTIME_TOOLS
+        return tools.collect { tool ->
             [name: tool.name, path: runtimeToolPath(params, tool.binary), used: 'yes']
         }
     }

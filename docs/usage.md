@@ -78,6 +78,67 @@ chemistry, tagmentation mode, and barcode layout. They do not create additional
 samples. TrESFlow does not scan directories, expand globs, or infer mates from
 filenames.
 
+## Preprocessing-only mode
+
+`--preprocess_only` is a CLI boolean (`true` or `false`, default `false`), not a
+samplesheet field. It supports RNA-only, single- or dual-tagmentation DNA-only,
+and combined libraries with the existing barcode chemistry. A small barcode
+repertoire identifies pools; it does not relax whitelist matching or NoMatch
+rejection. Sample mappings, L1/L2/L3 correction, RNA UMIs, full CB/XI identities,
+SB/MO/RG comments, pairing and technical-chunk synchronization are unchanged.
+
+```bash
+NXF_OFFLINE=true nextflow run . \
+  --samplesheet assets/samplesheet.preprocess-only.example.yaml \
+  --preprocess_only true --outdir results/preprocess
+```
+
+Edit the example's `runtime.env_prefix` for your host and replace its bundled
+FASTQs/actual whitelist for your experiment. Preprocessing needs `python3`,
+Codon **0.16.3** with Seq **0.11.3**, `cutadapt`, `trim_galore`, `pigz`, `fastqc`
+and `multiqc`, together with the normal report Python dependencies. The pinned
+Codon/Seq compatibility preflight still runs. Alignment tools are not required.
+
+Keep `references.ligation_barcode_whitelist`, runtime configuration, reads and
+barcode/group/mark mappings. You may omit `references.root`, `species`,
+`rna_ref_dir`, `dna_ref_dir`, blacklist, chromosome sizes and effective genome
+size. Alignment validation, bwa prefix inference and canonical-chromosome
+contracts are skipped. Full mode retains its reference and tool requirements.
+
+All applicable preprocessing and QC stages run, including the existing
+post-trimming artifact filter only for eligible dual DNA. Gzip split FASTQ
+publication is forced even if `--publish_split_fastqs false` was supplied; the
+launch log records this override. The workflow then completes publication,
+reports and applicable cleanup. RNA SAM conversion, STARsolo, called-cell
+filtering, DNA alignment/canonical filtering, duplicate processing, coverage
+and BAM QC are disabled. There is no bulk alignment/counting/peak calling.
+
+Outputs use the existing group and group/mark filenames under
+`rna_split_fastqs/` and `dna_split_fastqs/`. TrESFlow reports label the mode,
+show retention through RNA export or DNA routing, and record skipped downstream metrics
+as `not run`. `library_complexity.tsv` has its usual header and no measured
+rows. FastQC and MultiQC remain available. Reporting consumes explicit staged
+metric channels and does not scan the publication directory.
+
+RNA bulk exports remove the sample-barcode/UMI prefix from R2 sequence and
+quality once (current layout: bases 1–14). R1 sequence and quality are retained.
+Pairs with either mate shorter than the existing 20-base minimum after clipping
+are discarded together and reported in `*.rna_export_retention.tsv` and the
+consolidated retention/QC tables. Both primary names become
+`<original_id>_<pool_id>_<UMI>`; the UM tag is copied in its existing orientation.
+The delimiter-safe pool ID is `P` plus the SHA-256 of the canonical JSON array
+`[CB, SB]`, with full provenance in `*.rna_export_pools.tsv` and retained FASTQ
+comments. Combined pools require pool-aware downstream deduplication. DNA and
+full-mode exports retain their existing format.
+
+Cleanup retains its normal safeguards and upstream split/barcode-QC barriers.
+In preprocessing mode, producer split FASTQs wait for successful RNA conversion/compression or DNA compression instead of
+SAM conversion or alignment. Published gzip FASTQs, source FASTQs, references
+and repository assets are never early-cleanup targets. `--cleanup_work false`
+retains intermediates and successful task work directories. With default
+cleanup enabled, `-resume` can recompute removed outputs and is not a reliable
+zero-recomputation restart.
+
 ## Samplesheet Contract
 
 The supported YAML structure is:
@@ -132,7 +193,7 @@ samples:
 
 - `library_name`: run-level library label propagated into RG headers and derived contract files
 - `runtime`: required runtime environment and explicit task temporary directory
-- `references`: required species label, shared files, and direct RNA/DNA reference paths
+- `references`: actual ligation whitelist in both modes; species, root and modality-specific genome paths additionally required in full mode
 - `samples`: biological sample blocks keyed by user-defined sample ID
 
 ### `runtime`
@@ -141,6 +202,8 @@ samples:
 - `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
 
 ### `references`
+
+The genome requirements below apply to full mode. With `--preprocess_only true`, only the actual `ligation_barcode_whitelist` is required here.
 
 `references.rna_ref_dir` points directly to the STAR index directory. The pipeline passes this exact path to STAR and does not append species, `rna`, or `star`.
 
@@ -244,6 +307,7 @@ The main public parameters are:
 - `--samplesheet`
 - `--sb_oligo_lookup` (optional versioned chemistry lookup override)
 - `--outdir`
+- `--preprocess_only` (strict boolean, default `false`)
 - `--publish_split_fastqs`
 - `--max_cpus`
 - `--cleanup_work`
@@ -251,6 +315,7 @@ The main public parameters are:
 - `--dna_align_cpus`
 - `--coverage_cpus`
 - `--helper_cpus`
+- `--rna_export_cpus` (default `16`, capped by `--max_cpus`)
 - `--tagging_cpus`
 - `--tagging_memory`
 - `--filter_dual_tag_artifacts`
@@ -319,15 +384,19 @@ It is read-only with respect to the assessed output. Legacy runs without exact
 gate sidecars retain only provable coarse stages; exact gates or composition are
 never reconstructed from marginal percentages.
 
+When regenerating a preprocessing-only report with the standalone assessor,
+pass `--run-metadata-json '{"preprocess_only": true}'` to retain the mode label
+and explicit downstream `not run` statuses. The pipeline supplies this metadata
+automatically.
+
 Unlike the pipeline report process, the standalone assessor also writes its
 normalized JSON model and standalone SVG copies by default. Use `--no-json` and
 `--no-standalone-figures` to request the pipeline's compact five-file contract.
 
-`--publish_split_fastqs` defaults to `false`. Internal plain split FASTQs still
-feed RNA and DNA computation, but the publication-only `pigz` tasks and the
-top-level `rna_split_fastqs/` and `dna_split_fastqs/` directories are omitted.
-Set `--publish_split_fastqs` to publish both modalities' split FASTQs, when
-present, in their existing gzip-compressed directories and filenames.
+In full mode, `--publish_split_fastqs` defaults to `false`: internal plain
+split FASTQs feed computation, while publication compression and split-FASTQ
+result directories are omitted. Set `--publish_split_fastqs true` to publish
+those gzip copies. Preprocessing-only mode always enables that publication.
 
 For local execution, `--max_cpus` is the global executor cap and all bundled per-process CPU reservations are capped by it. The default reservations favor concurrency across independent samples, groups, and DNA marks:
 
@@ -345,6 +414,36 @@ Nextflow's supported successful-run cleanup still removes completed task work di
 
 ## Bundled Examples
 
+- preprocessing-only example with no genome fields: [`assets/samplesheet.preprocess-only.example.yaml`](../assets/samplesheet.preprocess-only.example.yaml)
 - smoke-test YAML: [`assets/samplesheet.example.yaml`](../assets/samplesheet.example.yaml)
 - real-data style example: [`assets/samplesheet.real.example.yaml`](../assets/samplesheet.real.example.yaml)
 - editable template: [`assets/samplesheet.template.yaml`](../assets/samplesheet.template.yaml)
+
+## Preprocessing regression checks
+
+With the supported runtime installed and activated, run:
+
+```bash
+NXF_OFFLINE=true pytest -q tests/test_preprocess_only.py
+```
+
+Set `TRESFLOW_TEST_RUNTIME` and/or `NEXTFLOW_BIN` for another installation. The
+workflow comparison tests use the existing `test` profile for mocked tagging,
+trimming, filtering and splitting, with real compression, metrics, QC,
+publication and cleanup. They compare decompressed exports with full-mode
+fixtures for RNA, both DNA chemistries and combined libraries. The separate
+Codon/Seq smoke test uses no mock profile: it extends the bundled short genomic
+mates to survive production trimming, while retaining barcode/UMI prefixes and
+index reads, and executes the real preprocessing toolchain without alignment
+executables. Missing local test prerequisites are reported as pytest skips.
+
+
+RNA bulk export uses `--rna_export_cpus 16` by default, capped by `--max_cpus`.
+It shares the compression processes' 4 GB memory and 12-hour time settings.
+The actual task allocation is passed as the exporter's total CPU budget:
+conversion reserves one CPU, and both mate pigz compressors share the remainder,
+including their read/write threads (16 CPUs gives `pigz -p 5` per mate).
+With one or two CPUs, conversion and gzip compression run serially in one
+process to avoid oversubscription. Output is streamed in bounded batches;
+there is no temporary uncompressed export or readback. Tag parsing and pool
+hashes are reused without changing read ordering, names, sequences or metrics.

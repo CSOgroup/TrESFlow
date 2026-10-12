@@ -100,19 +100,26 @@ class WorkflowSupport {
     static void validateReferenceContract(
         final Map references,
         final Map modalities,
-        final List<Map> sampleRows = []
+        final List<Map> sampleRows = [],
+        final boolean preprocessOnly = false
     ) {
-        requireDirectory(
-            references.root,
-            'references.root',
-            "Reference root not found or not a directory"
-        )
-        requireValue(references.species, 'references.species')
+        if( !preprocessOnly ) {
+            requireDirectory(
+                references.root,
+                'references.root',
+                "Reference root not found or not a directory"
+            )
+            requireValue(references.species, 'references.species')
+        }
         requireFile(
             references.ligation_barcode_whitelist,
             'references.ligation_barcode_whitelist',
             "Required ligation barcode whitelist not found"
         )
+
+        if( preprocessOnly ) {
+            return
+        }
 
         if( (modalities.rna as boolean) ) {
             validateRnaReferences(
