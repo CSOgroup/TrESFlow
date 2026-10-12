@@ -109,8 +109,8 @@ samples:
 - FASTQ inputs may be a single path, a comma-separated list, or a YAML sequence. Multiple entries represent ordered technical FASTQ chunks from the same library, and corresponding read roles must contain the same number of entries.
 - YAML sequences are recommended for multi-FASTQ inputs and are required when a path itself contains a comma. Relative paths resolve from the samplesheet directory.
 - `runtime.tmpdir` is optional and defaults to `--outdir`.
-- `references.rna_ref_dir` must point to a STAR index when RNA is present.
-- DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
+- In full mode, `references.rna_ref_dir` must point to a STAR index when RNA is present.
+- Full-mode DNA samples require a bwa-mem2 reference, blacklist, chromosome sizes, and effective genome size.
 
 For an experimenter mismatch, exceptionally declare `sb_oligo_pairings`:
 
@@ -160,9 +160,37 @@ NXF_OFFLINE=true nextflow run . \
   --max_cpus 80
 ```
 
+### Reference-free preprocessing
+
+For TrES-seq libraries where one or two sample/ligation barcodes identify pools,
+use `--preprocess_only true`. The normal chemistry, barcode validation and mark
+routing are retained. This mode runs tagging, paired trimming, eligible dual-tag
+artifact filtering, splitting and preprocessing QC, then finishes successfully
+without alignment, counting, peak calling or BAM/coverage stages.
+
+```bash
+NXF_OFFLINE=true nextflow run . \
+  --preprocess_only true \
+  --samplesheet assets/samplesheet.preprocess-only.example.yaml \
+  --outdir results/preprocess
+```
+
+The [minimal samplesheet](assets/samplesheet.preprocess-only.example.yaml) points
+to the bundled real ligation whitelist and FASTQs; set `runtime.env_prefix` to
+your installed environment. Genome-reference fields, including `root` and
+`species`, may be omitted. The actual ligation whitelist remains mandatory.
+Gzip split FASTQs are always published in `rna_split_fastqs/` and/or
+`dna_split_fastqs/`, even with `--publish_split_fastqs false`; the launch log
+explains this override. Reports identify preprocessing-only mode and show
+alignment, duplication, coverage and cell calling as **not run**.
+
+For bulk export, run `NXF_OFFLINE=true nextflow run . --preprocess_only true --samplesheet assets/samplesheet.preprocess-only.example.yaml --outdir results/preprocess`. RNA exports remove R2's 14-base sample-barcode/UMI prefix once and append the pool ID and existing UMI to both read names. Use [nf-core/rnaseq](https://nf-co.re/rnaseq/latest/docs/usage) with `--with_umi --skip_umi_extract --umitools_umi_separator "_" --skip_trimming`. Combined barcode pools require pool-aware downstream deduplication. DNA group/mark exports can be used with [nf-core/cutandrun](https://nf-co.re/cutandrun/latest/docs/usage).
+
 Useful options include:
 
+- `--preprocess_only`: strictly validated boolean, default `false`; enable reference-free preprocessing and automatic gzip FASTQ publication.
 - `--max_cpus`: maximum CPU budget available to the pipeline.
+- `--rna_export_cpus`: RNA bulk-export budget, default `16`, capped by `--max_cpus`; includes conversion and both mate compressors.
 - `--cleanup_work false`: disable early intermediate-FASTQ cleanup and retain successful Nextflow work directories when debugging or when `-resume` is important.
 - `--publish_split_fastqs true`: also publish gzip-compressed per-group split FASTQs.
 - `--filter_dual_tag_artifacts false`: disable the dual-tagmentation DNA artifact filter.
@@ -219,7 +247,7 @@ MultiQC is written to:
 TrES_Stats/qc/multiqc/multiqc_report.html
 ```
 
-When `--publish_split_fastqs true` is used, the pipeline additionally creates:
+When `--publish_split_fastqs true` or `--preprocess_only true` is used, the pipeline additionally creates:
 
 ```text
 rna_split_fastqs/
@@ -246,7 +274,7 @@ when you need to preserve the work directory for debugging or reliable reuse wit
 
 ### Canonical chromosomes
 
-TrESFlow derives canonical chromosomes directly from the supplied references. UCSC and Ensembl chromosome naming conventions are supported.
+In full mode, TrESFlow derives canonical chromosomes directly from the supplied references. UCSC and Ensembl chromosome naming conventions are supported.
 
 Final canonical RNA and DNA outputs exclude alternative loci, patches, random/unplaced contigs, decoys, and other noncanonical sequences.
 

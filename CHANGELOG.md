@@ -3,6 +3,24 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.2.1 - 2026-10-12
+
+### Added
+
+- Reference-free `--preprocess_only true` mode for RNA, single- and dual-tagmentation DNA, and combined libraries. It retains barcode correction, tagging, trimming, routing, preprocessing QC and reports, automatically publishes gzip split FASTQs, and skips alignment and downstream analysis without requiring genome references or alignment tools.
+- Bulk-ready RNA FASTQ export: clips the existing 14-base sample-barcode/UMI prefix from R2 exactly once, retains R1 sequence and quality, and gives both mates identical `<original_id>_<pool_id>_<UMI>` names using the existing oriented UM tag. Barcode provenance is retained; pairs shorter than the existing minimum after clipping are discarded together and reported. DNA FASTQs retain existing group/mark routing.
+- Preprocessing reports identify downstream metrics as not run and include RNA export retention and pool provenance. Cleanup waits for enabled consumers and successful export; `--cleanup_work false` retains intermediates.
+
+### Changed
+
+- RNA export uses configurable `--rna_export_cpus` (default 16, capped by `--max_cpus`), budgeting conversion and both compressors within the actual allocation. Buffered streaming, single-pass tag parsing and cached pool identifiers reduce conversion overhead without temporary uncompressed exports or readback.
+- On a synthetic 200,000-pair benchmark, median complete export time improved from 21.27 to 3.63 seconds (about 5.9×), with conversion alone improving from 4.44 to 1.82 seconds. Decompressed FASTQs and both TSVs matched exactly. This is synthetic-benchmark evidence; production speedup remains unmeasured.
+
+### Compatibility
+
+- Full-mode processing, outputs and validation remain unchanged. RNA exports can be used with nf-core/rnaseq UMI options described in the README; combined barcode pools require pool-aware downstream deduplication. No downstream bulk analysis is implemented.
+- Cleanup retains the existing resume limitations when generated intermediates have been removed; use `--cleanup_work false` to preserve them.
+
 ## v1.2.0 - 2026-10-02
 
 ### Added

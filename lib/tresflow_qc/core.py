@@ -731,6 +731,7 @@ def build_report_model(
     run_metadata: Optional[dict[str, object]] = None,
 ) -> ReportModel:
     """Parse one completed output tree or a staged explicit-input directory."""
+    preprocess_only = (run_metadata or {}).get("preprocess_only") is True
     files = find_files(input_root)
     by_name: dict[str, list[Path]] = defaultdict(list)
     for path in files:
@@ -756,7 +757,7 @@ def build_report_model(
             cell_stats[(match.group(1), match.group(2))].append((int(match.group(3)), read_stats(path), path))
         elif match := re.match(r"^(.+)\.dna_modality\.stats\.tsv$", name):
             marginal_stats[(match.group(1), "dna_modality")] = (read_stats(path), path)
-        elif name.endswith((".rna_read_retention.tsv", ".dna_read_retention.tsv", ".rna_filter_retention.tsv", ".dna_alignment_retention.tsv")):
+        elif name.endswith((".rna_read_retention.tsv", ".dna_read_retention.tsv", ".rna_filter_retention.tsv", ".dna_alignment_retention.tsv", ".rna_export_retention.tsv")):
             retention_files[name] = read_tsv(path)
         elif match := re.match(r"^(.+)\.(rna|dna)_barcode_gates\.tsv$", name):
             gates[(match.group(1), match.group(2))] = (read_tsv(path), path)
@@ -872,6 +873,22 @@ def build_report_model(
                 final = flagstats.get(("rna", branch.split_id, "filtered_cells"))
                 if final and final[0].get("read1") is not None:
                     stages.append(("Called-cell final BAM", final[0]["read1"], "branch", final[1].name, "primary R1 pair representatives"))
+            if preprocess_only:
+                routed = split.get((branch.group, branch.branch, "routed_branch_pairs"))
+                if routed is not None:
+                    stages.append(("Group-specific routing branch", routed, "branch", by_name[split_name][0].name, "read pairs"))
+                export_name = f"{branch.parent}.rna_export_retention.tsv"
+                exported = _retention_lookup(retention_files.get(export_name, []))
+                export_input = exported.get((branch.group, branch.branch, "export_input_pairs"))
+                export_pairs = exported.get((branch.group, branch.branch, "exported_pairs"))
+                export_short = exported.get((branch.group, branch.branch, "export_short_pairs"))
+                if export_pairs is not None:
+                    if export_input != routed or export_short is None or export_pairs + export_short != export_input:
+                        raise ValueError(f"RNA routing/export retention mismatch for {branch.split_id}")
+                    stages.append(("Bulk FASTQ export", export_pairs, "branch", by_name[export_name][0].name, "read pairs"))
+                    for metric, count in (("export_input_pairs", export_input), ("exported_pairs", export_pairs), ("export_short_pairs", export_short)):
+                        _add_qc(qc, branch, metric, count, "read_pairs", "routed RNA pairs; minimum length after prefix clipping", export_name)
+
             if stages:
                 _add_path(retention, branch, raw, raw_source, stages)
 
@@ -1017,6 +1034,13 @@ def build_report_model(
                             "source": path.name,
                         }
                     )
+
+    if preprocess_only:
+        # Status rows keep the established TSV columns and numeric metric
+        # semantics: skipped stages have no fabricated counts or percentages.
+        for branch in branches:
+            for stage in ("alignment", "duplication", "coverage", "cell_calling"):
+                _add_qc(qc, branch, f"{stage}_status", "not run", "status", "preprocessing-only mode", "run metadata")
 
     if not composition:
         warnings.append("Exact barcode-composition counters are unavailable; composition sections are omitted.")

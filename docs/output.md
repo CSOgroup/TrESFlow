@@ -5,18 +5,60 @@
 `TrESFlow` writes modality-specific outputs directly under `--outdir`.
 The exact directories present depend on whether the YAML samplesheet contains `rna`, `dna`, or both modalities.
 
+## Preprocessing-only outputs
+
+With `--preprocess_only true`, gzip split FASTQs are always published, including
+when `--publish_split_fastqs false` was supplied:
+
+- `rna_split_fastqs/<sample>_<group>_R{1,2}.fastq.gz`
+- `dna_split_fastqs/<sample>_<group>_<mark>_R{1,2}.fastq.gz`
+
+Only present modalities create their directories. Empty routing branches keep
+their existing filenames as valid gzip files containing zero records. The
+DNA exports retain the existing sequence, pairing and CB/XI/SB/MO/RG comments.
+RNA exports retain R1 sequence/quality and remove the 14-base SB/UMI prefix from
+R2 sequence/quality exactly once. Pairs shorter than 20 bases on either mate
+after clipping are discarded together. Both names are
+`<original_id>_<pool_id>_<UMI>`, using the existing oriented UM tag verbatim;
+barcode comments remain available. The pool identifier is `P` plus the SHA-256
+of the canonical JSON array `[CB, SB]` and contains no underscore. Its full
+barcode provenance is published in `<sample>.rna_export_pools.tsv`. Export
+input, retained and short-pair counts are in `<sample>.rna_export_retention.tsv`.
+Only these converted gzip RNA FASTQs are published in preprocessing-only mode;
+full-mode FASTQ publication is unchanged.
+
+`TrES_Stats/` retains barcode statistics, tag records, split retention, barcode
+composition/gates, eligible dual-tag artifact-filter metrics, FastQC, MultiQC
+and the HTML/TSV reports. The HTML identifies **Preprocessing-only** and shows
+raw/exported pairs. `read_retention.tsv` ends at RNA bulk FASTQ export (including clipping losses)
+or mark-specific DNA routing. In `qc_metrics.tsv`, `alignment_status`,
+`duplication_status`, `coverage_status` and `cell_calling_status` have value
+`not run` and unit `status`; no numeric downstream measurements are fabricated.
+`library_complexity.tsv` retains its normal columns with no measured rows.
+
+Alignment directories, SAM conversion, BAM QC, duplicate and coverage outputs,
+alignment/filter-retention sidecars and canonical-chromosome contracts are not
+created by this mode. Reports use explicitly staged metric channels. Existing
+full-mode and legacy report inputs remain supported.
+
+The normal cleanup policy below applies, with split producer deletion waiting
+for successful RNA export conversion/compression or DNA compression as its
+only enabled consumer. Published gzip files remain
+available through publication and successful completion. Disable cleanup for
+work-directory retention and maximum resume reuse.
+
 ## Top-level result directories
 
 RNA-related outputs:
 
-- `rna_split_fastqs/` when `--publish_split_fastqs` is enabled
-- `rna_align/`
+- `rna_split_fastqs/` when `--publish_split_fastqs` or `--preprocess_only` is enabled
+- `rna_align/` in full mode
 - `TrES_Stats/`
 
 DNA-related outputs:
 
-- `dna_split_fastqs/` when `--publish_split_fastqs` is enabled
-- `dna_align/`
+- `dna_split_fastqs/` when `--publish_split_fastqs` or `--preprocess_only` is enabled
+- `dna_align/` in full mode
 - `TrES_Stats/`
 
 Shared reporting outputs:
@@ -39,7 +81,7 @@ to FastQC a second time.
 
 ## RNA outputs
 
-### Optional `rna_split_fastqs/`
+### `rna_split_fastqs/` (optional in full mode)
 
 Per-group RNA FASTQs from the split stage:
 
@@ -48,7 +90,7 @@ Per-group RNA FASTQs from the split stage:
 
 `SPLIT_RNA_READS` always writes plain FASTQs for `FQ_TO_SAM`. When
 `--publish_split_fastqs` is enabled, a separate `pigz -c` branch creates the
-files above without making alignment wait for publication compression. By
+files above without making alignment wait for publication compression. In full mode, by
 default the compression task does not run and this directory is absent. Plain
 computational FASTQs and SAM read-group headers are never published.
 
@@ -69,7 +111,7 @@ without a publication-only copy or recompression stage.
 
 ## DNA outputs
 
-### Optional `dna_split_fastqs/`
+### `dna_split_fastqs/` (optional in full mode)
 
 Per-group and per-mark DNA split FASTQs:
 
@@ -78,7 +120,7 @@ Per-group and per-mark DNA split FASTQs:
 
 `SPLIT_DNA_READS` always writes plain FASTQs for `ALIGN_DNA`. When
 `--publish_split_fastqs` is enabled, a separate `pigz -c` branch creates the
-files above in parallel with alignment. By default the compression task does
+files above in parallel with alignment. In full mode, by default the compression task does
 not run and this directory is absent. Plain computational FASTQs and SAM
 read-group headers are never published.
 
@@ -295,7 +337,7 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or cover
 
 - with `--publish_split_fastqs`, published RNA FASTQs are the grouped split FASTQs under `rna_split_fastqs/`
 - with `--publish_split_fastqs`, published DNA FASTQs are the grouped and marked split FASTQs under `dna_split_fastqs/`
-- split FASTQ publication defaults to disabled, so neither directory nor its publication-only compression work is created unless requested
+- in full mode, split FASTQ publication defaults to disabled, so neither directory nor its publication-only compression work is created unless requested
 - earlier tag, trim, RNA uSAM, STAR aligned BAM, tag-record, and non-published coverage side products are transient task outputs
 - split FASTQs are uncompressed only on internal computational channels; the published copies remain gzip-compressed
 - RNA coverage, QC, and publication all consume the same low-compression `RNA_FILTERED_BAM` output under `rna_align/*.filtered_cells.bam`
@@ -304,10 +346,10 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or cover
 With `--cleanup_work true`, generated FASTQs are reclaimed at these successful last-consumer barriers:
 
 - RNA sample-barcode pair after UMI tagging; UMI-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
-- RNA trimmed pair after both splitting and barcode-gate metrics; each RNA split pair after `FQ_TO_SAM` and, when enabled, split-FASTQ compression.
+- RNA trimmed pair after both splitting and barcode-gate metrics; each RNA split pair after `FQ_TO_SAM` in full mode and after every enabled split-FASTQ compression consumer.
 - DNA sample-barcode pair after modality tagging; modality-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
 - For dual-tag filtering, the pre-filter trimmed pair after artifact filtering; the filtered pair after both splitting and barcode-gate metrics. On the bypass path, the trimmed pair waits directly for those same two consumers.
-- Each DNA split pair after alignment and, when enabled, split-FASTQ compression.
+- Each DNA split pair after alignment in full mode and after every enabled split-FASTQ compression consumer.
 
 Consumer-local staged entries are unlinked after that consumer succeeds, independently of whether Nextflow staged them as symlinks, copies, or hardlinks. The producer cleanup process receives exact paths as values, never stages them, validates that they are regular FASTQs inside the work directory, and performs no glob or recursive deletion. Samplesheet inputs are excluded from every cleanup channel. Compressed split FASTQs remain available for `publishDir`, and all published outputs remain outside the early-cleanup target set.
 

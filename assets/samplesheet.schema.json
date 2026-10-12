@@ -18,7 +18,53 @@
       "type": "object"
     },
     "references": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "ligation_barcode_whitelist"
+      ],
+      "description": "The actual ligation whitelist is required in both modes. CLI --preprocess_only true permits omission of genome fields. In full mode the runtime parser additionally requires root/species and modality-specific alignment resources; execution mode is not a YAML field.",
+      "properties": {
+        "ligation_barcode_whitelist": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "species": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rna_ref_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dna_ref_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dna_blacklist_bed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dna_chrom_sizes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dna_effective_genome_size": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          ]
+        }
+      }
     },
     "samples": {
       "type": "object",

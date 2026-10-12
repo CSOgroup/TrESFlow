@@ -41,7 +41,7 @@ class SamplesheetParser {
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
         final Map runtime = resolveRuntime(parsed, baseDir, options)
-        final Map references = resolveReferences(parsed, baseDir)
+        final Map references = resolveReferences(parsed, baseDir, options.preprocess_only == true)
         final Map resolved = parseUnified(parsed, baseDir, libraryName, options, references)
         final List<Map> samples = resolved.samples
         samples.each { row ->
@@ -309,8 +309,8 @@ class SamplesheetParser {
             cell_hd                   : defaults.rna.cell.hd as int,
             cell_tag                  : defaults.rna.cell.tag.toString(),
             reference_species         : references.species,
-            rna_star_index_dir        : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
-            rna_chrom_sizes           : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
+            rna_star_index_dir        : references.preprocess_only ? references.rna_ref_dir : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
+            rna_chrom_sizes           : references.preprocess_only ? references.rna_chrom_sizes : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
             library_name              : libraryName,
             group_definitions         : normalizedGroups,
             rna_sb_barcode_source     : sbSourceSummary,
@@ -1058,18 +1058,17 @@ class SamplesheetParser {
         ]
     }
 
-    private static Map resolveReferences(final Map parsed, final File baseDir) {
+    private static Map resolveReferences(final Map parsed, final File baseDir, final boolean preprocessOnly = false) {
         final Map references = asMap(parsed.references, 'references')
-        final String root = resolvePath(
-            baseDir,
-            requireString(references.root, 'references.root')
-        )
-        final File rootDir = new File(root)
+        final String root = preprocessOnly
+            ? resolveOptionalPath(baseDir, references.root)
+            : resolvePath(baseDir, requireString(references.root, 'references.root'))
         final String rnaRefDir = resolveOptionalPath(baseDir, references.rna_ref_dir)
 
         return [
-            species                    : requireString(references.species, 'references.species').toLowerCase(),
-            root                       : rootDir.canonicalPath,
+            preprocess_only            : preprocessOnly,
+            species                    : preprocessOnly ? references.species?.toString()?.trim()?.toLowerCase() : requireString(references.species, 'references.species').toLowerCase(),
+            root                       : root,
             ligation_barcode_whitelist : resolvePath(
                 baseDir,
                 requireString(references.ligation_barcode_whitelist, 'references.ligation_barcode_whitelist')

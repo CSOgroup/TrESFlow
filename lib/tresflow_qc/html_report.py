@@ -73,6 +73,7 @@ def _table(headers: list[tuple[str, str]], rows: Iterable[dict[str, object]], cl
 
 
 def _run_cards(model: ReportModel) -> str:
+    preprocess_only = model.run_metadata.get("preprocess_only") is True
     cards = []
     runs = sorted({branch.run for branch in model.branches})
     for run in runs:
@@ -196,6 +197,17 @@ def _run_cards(model: ReportModel) -> str:
                     ),
                 ]
             )
+        if preprocess_only:
+            routed = {
+                modality: sum(int(row["output_pairs"]) for row in rows if row["modality"] == modality and row["stage"] == (
+                    "Bulk FASTQ export" if modality == "RNA" and any(r["stage"] == "Bulk FASTQ export" for r in rows) else
+                    "Group-specific routing branch" if modality == "RNA" else "Mark-specific routing branch"
+                ))
+                for modality in modalities
+            }
+            metrics = [item for item in metrics if item[0] not in {"RNA raw / final", "DNA raw / final", "RNA sequencing saturation", "DNA duplicate components"}]
+            metrics.extend((f"{modality} raw / exported", _raw_final(raw_by_modality.get(modality), routed[modality])) for modality in modalities)
+            metrics.extend((label, "not run") for label in ("Alignment", "Duplication", "Coverage", "Cell calling"))
         cells = []
         for item in metrics:
             label, value = item[:2]
@@ -237,7 +249,8 @@ def _overview(model: ReportModel) -> str:
             f"{parent}: {'dual' if parent in dt_parents else 'unspecified'}"
             for parent in dna_parents
         ]
-    return f'''<section id="overview"><h2>Run overview</h2><p class="library-name">{esc(model.library_name)}</p>
+    mode = '<p><strong>Preprocessing-only</strong> · Alignment, duplication, coverage and cell calling: not run.</p>' if model.run_metadata.get("preprocess_only") is True else ''
+    return f'''<section id="overview"><h2>Run overview</h2><p class="library-name">{esc(model.library_name)}</p>{mode}
       <div class="overview-strip">
         <div><span>Independent runs</span><strong>{esc(", ".join(groups) or "unavailable")}</strong></div>
         <div><span>Modalities</span><strong>{esc(", ".join(modalities) or "unavailable")}</strong></div>

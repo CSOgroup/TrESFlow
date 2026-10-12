@@ -29,9 +29,10 @@ class OutputPublicationTests(unittest.TestCase):
         self.assertEqual(schema_property["type"], "boolean")
         self.assertFalse(schema_property["default"])
         self.assertNotIn("params.publish_split_fastqs", compression_module)
-        self.assertIn("if( params.publish_split_fastqs )", rna_workflow)
+        self.assertIn("else if( params.publish_split_fastqs )", rna_workflow)
+        self.assertIn("EXPORT_RNA_FASTQS(SPLIT_RNA_READS.out.split_fastqs)", rna_workflow)
         self.assertIn("COMPRESS_RNA_SPLIT_FASTQS(ch_compress_split_input)", rna_workflow)
-        self.assertIn("if( params.publish_split_fastqs )", dna_workflow)
+        self.assertIn("if( params.publish_split_fastqs || preprocessOnly )", dna_workflow)
         self.assertIn("COMPRESS_DNA_SPLIT_FASTQS(ch_compress_split_input)", dna_workflow)
 
     def test_report_and_qc_publish_under_tres_stats(self):
@@ -100,7 +101,7 @@ class OutputPublicationTests(unittest.TestCase):
 
         self.assertIn('${runtimeOutdir()}/rna_align', module)
         self.assertIn('path("${splitName}.filtered_cells.bam")', module)
-        self.assertIn("aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam", workflow)
+        self.assertIn("ch_aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam", workflow)
         self.assertNotIn("COMPRESS_RNA_FILTERED_BAM", workflow)
         self.assertFalse((REPO_ROOT / "modules/local/compress_rna_filtered_bam").exists())
 

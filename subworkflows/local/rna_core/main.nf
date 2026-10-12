@@ -22,6 +22,7 @@ include { TAG_RNA_CELL_BARCODE }   from '../../../modules/local/tag_rna_cell_bar
 include { TRIM_RNA_FASTQS }        from '../../../modules/local/trim_rna_fastqs/main'
 include { BARCODE_GATE_METRICS }    from '../../../modules/local/barcode_gate_metrics/main'
 include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
+include { EXPORT_RNA_FASTQS } from '../../../modules/local/export_rna_fastqs/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
 include { CLEANUP_INTERMEDIATE_FASTQS as CLEANUP_RNA_INTERMEDIATE_FASTQS } from '../../../modules/local/cleanup_intermediate_fastqs/main'
@@ -61,6 +62,7 @@ def pairRnaSplitFastqs(sampleId, splitR1s, splitR2s) {
 workflow RNA_CORE {
     take:
     ch_rna_samples
+    preprocessOnly
 
     main:
     ch_versions = channel.empty()
@@ -141,11 +143,17 @@ workflow RNA_CORE {
     SPLIT_RNA_READS(ch_split_input)
     ch_versions = ch_versions.mix(SPLIT_RNA_READS.out.versions)
 
-    // The plain split FASTQs branch independently: computation always consumes
-    // them directly. The compression process runs only when split publication
-    // is enabled.
+    // Full-mode computation consumes plain split FASTQs. Publication is an
+    // independent gzip branch, mandatory in preprocessing-only mode.
     ch_published_split_fastqs = channel.empty()
-    if( params.publish_split_fastqs ) {
+    ch_export_retention_metrics = channel.empty()
+    if( preprocessOnly ) {
+        EXPORT_RNA_FASTQS(SPLIT_RNA_READS.out.split_fastqs)
+        ch_versions = ch_versions.mix(EXPORT_RNA_FASTQS.out.versions)
+        ch_published_split_fastqs = EXPORT_RNA_FASTQS.out.fastqs
+        ch_export_retention_metrics = EXPORT_RNA_FASTQS.out.retention_metrics
+    }
+    else if( params.publish_split_fastqs ) {
         ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
             .map { sampleId, meta, splitR1s, splitR2s ->
                 tuple(sampleId, meta, 'rna', splitR1s, splitR2s)
@@ -163,55 +171,78 @@ workflow RNA_CORE {
             }
         }
 
-    ch_fq_to_sam_input = ch_rna_split_pairs.map { splitName, sampleId, meta, splitR1, splitR2 ->
-        tuple(splitName, meta, splitR1, splitR2)
+    ch_usam_files = channel.empty()
+    ch_aligned_solo_dirs = channel.empty()
+    ch_aligned_solo_summaries = channel.empty()
+    ch_aligned_solo_report_summaries = channel.empty()
+    ch_aligned_star_logs = channel.empty()
+    ch_internal_filtered_bams = channel.empty()
+    ch_filter_retention_metrics = channel.empty()
+    ch_aligned_filtered_bams = channel.empty()
+    ch_aligned_stranded_bigwigs = channel.empty()
+    ch_aligned_unstranded_bigwigs = channel.empty()
+    if( !preprocessOnly ) {
+        ch_fq_to_sam_input = ch_rna_split_pairs.map { splitName, sampleId, meta, splitR1, splitR2 ->
+            tuple(splitName, meta, splitR1, splitR2)
+        }
+
+        FQ_TO_SAM(ch_fq_to_sam_input)
+        ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
+
+        // Align each grouped unmapped SAM independently with STARsolo.
+        ch_starsolo_input = FQ_TO_SAM.out.usam
+            .map { splitName, meta, usam ->
+                tuple(
+                    splitName,
+                    meta,
+                    usam,
+                    meta.rna_star_index_dir as String
+                )
+            }
+
+        RNA_STARSOLO_ALIGN(ch_starsolo_input)
+        ch_versions = ch_versions.mix(RNA_STARSOLO_ALIGN.out.versions)
+
+        ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
+            .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
+            .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
+                tuple(
+                    splitName,
+                    metaFromSolo,
+                    soloDir,
+                    alignedBam,
+                    file(metaFromSolo.canonical_chromosomes)
+                )
+            }
+
+        RNA_FILTERED_BAM(ch_filtered_bam_input)
+        ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
+
+        ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
+            .map { splitName, meta, filteredBam ->
+                tuple(
+                    splitName,
+                    meta,
+                    filteredBam,
+                    meta.rna_star_index_dir as String,
+                    meta.canonical_chrom_sizes as String
+                )
+            }
+
+        RNA_COVERAGE(ch_coverage_input)
+        ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
+
+        ch_usam_files = FQ_TO_SAM.out.usam
+        ch_aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
+        ch_aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
+        ch_aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
+        ch_aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
+        ch_internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+        ch_filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
+        ch_aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+        ch_aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
+        ch_aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
     }
-
-    FQ_TO_SAM(ch_fq_to_sam_input)
-    ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
-
-    // Align each grouped unmapped SAM independently with STARsolo.
-    ch_starsolo_input = FQ_TO_SAM.out.usam
-        .map { splitName, meta, usam ->
-            tuple(
-                splitName,
-                meta,
-                usam,
-                meta.rna_star_index_dir as String
-            )
-        }
-
-    RNA_STARSOLO_ALIGN(ch_starsolo_input)
-    ch_versions = ch_versions.mix(RNA_STARSOLO_ALIGN.out.versions)
-
-    ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
-        .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
-        .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
-            tuple(
-                splitName,
-                metaFromSolo,
-                soloDir,
-                alignedBam,
-                file(metaFromSolo.canonical_chromosomes)
-            )
-        }
-
-    RNA_FILTERED_BAM(ch_filtered_bam_input)
-    ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
-
-    ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
-        .map { splitName, meta, filteredBam ->
-            tuple(
-                splitName,
-                meta,
-                filteredBam,
-                meta.rna_star_index_dir as String,
-                meta.canonical_chrom_sizes as String
-            )
-        }
-
-    RNA_COVERAGE(ch_coverage_input)
-    ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
 
     // Reclaim each producer-owned FASTQ only after its complete set of enabled
     // consumers has succeeded. These channels carry absolute paths as values,
@@ -260,10 +291,14 @@ workflow RNA_CORE {
             .map { splitName, _sampleId, meta, splitR1, splitR2 ->
                 tuple(splitName, meta, [splitR1.toString(), splitR2.toString()])
             }
-            .join(FQ_TO_SAM.out.usam.map { splitName, _meta, _usam -> tuple(splitName, true) })
 
-        if( params.publish_split_fastqs ) {
-            ch_rna_compression_complete = COMPRESS_RNA_SPLIT_FASTQS.out.compressed_fastqs
+        if( !preprocessOnly ) {
+            ch_cleanup_rna_split = ch_cleanup_rna_split
+                .join(FQ_TO_SAM.out.usam.map { splitName, _meta, _usam -> tuple(splitName, true) })
+        }
+
+        if( params.publish_split_fastqs || preprocessOnly ) {
+            ch_rna_compression_complete = ch_published_split_fastqs
                 .flatMap { sampleId, _meta, compressedR1s, compressedR2s ->
                     pairRnaSplitFastqs(sampleId, compressedR1s, compressedR2s).collect { split ->
                         tuple(split.splitName, true)
@@ -271,7 +306,8 @@ workflow RNA_CORE {
                 }
             ch_cleanup_rna_split_requests = ch_cleanup_rna_split
                 .join(ch_rna_compression_complete)
-                .map { splitName, meta, fastqs, _computeComplete, _compressionComplete ->
+                .map { values ->
+                    def (splitName, meta, fastqs) = values
                     tuple("rna_split:${splitName}", meta, fastqs, workDir)
                 }
         }
@@ -312,17 +348,18 @@ workflow RNA_CORE {
     split_fastqs     = ch_published_split_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_RNA_READS.out.retention_metrics
+    export_retention_metrics = ch_export_retention_metrics
     barcode_gate_metrics = BARCODE_GATE_METRICS.out.metrics
-    usam_files       = FQ_TO_SAM.out.usam
-    aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
-    aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
-    aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
-    aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
-    internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
-    filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
-    aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
-    aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
-    aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
+    usam_files       = ch_usam_files
+    aligned_solo_dirs = ch_aligned_solo_dirs
+    aligned_solo_summaries = ch_aligned_solo_summaries
+    aligned_solo_report_summaries = ch_aligned_solo_report_summaries
+    aligned_star_logs = ch_aligned_star_logs
+    internal_filtered_bams = ch_internal_filtered_bams
+    filter_retention_metrics = ch_filter_retention_metrics
+    aligned_filtered_bams = ch_aligned_filtered_bams
+    aligned_stranded_bigwigs = ch_aligned_stranded_bigwigs
+    aligned_unstranded_bigwigs = ch_aligned_unstranded_bigwigs
     barcode_reports  = ch_barcode_reports
     barcode_report_files = ch_barcode_report_files
     tres_tag_records = TAG_RNA_CELL_BARCODE.out.tres_tag_records
