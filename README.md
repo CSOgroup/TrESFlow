@@ -16,8 +16,8 @@ micromamba activate tres
 micromamba install \
   pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy \
   pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
-  snapatac2 screen samtools bwa-mem2 star fastqc multiqc trim-galore \
-  deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4
+  snapatac2 screen samtools bwa-mem2 star fastqc pigz multiqc trim-galore \
+  deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4 cutadapt
 ```
 
 Clone TrESFlow:
