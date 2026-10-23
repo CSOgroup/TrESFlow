@@ -13,7 +13,7 @@ Create and activate a conda/mamba/micromamba environment with the required tools
 micromamba create -n tres
 micromamba activate tres
 
-micromamba install \
+micromamba install -c conda-forge -c bioconda --strict-channel-priority \
   pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy \
   pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
   snapatac2 screen samtools bwa-mem2 star fastqc pigz multiqc trim-galore \
