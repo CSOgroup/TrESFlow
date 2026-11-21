@@ -14,14 +14,14 @@
  *   - The checked-in FqToSAM.codon remains compatible with legacy `.gz` inputs.
  */
 
-include { runtimeShellExports; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir; shellQuoteForFastqCleanup } from '../runtime_support/main'
 
 process FQ_TO_SAM {
     tag "${splitName}"
     label 'codon_wrapper'
 
     input:
-    tuple val(splitName), val(meta), path(splitR1), path(splitR2)
+    tuple val(splitName), val(meta), path(splitR1, stageAs: 'r1/*'), path(splitR2, stageAs: 'r2/*')
 
     output:
     tuple val(splitName), val(meta), path("${splitName}_tagged.usam"), emit: usam
@@ -31,7 +31,7 @@ process FQ_TO_SAM {
     def mode = task.ext.mock ? 'mock' : 'real'
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(meta.restart_input ? false : params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
 
     """
     ${runtimeExports}
@@ -39,8 +39,8 @@ process FQ_TO_SAM {
     "\$PYTHON3_BIN" "${projectDir}/bin/run_fq_to_sam.py" \\
       --mode "${mode}" \\
       --script "${coreScriptsDir}/FqToSAM.codon" \\
-      --r1 "${splitR1}" \\
-      --r2 "${splitR2}" \\
+      --r1 ${shellQuoteForFastqCleanup(splitR1)} \\
+      --r2 ${shellQuoteForFastqCleanup(splitR2)} \\
       --output-sam "${splitName}_tagged.usam"
 
     ${stagedFastqCleanup}

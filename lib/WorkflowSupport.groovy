@@ -101,7 +101,8 @@ class WorkflowSupport {
         final Map references,
         final Map modalities,
         final List<Map> sampleRows = [],
-        final boolean preprocessOnly = false
+        final boolean preprocessOnly = false,
+        final boolean restart = false
     ) {
         if( !preprocessOnly ) {
             requireDirectory(
@@ -111,11 +112,13 @@ class WorkflowSupport {
             )
             requireValue(references.species, 'references.species')
         }
-        requireFile(
-            references.ligation_barcode_whitelist,
-            'references.ligation_barcode_whitelist',
-            "Required ligation barcode whitelist not found"
-        )
+        if( !restart ) {
+            requireFile(
+                references.ligation_barcode_whitelist,
+                'references.ligation_barcode_whitelist',
+                "Required ligation barcode whitelist not found"
+            )
+        }
 
         if( preprocessOnly ) {
             return

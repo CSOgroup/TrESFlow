@@ -46,6 +46,7 @@ workflow {
     def samplesheetParser = loadGroovySupportClass("${projectDir}/lib/SamplesheetParser.groovy")
     def workflowSupport = loadGroovySupportClass("${projectDir}/lib/WorkflowSupport.groovy")
     def rawSamplesheet = params.get('samplesheet')
+    def rawRestart = params.get('restart_from_preprocessed')
     def rawOutdir = params.get('outdir')
     def rawCoreScriptsDir = params.get('core_scripts_dir')
     def avitiOpticalDuplicateDistance = null
@@ -74,6 +75,10 @@ workflow {
         launchDir.toString(),
         rawOutdir ?: 'results'
     )
+    def resolvedRestart = runtimeSupport.resolveLaunchPath(launchDir.toString(), rawRestart)
+    if( resolvedRestart && preprocessOnly ) {
+        error 'Use either --restart_from_preprocessed or --preprocess_only true.'
+    }
     def resolvedCoreScriptsDir = rawCoreScriptsDir
         ? runtimeSupport.resolveLaunchPath(launchDir.toString(), rawCoreScriptsDir)
         : runtimeSupport.resolveProjectPath(projectDir.toString(), 'scripts/core_runtime')
@@ -125,16 +130,24 @@ workflow {
     }
 
     def samplesheetContract = null
+    def restart = null
     try {
+        // Check source paths before the samplesheet parser writes derived files.
+        def manifestSupport = resolvedRestart
+            ? loadGroovySupportClass("${projectDir}/lib/PreprocessedManifest.groovy")
+            : null
+        if( manifestSupport ) restart = manifestSupport.read(resolvedRestart, resolvedOutdir, workflow.workDir.toString())
         samplesheetContract = samplesheetParser.parseContract(
             resolvedSamplesheet,
             [
                 preprocess_only : preprocessOnly,
+                restart         : !!resolvedRestart,
                 outdir          : resolvedOutdir,
                 barcode_defaults: params.barcode_defaults,
                 sb_oligo_lookup : params.sb_oligo_lookup ?: "${projectDir}/assets/sb_oligo_lookup.v1.tsv",
             ]
         )
+        if( restart ) manifestSupport.bindSamples(restart, samplesheetContract.samples)
     }
     catch( IllegalArgumentException e ) {
         error e.message
@@ -175,7 +188,8 @@ workflow {
         referenceConfig,
         modalityConfig,
         sampleRows,
-        preprocessOnly
+        preprocessOnly,
+        !!restart
     )
     if( !preprocessOnly ) {
         def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
@@ -208,6 +222,7 @@ workflow {
             preprocess_only : preprocessOnly,
             report_title    : reportTitle,
             pipeline_version: pipelineReleaseVersion,
+            restart         : restart,
         ]
     )
 }

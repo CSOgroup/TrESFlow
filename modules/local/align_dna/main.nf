@@ -18,7 +18,7 @@
  *   - AlignDNA.sh reads exported thread settings and keeps proper-pair mapped filtering.
  */
 
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; intermediateFastqCleanupCommand; runtimeWorkDir; shellQuoteForFastqCleanup } from '../runtime_support/main'
 
 process ALIGN_DNA {
     tag "${splitName}"
@@ -27,7 +27,7 @@ process ALIGN_DNA {
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_alignment_retention.tsv"
 
     input:
-    tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1), path(splitR2), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
+    tuple val(splitName), val(meta), val(sampleGroup), val(modality), path(splitR1, stageAs: 'r1/*'), path(splitR2, stageAs: 'r2/*'), path(rgHeader), val(bwaReference), val(blacklistBed), val(effectiveGenomeSize)
 
     output:
     tuple val(splitName), val(meta), path("${splitName}.bam"), emit: bam
@@ -42,7 +42,9 @@ process ALIGN_DNA {
     def sortThreads = alignThreads
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
-    def stagedFastqCleanup = intermediateFastqCleanupCommand(params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
+    def stagedFastqCleanup = intermediateFastqCleanupCommand(meta.restart_input ? false : params.cleanup_work, 'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [splitR1, splitR2])
+    def r1 = shellQuoteForFastqCleanup(splitR1)
+    def r2 = shellQuoteForFastqCleanup(splitR2)
 
     if( mode == 'mock' ) {
         """
@@ -50,7 +52,7 @@ process ALIGN_DNA {
 
         printf 'mock bam for %s\n' "${splitName}" > "${splitName}.bam"
         printf 'mock bai for %s\n' "${splitName}" > "${splitName}.bam.bai"
-        pair_count="\$(awk 'END { print int(NR / 4) }' "${splitR1}")"
+        pair_count="\$(if [[ ${r1} == *.gz ]]; then gzip -cd -- ${r1}; else cat -- ${r1}; fi | awk 'END { print int(NR / 4) }')"
         cat > "${splitName}.dna_alignment_retention.tsv" <<EOF
 split_id	metric	pairs	unit
 ${splitName}	bwa_primary_pairs	\${pair_count}	primary_read1_pair_representatives
@@ -87,8 +89,8 @@ EOF
         bash "${coreScriptsDir}/AlignDNA.sh" \\
           "${modality}" \\
           "${sampleGroup}" \\
-          "${splitR1}" \\
-          "${splitR2}" \\
+          ${r1} \\
+          ${r2} \\
           "${blacklistBed}" \\
           "${rgHeader}" \\
           "${bwaReference}" \\

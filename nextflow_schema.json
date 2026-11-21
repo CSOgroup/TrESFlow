@@ -22,7 +22,7 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. Each read role accepts one path, a comma-separated scalar, or an ordered YAML sequence of synchronized technical chunks from the same logical library. Samplesheet-internal relative paths resolve from the samplesheet directory; the --samplesheet path itself resolves from the Nextflow launch directory."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. Restart uses the samplesheet metadata and references without resolving raw read paths. Samplesheet-internal relative paths resolve from the samplesheet directory."
                 },
                 "outdir": {
                     "type": "string",
@@ -39,7 +39,11 @@
                 "preprocess_only": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Run reference-free RNA/DNA preprocessing and QC only. Always publish gzip FASTQs: RNA exports clip the R2 SB/UMI prefix and add pool/UMI read names; DNA retains group/mark splits. Do not run alignment or downstream BAM/coverage stages."
+                    "description": "Run reference-free RNA/DNA preprocessing and QC only. Publish bulk RNA exports, exact RNA and DNA split FASTQs, DNA read groups, and a restart manifest."
+                },
+                "restart_from_preprocessed": {
+                    "type": "string",
+                    "description": "Start at the post-split boundary using a preprocessing output directory or a version 1 restart manifest. The samplesheet supplies matching group and library metadata and references for active modalities. Incompatible with preprocess_only."
                 }
             }
         },
@@ -205,6 +209,12 @@
         },
         {
             "$ref": "#/$defs/advanced_options"
+        },
+        {
+            "not": {
+                "required": ["preprocess_only", "restart_from_preprocessed"],
+                "properties": {"preprocess_only": {"const": true}}
+            }
         }
     ]
 }

@@ -19,10 +19,7 @@
     },
     "references": {
       "type": "object",
-      "required": [
-        "ligation_barcode_whitelist"
-      ],
-      "description": "The actual ligation whitelist is required in both modes. CLI --preprocess_only true permits omission of genome fields. In full mode the runtime parser additionally requires root/species and modality-specific alignment resources; execution mode is not a YAML field.",
+      "description": "Raw-start runs require the ligation whitelist. Full and restart runs require root, species, and genome references for the active modalities. The CLI selects the mode, and the runtime parser enforces its requirements.",
       "properties": {
         "ligation_barcode_whitelist": {
           "type": "string",
@@ -83,10 +80,12 @@
             }
           },
           "rna": {
-            "type": "object"
+            "type": "object",
+            "description": "The reads mapping is required on a raw start and optional on restart."
           },
           "dna": {
             "type": "object",
+            "description": "The reads mapping is required on a raw start and optional on restart.",
             "required": [
               "tagmentation"
             ],

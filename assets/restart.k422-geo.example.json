@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "filter_dual_tag_artifacts": true,
+  "splits": [
+    {
+      "split_id": "Ori_K422_H3K27ac",
+      "sample": "Ori",
+      "library": "BENCH_K422",
+      "group": "K422",
+      "modality": "dna",
+      "format": "tresflow-split-v1",
+      "mark": "H3K27ac",
+      "dna_tagmentation": "single",
+      "pairs": 45655352,
+      "r1": "../../FINAL_GEO/TrES-seq_CURRENT/Karpas422_TrES_lib01_H3K27ac_R1.fastq.gz",
+      "r2": "../../FINAL_GEO/TrES-seq_CURRENT/Karpas422_TrES_lib01_H3K27ac_R2.fastq.gz"
+    },
+    {
+      "split_id": "Ori_K422_H3K27me3",
+      "sample": "Ori",
+      "library": "BENCH_K422",
+      "group": "K422",
+      "modality": "dna",
+      "format": "tresflow-split-v1",
+      "mark": "H3K27me3",
+      "dna_tagmentation": "single",
+      "pairs": 115105730,
+      "r1": "../../FINAL_GEO/TrES-seq_CURRENT/Karpas422_TrES_lib01_H3K27me3_R1.fastq.gz",
+      "r2": "../../FINAL_GEO/TrES-seq_CURRENT/Karpas422_TrES_lib01_H3K27me3_R2.fastq.gz"
+    }
+  ],
+  "report_inputs": [
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_sample_barcode.stats.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_sample_barcode.counts.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_modality.stats.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_cell.stats_L1.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_cell.stats_L2.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_cell.stats_L3.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_barcode_gates.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_barcode_composition.tsv",
+    "../../K422_FASTQs/TrES_Stats/Ori.dna_read_retention.tsv"
+  ]
+}

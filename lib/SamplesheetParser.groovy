@@ -41,7 +41,7 @@ class SamplesheetParser {
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
         final Map runtime = resolveRuntime(parsed, baseDir, options)
-        final Map references = resolveReferences(parsed, baseDir, options.preprocess_only == true)
+        final Map references = resolveReferences(parsed, baseDir, options.preprocess_only == true, options.restart == true)
         final Map resolved = parseUnified(parsed, baseDir, libraryName, options, references)
         final List<Map> samples = resolved.samples
         samples.each { row ->
@@ -162,7 +162,8 @@ class SamplesheetParser {
                 throw new IllegalArgumentException("samples.${sampleId}.groups must not be empty")
             }
 
-            final Map rnaConfig = sampleConfig.rna ? asMap(sampleConfig.rna, "samples.${sampleId}.rna") : null
+            final boolean declaresRna = sampleConfig.rna || (options.restart == true && sampleConfig.containsKey('rna'))
+            final Map rnaConfig = declaresRna ? asMap(sampleConfig.rna, "samples.${sampleId}.rna") : null
             final Map dnaConfig = sampleConfig.dna ? asMap(sampleConfig.dna, "samples.${sampleId}.dna") : null
             final boolean hasRna = rnaConfig != null
             final boolean hasDna = dnaConfig != null
@@ -203,7 +204,8 @@ class SamplesheetParser {
                     rnaConfig,
                     defaults,
                     ligationWhitelist,
-                    references
+                    references,
+                    options.restart == true
                 )
             }
 
@@ -219,7 +221,8 @@ class SamplesheetParser {
                     dnaConfig,
                     defaults,
                     ligationWhitelist,
-                    references
+                    references,
+                    options.restart == true
                 )
             }
             warnings.addAll(normalizedGroups.warnings)
@@ -251,6 +254,9 @@ class SamplesheetParser {
                     final String stem = row.modality == MODALITY_DNA ? "${row.id}_${group}_${mark}" : "${row.id}_${group}"
                     registerSerializedName(outputs, "${row.modality}:${stem}", [row.id, group, mark], 'output name')
                     row.split_targets[stem] = [sample: row.id, group: group, mark: mark, sample_group: "${row.id}_${group}"]
+                    if( row.modality == MODALITY_DNA ) {
+                        row.split_targets[stem].mo_barcode = row.mark_barcodes[group][mark]
+                    }
                 }
             }
             row.remove('group_sources')
@@ -286,9 +292,10 @@ class SamplesheetParser {
         final Map rnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map references
+        final Map references,
+        final boolean restart
     ) {
-        final Map reads = resolveReads(baseDir, rnaConfig, sampleId, MODALITY_RNA, ['i1', 'r1', 'r2'])
+        final Map reads = restart ? [i1: [], r1: [], r2: []] : resolveReads(baseDir, rnaConfig, sampleId, MODALITY_RNA, ['i1', 'r1', 'r2'])
         return [
             id                        : sampleId,
             modality                  : MODALITY_RNA,
@@ -329,9 +336,10 @@ class SamplesheetParser {
         final Map dnaConfig,
         final Map defaults,
         final String ligationWhitelist,
-        final Map references
+        final Map references,
+        final boolean restart
     ) {
-        final Map reads = resolveDnaReads(baseDir, dnaConfig, sampleId, tagmentation)
+        final Map reads = restart ? [i1: [], i2: [], r1: [], r2: []] : resolveDnaReads(baseDir, dnaConfig, sampleId, tagmentation)
         final Map dnaTagDefaults = dnaTagDefaultsForTagmentation(defaults, tagmentation)
 
         return [
@@ -1058,7 +1066,7 @@ class SamplesheetParser {
         ]
     }
 
-    private static Map resolveReferences(final Map parsed, final File baseDir, final boolean preprocessOnly = false) {
+    private static Map resolveReferences(final Map parsed, final File baseDir, final boolean preprocessOnly, final boolean restart) {
         final Map references = asMap(parsed.references, 'references')
         final String root = preprocessOnly
             ? resolveOptionalPath(baseDir, references.root)
@@ -1069,7 +1077,7 @@ class SamplesheetParser {
             preprocess_only            : preprocessOnly,
             species                    : preprocessOnly ? references.species?.toString()?.trim()?.toLowerCase() : requireString(references.species, 'references.species').toLowerCase(),
             root                       : root,
-            ligation_barcode_whitelist : resolvePath(
+            ligation_barcode_whitelist : restart ? resolveOptionalPath(baseDir, references.ligation_barcode_whitelist) : resolvePath(
                 baseDir,
                 requireString(references.ligation_barcode_whitelist, 'references.ligation_barcode_whitelist')
             ),

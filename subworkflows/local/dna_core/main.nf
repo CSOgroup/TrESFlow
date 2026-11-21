@@ -111,6 +111,8 @@ workflow DNA_CORE {
     take:
     ch_dna_samples
     preprocessOnly
+    ch_restart_dna_pairs
+    restarting
 
     main:
     ch_versions = channel.empty()
@@ -259,9 +261,14 @@ workflow DNA_CORE {
                 }
             }
 
-        ch_align_input = ch_align_fastqs
+        ch_dna_split_pairs = ch_align_fastqs
             .join(ch_align_rg)
-            .map { splitName, sampleId, metaFromFastq, splitR1, splitR2, sampleIdFromRg, metaFromRg, rgHeader ->
+            .map { splitName, _sampleId, meta, splitR1, splitR2, _sampleIdFromRg, _metaFromRg, rgHeader ->
+                tuple(splitName, meta, splitR1, splitR2, rgHeader)
+            }
+        ch_dna_pairs = restarting ? ch_restart_dna_pairs : ch_dna_split_pairs
+        ch_align_input = ch_dna_pairs
+            .map { splitName, metaFromFastq, splitR1, splitR2, rgHeader ->
                 def splitMeta = parseDnaSplitName(metaFromFastq, splitName)
 
                 tuple(
@@ -386,7 +393,7 @@ workflow DNA_CORE {
     // Reclaim each producer-owned FASTQ only after its complete set of enabled
     // consumers has succeeded. Filtered dual-tag and bypassed trim outputs are
     // deliberately tracked as distinct lifecycles before the split fan-out.
-    if( cleanupEnabled ) {
+    if( cleanupEnabled && !restarting ) {
         def workDir = workflow.workDir.toString()
 
         ch_cleanup_dna_sample_tag = TAG_DNA_SAMPLE_BARCODE.out.tagged
