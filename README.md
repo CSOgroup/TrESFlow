@@ -189,7 +189,7 @@ For bulk export, run `NXF_OFFLINE=true nextflow run . --preprocess_only true --s
 ### Restart from preprocessed FASTQs
 
 Use the completed preprocessing output directory or its `restart_manifest.json`
-with `--restart_from_preprocessed`. Run both steps from the same checkout and
+with `--preprocessed_input`. Run both steps from the same checkout and
 use matching library names, sample IDs, group definitions, barcode settings and
 chemistry. The restart samplesheet needs runtime settings and genome references
 for its active modalities. It can omit `reads` and the ligation whitelist.
@@ -203,7 +203,7 @@ NXF_OFFLINE=true nextflow run . \
 NXF_OFFLINE=true nextflow run . \
   -work-dir work/restart \
   --samplesheet /path/to/analysis-samplesheet.yaml \
-  --restart_from_preprocessed results/preprocess --outdir results/restart
+  --preprocessed_input results/preprocess --outdir results/restart
 ```
 
 The manifest points to exact RNA split pairs in `restart/rna/`, exact DNA
@@ -234,7 +234,8 @@ To restart RNA for that library, recover or regenerate the exact
 Useful options include:
 
 - `--preprocess_only`: strictly validated boolean, default `false`; enable reference-free preprocessing and automatic gzip FASTQ publication.
-- `--restart_from_preprocessed` takes the preprocessing output directory or a version 1 manifest and skips raw preprocessing.
+- `--preprocessed_input` takes the preprocessing output directory or a version 1 manifest and skips raw preprocessing.
+- `nextflow run . --help` lists the input modes.
 - `--max_cpus`: maximum CPU budget available to the pipeline.
 - `--rna_export_cpus`: RNA bulk-export budget, default `16`, capped by `--max_cpus`; includes conversion and both mate compressors.
 - `--cleanup_work false`: disable early intermediate-FASTQ cleanup and retain successful Nextflow work directories when debugging or when `-resume` is important.

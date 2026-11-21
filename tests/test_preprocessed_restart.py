@@ -113,6 +113,27 @@ def report_rows(path):
                       for row in csv.DictReader(handle, delimiter="\t"))
 
 
+@pytest.mark.parametrize(("options", "exit_code", "message"), [
+    (["--help"], 0, "--preprocessed_input <directory|manifest.json>"),
+    (["--preprocessed_input", "missing", "--samplesheet", "missing.yaml"], 1, "Restart manifest not found"),
+    (["--preprocessed_input", "missing", "--preprocess_only", "true"], 1,
+     "Use either --preprocessed_input or --preprocess_only true."),
+    (["--restart_from_preprocessed", "missing"], 1, "Use --preprocessed_input"),
+])
+def test_preprocessed_input_cli(tmp_path, options, exit_code, message):
+    nextflow = os.environ.get("NEXTFLOW_BIN") or shutil.which("nextflow")
+    if not nextflow:
+        pytest.skip("Nextflow unavailable")
+    environment = dict(os.environ, NXF_OFFLINE="true", NXF_HOME=os.environ.get("NXF_HOME", str(tmp_path / "nxf_home")))
+    result = subprocess.run(
+        [nextflow, "run", str(REPO), "-ansi-log", "false", *options],
+        cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=90,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == exit_code and message in output, output
+    assert "Submitted process" not in output
+
+
 def test_restart_real_tools(tmp_path):
     required = ("STAR", "bwa-mem2", "samtools", "gatk", "bedGraphToBigWig", "bamCoverage",
                 "codon", "trim_galore", "multiqc", "fastqc")
@@ -162,7 +183,7 @@ def test_restart_real_tools(tmp_path):
         path.rename(saved_reads / path.name)
     restarted_result, restarted = workflow(
         tmp_path / "restart", restart_sheet, preprocess=False, cleanup=True, real=True,
-        extra=(*opts, "--restart_from_preprocessed", str(pre)),
+        extra=(*opts, "--preprocessed_input", str(pre)),
     )
     assert restarted_result.returncode == 0, restarted_result.stdout + restarted_result.stderr
     tasks = {row["name"].split(":")[-1].split(" (")[0] for row in trace(restarted)}

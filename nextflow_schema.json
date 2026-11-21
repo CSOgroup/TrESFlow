@@ -41,9 +41,15 @@
                     "default": false,
                     "description": "Run reference-free RNA/DNA preprocessing and QC only. Publish bulk RNA exports, exact RNA and DNA split FASTQs, DNA read groups, and a restart manifest."
                 },
-                "restart_from_preprocessed": {
+                "preprocessed_input": {
                     "type": "string",
-                    "description": "Start at the post-split boundary using a preprocessing output directory or a version 1 restart manifest. The samplesheet supplies matching group and library metadata and references for active modalities. Incompatible with preprocess_only."
+                    "minLength": 1,
+                    "description": "Path to a completed preprocessing output directory or its version 1 restart manifest, relative to the launch directory or absolute. Starts analysis from published split FASTQs. Requires matching samplesheet metadata and genome references for active modalities. Incompatible with --preprocess_only true."
+                },
+                "help": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Print the TrESFlow input modes and exit."
                 }
             }
         },
@@ -212,7 +218,7 @@
         },
         {
             "not": {
-                "required": ["preprocess_only", "restart_from_preprocessed"],
+                "required": ["preprocess_only", "preprocessed_input"],
                 "properties": {"preprocess_only": {"const": true}}
             }
         }

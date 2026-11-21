@@ -1,4 +1,7 @@
 # Server-specific example for assets/restart.k422-geo.example.json.
+# NXF_OFFLINE=true nextflow run . \
+#   --samplesheet assets/samplesheet.restart.k422-geo.example.yaml \
+#   --preprocessed_input assets/restart.k422-geo.example.json --outdir results/k422-geo-dna
 library_name: BENCH_K422
 
 runtime:
