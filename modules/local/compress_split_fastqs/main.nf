@@ -12,7 +12,8 @@ process COMPRESS_SPLIT_FASTQS {
     tag "${modality}.${sampleId}"
     label 'process_compression'
 
-    publishDir { "${runtimeOutdir()}/${modality}_split_fastqs" }, mode: 'copy', overwrite: true, pattern: "*_R[12].fastq.gz"
+    publishDir { "${runtimeOutdir()}/${modality == 'restart_rna' ? 'restart/rna' : modality + '_split_fastqs'}" },
+        mode: 'copy', overwrite: true, pattern: "*_R[12].fastq.gz"
 
     input:
     tuple val(sampleId), val(meta), val(modality), path(splitR1s), path(splitR2s)

@@ -18,16 +18,16 @@ samples:
     groups:
       Normal:
         sb_oligo_pairings:
-        - sb_index: '05'
-          rna_oligo_index: '05'
-          dna_oligo_index: '01'
+          - sb_index: "05"
+            rna_oligo_index: "05"
+            dna_oligo_index: "01"
         mark_barcodes:
           H3K27me3: AGGCTATA
       RNA13_DNA07:
         sb_oligo_pairings:
-        - sb_index: '13'
-          rna_sb_barcode: GATC
-          dna_sb_barcode: GAC
+          - sb_index: "13"
+            rna_sb_barcode: GATC
+            dna_sb_barcode: GAC
         mark_barcodes:
           H3K27ac: GCCTCTAT
     rna:

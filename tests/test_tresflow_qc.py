@@ -359,7 +359,7 @@ class QcFixture:
             write(stats / "sample.dna_sample_barcode.counts.tsv", tag_counts(dna_tagged, dna_no_match))
             write(stats / "sample.dna_sample_barcode.stats.tsv", f"reads\t100\t100\nbc_reads\t{dna_tagged}\t{dna_tagged}\nreads_without_bc\t{dna_no_match}\t{dna_no_match}\n")
             for layer in (1, 2, 3):
-                write(stats / f"sample.dna_cell.stats_L{layer}.tsv", f"reads_with_L{layer}\t65\t65\n")
+                write(stats / f"sample.dna_cell.stats_L{layer}.tsv", f"reads\t100\t100\nreads_with_L{layer}\t65\t65\n")
             write(stats / "sample.dna_modality.stats.tsv", "reads\t100\t100\nbc_reads\t40\t40\n")
             dna_split_rows = [("__all__", "__all__", "split_input_pairs", 70), ("__all__", "__all__", "joint_barcode_accepted_pairs", 40)]
             for group, group_marks in marks.items():
@@ -411,6 +411,43 @@ class QcFixture:
 
 
 class SharedQcTests(unittest.TestCase):
+    def test_dna_layer_qc_preserves_counts_and_warns_once_for_unverified_percentages(self):
+        warning = "Some barcode percentages are unavailable because the original read-pair denominator could not be verified for these preprocessed inputs."
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            QcFixture(root, rna=False)
+            stats = root / "TrES_Stats"
+            write(stats / "sample.dna_cell.stats_L1.tsv", "reads\t1\t100\nreads_with_L1\t65\t6500\n")
+            write(stats / "sample.dna_cell.stats_L2.tsv", "reads_with_L2\t60\t60\n")
+            model = build_report_model(root)
+            layer = {row["metric"]: row["value"] for row in model.qc_metrics if row["metric"].startswith("cell_barcode_L")}
+            self.assertEqual(layer, {
+                "cell_barcode_L1_matched_pairs": 65, "cell_barcode_L1_match_pct": None,
+                "cell_barcode_L2_matched_pairs": 60, "cell_barcode_L2_match_pct": None,
+                "cell_barcode_L3_matched_pairs": 65, "cell_barcode_L3_match_pct": 65.0,
+            })
+            report = root / "report.html"
+            render_report(model, [], report)
+            text = report.read_text()
+            section = text.split('id="dna-barcode-layer-qc"', 1)[1].split("</details>", 1)[0]
+            self.assertIn(warning, section)
+            self.assertEqual(text.count(warning), 1)
+            self.assertEqual(section.count("<td>unavailable</td>"), 2)
+            self.assertIn("<td>65.00%</td>", section)
+            self.assertNotIn("6500", section)
+
+    def test_dna_layer_qc_rejects_invalid_or_conflicting_denominators(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            QcFixture(root, rna=False)
+            path = root / "TrES_Stats/sample.dna_cell.stats_L1.tsv"
+            for denominator in ("0", "-100", "invalid", "inf", "99.9", "90"):
+                with self.subTest(denominator=denominator):
+                    write(path, f"reads\t{denominator}\t100\nreads_with_L1\t65\t65\n")
+                    model = build_report_model(root)
+                    metric = next(row for row in model.qc_metrics if row["metric"] == "cell_barcode_L1_match_pct")
+                    self.assertIsNone(metric["value"])
+
     def test_modern_contract_stages_composition_dt_and_complexity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

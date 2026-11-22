@@ -129,15 +129,18 @@ consolidated retention/QC tables. Both primary names become
 The delimiter-safe pool ID is `P` plus the SHA-256 of the canonical JSON array
 `[CB, SB]`, with full provenance in `*.rna_export_pools.tsv` and retained FASTQ
 comments. Combined pools require pool-aware downstream deduplication. DNA and
-full-mode exports retain their existing format.
+full-mode exports retain their existing format. A separate exact RNA export
+under `restart/rna/` retains the full split records for TrESFlow.
 
 Cleanup retains its normal safeguards and upstream split/barcode-QC barriers.
-In preprocessing mode, producer split FASTQs wait for successful RNA conversion/compression or DNA compression instead of
-SAM conversion or alignment. Published gzip FASTQs, source FASTQs, references
+In preprocessing mode, RNA split FASTQs wait for the bulk export and exact
+compression, and DNA split FASTQs wait for compression. Published gzip FASTQs, source FASTQs, references
 and repository assets are never early-cleanup targets. `--cleanup_work false`
 retains intermediates and successful task work directories. With default
 cleanup enabled, `-resume` can recompute removed outputs and is not a reliable
-zero-recomputation restart.
+zero-recomputation restart. Launch a fresh invocation with
+`--preprocessed_input` to use the completed manifest and published files. See
+the [restart instructions](../README.md#restart-from-preprocessed-fastqs).
 
 ## Samplesheet Contract
 
@@ -308,6 +311,7 @@ The main public parameters are:
 - `--sb_oligo_lookup` (optional versioned chemistry lookup override)
 - `--outdir`
 - `--preprocess_only` (strict boolean, default `false`)
+- `--preprocessed_input` (completed preprocessing output directory or version 1 restart manifest)
 - `--publish_split_fastqs`
 - `--max_cpus`
 - `--cleanup_work`
@@ -436,7 +440,6 @@ Codon/Seq smoke test uses no mock profile: it extends the bundled short genomic
 mates to survive production trimming, while retaining barcode/UMI prefixes and
 index reads, and executes the real preprocessing toolchain without alignment
 executables. Missing local test prerequisites are reported as pytest skips.
-
 
 RNA bulk export uses `--rna_export_cpus 16` by default, capped by `--max_cpus`.
 It shares the compression processes' 4 GB memory and 12-hour time settings.

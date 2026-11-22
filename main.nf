@@ -42,10 +42,29 @@ def parseBooleanParameter(rawValue, String parameterName) {
 }
 
 workflow {
+    if( params.help ) {
+        exit(0, '''
+        Usage: nextflow run . --samplesheet <yaml> --outdir <directory> [options]
+
+        Input modes:
+          Raw reads from the samplesheet                 Run the full pipeline (default).
+          --preprocess_only true                         Publish reference-free preprocessing outputs.
+          --preprocessed_input <directory|manifest.json> Analyze published split FASTQs.
+
+        Supply matching sample metadata and genome references in the samplesheet
+        with --preprocessed_input. Use a separate output directory for analysis.
+        Use either --preprocess_only true or --preprocessed_input.
+        '''.stripIndent().trim())
+    }
+    if( params.containsKey('restart_from_preprocessed') ) {
+        error 'Use --preprocessed_input <directory|manifest.json> in place of --restart_from_preprocessed.'
+    }
+
     def runtimeSupport = loadGroovySupportClass("${projectDir}/lib/RuntimeSupport.groovy")
     def samplesheetParser = loadGroovySupportClass("${projectDir}/lib/SamplesheetParser.groovy")
     def workflowSupport = loadGroovySupportClass("${projectDir}/lib/WorkflowSupport.groovy")
     def rawSamplesheet = params.get('samplesheet')
+    def rawPreprocessedInput = params.get('preprocessed_input')
     def rawOutdir = params.get('outdir')
     def rawCoreScriptsDir = params.get('core_scripts_dir')
     def avitiOpticalDuplicateDistance = null
@@ -74,6 +93,13 @@ workflow {
         launchDir.toString(),
         rawOutdir ?: 'results'
     )
+    if( rawPreprocessedInput != null && (!(rawPreprocessedInput instanceof String) || !rawPreprocessedInput.trim()) ) {
+        error 'Parameter --preprocessed_input requires a preprocessing output directory or version 1 restart manifest path.'
+    }
+    def resolvedPreprocessedInput = runtimeSupport.resolveLaunchPath(launchDir.toString(), rawPreprocessedInput)
+    if( resolvedPreprocessedInput && preprocessOnly ) {
+        error 'Use either --preprocessed_input or --preprocess_only true.'
+    }
     def resolvedCoreScriptsDir = rawCoreScriptsDir
         ? runtimeSupport.resolveLaunchPath(launchDir.toString(), rawCoreScriptsDir)
         : runtimeSupport.resolveProjectPath(projectDir.toString(), 'scripts/core_runtime')
@@ -125,16 +151,24 @@ workflow {
     }
 
     def samplesheetContract = null
+    def restart = null
     try {
+        // Check source paths before the samplesheet parser writes derived files.
+        def manifestSupport = resolvedPreprocessedInput
+            ? loadGroovySupportClass("${projectDir}/lib/PreprocessedManifest.groovy")
+            : null
+        if( manifestSupport ) restart = manifestSupport.read(resolvedPreprocessedInput, resolvedOutdir, workflow.workDir.toString())
         samplesheetContract = samplesheetParser.parseContract(
             resolvedSamplesheet,
             [
                 preprocess_only : preprocessOnly,
+                restart         : !!resolvedPreprocessedInput,
                 outdir          : resolvedOutdir,
                 barcode_defaults: params.barcode_defaults,
                 sb_oligo_lookup : params.sb_oligo_lookup ?: "${projectDir}/assets/sb_oligo_lookup.v1.tsv",
             ]
         )
+        if( restart ) manifestSupport.bindSamples(restart, samplesheetContract.samples)
     }
     catch( IllegalArgumentException e ) {
         error e.message
@@ -175,7 +209,8 @@ workflow {
         referenceConfig,
         modalityConfig,
         sampleRows,
-        preprocessOnly
+        preprocessOnly,
+        !!restart
     )
     if( !preprocessOnly ) {
         def canonicalChromosomeContracts = runtimeSupport.writeCanonicalChromosomeContracts(
@@ -208,6 +243,7 @@ workflow {
             preprocess_only : preprocessOnly,
             report_title    : reportTitle,
             pipeline_version: pipelineReleaseVersion,
+            restart         : restart,
         ]
     )
 }

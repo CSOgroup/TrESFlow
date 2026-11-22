@@ -24,8 +24,13 @@ barcode comments remain available. The pool identifier is `P` plus the SHA-256
 of the canonical JSON array `[CB, SB]` and contains no underscore. Its full
 barcode provenance is published in `<sample>.rna_export_pools.tsv`. Export
 input, retained and short-pair counts are in `<sample>.rna_export_retention.tsv`.
-Only these converted gzip RNA FASTQs are published in preprocessing-only mode;
-full-mode FASTQ publication is unchanged.
+
+Preprocessing also writes `restart_manifest.json`, exact RNA split FASTQs
+under `restart/rna/`, DNA SAM read-group definitions under `restart/dna/`,
+and report inputs under `restart/preprocessing_qc/`. The manifest references
+the existing `dna_split_fastqs/` files directly. The RNA pairs under
+`restart/rna/` retain the same read names, R2 prefix, tags and quality strings
+that the direct workflow passes to SAM conversion.
 
 `TrES_Stats/` retains barcode statistics, tag records, split retention, barcode
 composition/gates, eligible dual-tag artifact-filter metrics, FastQC, MultiQC

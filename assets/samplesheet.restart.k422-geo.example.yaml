@@ -1,0 +1,27 @@
+# Server-specific example for assets/restart.k422-geo.example.json.
+# NXF_OFFLINE=true nextflow run . \
+#   --samplesheet assets/samplesheet.restart.k422-geo.example.yaml \
+#   --preprocessed_input assets/restart.k422-geo.example.json --outdir results/k422-geo-dna
+library_name: BENCH_K422
+
+runtime:
+  env_prefix: /home/annan/micromamba/envs/tres
+
+references:
+  species: human
+  root: /mnt/dataFast/ahrmad/TrESFlow_References
+  dna_ref_dir: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/bwa
+  dna_blacklist_bed: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38-blacklist.v2.bed
+  dna_chrom_sizes: /mnt/dataFast/ahrmad/TrESFlow_References/dna/human/hg38.chrom.sizes
+  dna_effective_genome_size: 2913022398
+
+samples:
+  Ori:
+    groups:
+      K422:
+        sb_oligo_indices: ["01", "02", "03", "04", "05", "06", "07"]
+        mark_barcodes:
+          H3K27me3: AGGCTATA
+          H3K27ac: GCCTCTAT
+    dna:
+      tagmentation: single

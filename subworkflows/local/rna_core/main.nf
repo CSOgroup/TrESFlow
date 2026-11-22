@@ -23,6 +23,7 @@ include { TRIM_RNA_FASTQS }        from '../../../modules/local/trim_rna_fastqs/
 include { BARCODE_GATE_METRICS }    from '../../../modules/local/barcode_gate_metrics/main'
 include { SPLIT_RNA_READS }        from '../../../modules/local/split_rna_reads/main'
 include { EXPORT_RNA_FASTQS } from '../../../modules/local/export_rna_fastqs/main'
+include { COMPRESS_SPLIT_FASTQS as COMPRESS_RESTART_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { COMPRESS_SPLIT_FASTQS as COMPRESS_RNA_SPLIT_FASTQS } from '../../../modules/local/compress_split_fastqs/main'
 include { FQ_TO_SAM }              from '../../../modules/local/fq_to_sam/main'
 include { CLEANUP_INTERMEDIATE_FASTQS as CLEANUP_RNA_INTERMEDIATE_FASTQS } from '../../../modules/local/cleanup_intermediate_fastqs/main'
@@ -63,6 +64,8 @@ workflow RNA_CORE {
     take:
     ch_rna_samples
     preprocessOnly
+    ch_restart_rna_pairs
+    restarting
 
     main:
     ch_versions = channel.empty()
@@ -147,11 +150,16 @@ workflow RNA_CORE {
     // independent gzip branch, mandatory in preprocessing-only mode.
     ch_published_split_fastqs = channel.empty()
     ch_export_retention_metrics = channel.empty()
+    ch_restart_fastqs = channel.empty()
     if( preprocessOnly ) {
         EXPORT_RNA_FASTQS(SPLIT_RNA_READS.out.split_fastqs)
-        ch_versions = ch_versions.mix(EXPORT_RNA_FASTQS.out.versions)
+        COMPRESS_RESTART_RNA_SPLIT_FASTQS(SPLIT_RNA_READS.out.split_fastqs.map { sampleId, meta, r1, r2 ->
+            tuple(sampleId, meta, 'restart_rna', r1, r2)
+        })
+        ch_versions = ch_versions.mix(EXPORT_RNA_FASTQS.out.versions, COMPRESS_RESTART_RNA_SPLIT_FASTQS.out.versions)
         ch_published_split_fastqs = EXPORT_RNA_FASTQS.out.fastqs
         ch_export_retention_metrics = EXPORT_RNA_FASTQS.out.retention_metrics
+        ch_restart_fastqs = COMPRESS_RESTART_RNA_SPLIT_FASTQS.out.compressed_fastqs
     }
     else if( params.publish_split_fastqs ) {
         ch_compress_split_input = SPLIT_RNA_READS.out.split_fastqs
@@ -186,7 +194,7 @@ workflow RNA_CORE {
             tuple(splitName, meta, splitR1, splitR2)
         }
 
-        FQ_TO_SAM(ch_fq_to_sam_input)
+        FQ_TO_SAM(restarting ? ch_restart_rna_pairs : ch_fq_to_sam_input)
         ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
 
         // Align each grouped unmapped SAM independently with STARsolo.
@@ -247,7 +255,7 @@ workflow RNA_CORE {
     // Reclaim each producer-owned FASTQ only after its complete set of enabled
     // consumers has succeeded. These channels carry absolute paths as values,
     // so the cleanup task neither stages nor follows the files implicitly.
-    if( cleanupEnabled ) {
+    if( cleanupEnabled && !restarting ) {
         def workDir = workflow.workDir.toString()
 
         ch_cleanup_rna_sample_tag = TAG_RNA_SAMPLE_BARCODE.out.tagged
@@ -304,6 +312,15 @@ workflow RNA_CORE {
                         tuple(split.splitName, true)
                     }
                 }
+            if( preprocessOnly ) {
+                ch_exact_rna_compression_complete = ch_restart_fastqs
+                    .flatMap { sampleId, _meta, compressedR1s, compressedR2s ->
+                        pairRnaSplitFastqs(sampleId, compressedR1s, compressedR2s).collect { split ->
+                            tuple(split.splitName, true)
+                        }
+                    }
+                ch_rna_compression_complete = ch_rna_compression_complete.join(ch_exact_rna_compression_complete)
+            }
             ch_cleanup_rna_split_requests = ch_cleanup_rna_split
                 .join(ch_rna_compression_complete)
                 .map { values ->
@@ -346,6 +363,7 @@ workflow RNA_CORE {
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
     split_fastqs     = ch_published_split_fastqs
+    restart_fastqs   = ch_restart_fastqs
     rg_headers       = SPLIT_RNA_READS.out.rg_headers
     split_retention_metrics = SPLIT_RNA_READS.out.retention_metrics
     export_retention_metrics = ch_export_retention_metrics

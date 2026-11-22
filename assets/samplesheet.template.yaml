@@ -59,7 +59,6 @@ samples:
         i1: /run1/sample_DNA_I1.fq.gz, /run2/sample_DNA_I1.fq.gz
         r1: /run1/sample_DNA_R1.fq.gz, /run2/sample_DNA_R1.fq.gz
         r2: /run1/sample_DNA_R2.fq.gz, /run2/sample_DNA_R2.fq.gz
-
 # Independent selections can instead use rna_sb_oligo_indices and
 # dna_sb_oligo_indices. Differences warn and keep their actual indices in IDs.
 # Indices 13–16 are available only for RNA/single DNA (dual column is '-').

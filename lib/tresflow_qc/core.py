@@ -155,8 +155,11 @@ def read_stats(path: Path) -> dict[str, dict[str, Optional[float]]]:
             fields = raw.rstrip("\n").split("\t")
             if not fields or not fields[0] or fields[0].startswith("#"):
                 continue
+            count = numeric(fields[1]) if len(fields) > 1 else None
+            if count is not None and (not math.isfinite(count) or (fields[0] == "reads" and not count.is_integer())):
+                count = None
             result[fields[0]] = {
-                "count": integer(fields[1]) if len(fields) > 1 else None,
+                "count": int(round(count)) if count is not None else None,
                 "percent": numeric(fields[2]) if len(fields) > 2 else None,
             }
     return result
@@ -456,8 +459,12 @@ def _add_path(destination: list[dict[str, object]], branch: Branch, raw: int, ra
         previous = count
 
 
-def _add_qc(rows: list[dict[str, object]], branch: Branch, metric: str, value: object, unit: str, denominator: str, source: str, branch_name: Optional[str] = None) -> None:
-    if value is not None:
+def _add_qc(
+    rows: list[dict[str, object]], branch: Branch, metric: str, value: object,
+    unit: str, denominator: str, source: str, branch_name: Optional[str] = None,
+    *, include_unavailable: bool = False,
+) -> None:
+    if value is not None or include_unavailable:
         rows.append(
             {
                 "run": branch.run, "parent_sample": branch.parent, "modality": branch.modality,
@@ -810,9 +817,6 @@ def build_report_model(
 
     for branch in branches:
         raw, raw_source = _raw_pairs(marginal_stats, branch.parent, branch.modality)
-        if raw is None:
-            warnings.append(f"Raw input count unavailable for {branch.parent} {branch.modality}; retention path omitted.")
-            continue
         common_key = (branch.parent, branch.modality)
         gate_contract = gates.get((branch.parent, branch.modality.lower()))
         gate_values = _gate_lookup(gate_contract[0], branch.modality.lower()) if gate_contract else None
@@ -825,12 +829,30 @@ def build_report_model(
                 _collect_marginal_qc(qc, branch, modality_stats[0], modality_stats[1], "modality_barcode")
             for layer, values, path in sorted(cell_stats.get((branch.parent, branch.modality.lower()), [])):
                 matched = values.get(f"reads_with_L{layer}", {})
-                _add_qc(qc, branch, f"cell_barcode_L{layer}_matched_pairs", matched.get("count"), "read_pairs", "raw input pairs; marginal layer match", path.name, "ALL")
-                _add_qc(qc, branch, f"cell_barcode_L{layer}_match_pct", matched.get("percent"), "percent", "raw input pairs; marginal layer match", path.name, "ALL")
+                count = matched.get("count")
+                match_pct = matched.get("percent")
+                if branch.modality == "DNA":
+                    denominator = values.get("reads", {}).get("count")
+                    verified = (
+                        denominator is not None and denominator > 0
+                        and count is not None and 0 <= count <= denominator
+                        and (raw is None or denominator == raw)
+                    )
+                    match_pct = percentage(count, denominator) if verified else None
+                definition = "raw input pairs; marginal layer match"
+                _add_qc(qc, branch, f"cell_barcode_L{layer}_matched_pairs", count, "read_pairs", definition, path.name, "ALL")
+                _add_qc(
+                    qc, branch, f"cell_barcode_L{layer}_match_pct", match_pct, "percent", definition, path.name, "ALL",
+                    include_unavailable=branch.modality == "DNA" and count is not None,
+                )
             if gate_values:
                 for metric, value in gate_values.items():
                     _add_qc(qc, branch, metric, value, "read_pairs", "split-input pairs; exact cumulative gate", gate_contract[1].name, "ALL")
             common_done.add(common_key)
+
+        if raw is None:
+            warnings.append(f"Raw input count unavailable for {branch.parent} {branch.modality}; retention path omitted.")
+            continue
 
         stages: list[tuple] = []
         if branch.modality == "RNA":
