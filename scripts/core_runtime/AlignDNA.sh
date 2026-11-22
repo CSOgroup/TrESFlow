@@ -84,6 +84,11 @@ fi
   printf '%s\tproper_pair_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "${proper_pair_primary_pairs}"
 } > "${PathOutputMetrics}"
 
+if [[ "${BULK_DNA_METRICS:-false}" == true ]]; then
+  mapped=$("${SAMTOOLS_BIN}" view -c -f 0x40 -F 0x904 "${RGID}_TEMP.bam")
+  printf '%s\tbwa_mapped_primary_pairs\t%s\tprimary_read1_pair_representatives\n' "${sample_name}_${modality}" "$mapped" >> "${PathOutputMetrics}"
+fi
+
 # Index the BAM
 "${SAMTOOLS_BIN}" index --threads ${threads} --bai --output ${PathOutputBam}.bai ${PathOutputBam}
 

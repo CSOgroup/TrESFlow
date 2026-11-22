@@ -16,6 +16,7 @@
  *      GATK MarkDuplicates, duplicate filtering to NoDup BAMs, and bamCoverage.
  */
 
+include { BULK_REPORT } from '../modules/local/bulk_report/main'
 include { RNA_CORE } from '../subworkflows/local/rna_core'
 include { DNA_CORE } from '../subworkflows/local/dna_core'
 include { TRES_REPORT_HTML } from '../modules/local/tres_report_html/main'
@@ -134,12 +135,14 @@ workflow TRESEQ {
 
     ch_restart_rna_pairs = Channel.empty()
     ch_restart_dna_pairs = Channel.empty()
+    ch_routed_qc = Channel.empty()
     if( restart ) {
         ch_restart_sources = Channel.fromList(restart.splits)
         ch_validation = ch_restart_sources.map { split ->
             def entry = split.entry
             def meta = split.row
             def spec = entry + [
+                bulk: reportMetadata.bulk,
                 fastq_only: restart.fastq_only == true,
                 r1: split.r1.toString(),
                 r2: split.r2.toString(),
@@ -152,7 +155,14 @@ workflow TRESEQ {
             ]
             tuple(entry.split_id, meta, spec, split.r1, split.r2, split.rg ?: [])
         }
-        VALIDATE_PREPROCESSED_SPLIT(ch_validation)
+        // Bulk RNA validates and converts in the same pass over the supplied pair.
+        def bulk = reportMetadata.bulk
+        VALIDATE_PREPROCESSED_SPLIT(ch_validation.filter { id, meta, spec, r1, r2, rg -> !(bulk && meta.modality == 'rna') })
+        if( bulk ) {
+            ch_routed_qc = VALIDATE_PREPROCESSED_SPLIT.out.validated.map { id, meta, validated ->
+                validated.resolve("${id}.dna.routed.json")
+            }
+        }
         ch_validated_pairs = VALIDATE_PREPROCESSED_SPLIT.out.validated
             .map { splitId, meta, validated -> tuple([meta.modality, splitId], meta, validated) }
             .join(ch_restart_sources.map { split ->
@@ -164,12 +174,15 @@ workflow TRESEQ {
                 dna: key[0] == 'dna'
                     tuple(key[1], meta + [restart_input: true], r1, r2, validated.resolve("SAM_RG_Header_${key[1]}.tsv"))
             }
-        ch_restart_rna_pairs = ch_validated_pairs.rna
+        ch_restart_rna_pairs = bulk ? ch_validation.filter { id, meta, spec, r1, r2, rg -> meta.modality == 'rna' }
+            .map { id, meta, spec, r1, r2, rg ->
+                tuple(id, meta + [group: spec.group, restart_input: true, bulk_validation: spec], r1, r2)
+            } : ch_validated_pairs.rna
         ch_restart_dna_pairs = ch_validated_pairs.dna
     }
 
-    RNA_CORE(ch_rna_samples, reportMetadata.preprocess_only, ch_restart_rna_pairs, !!restart)
-    DNA_CORE(ch_dna_samples, reportMetadata.preprocess_only, ch_restart_dna_pairs, !!restart)
+    RNA_CORE(ch_rna_samples, reportMetadata.preprocess_only, ch_restart_rna_pairs, !!restart, reportMetadata.bulk)
+    DNA_CORE(ch_dna_samples, reportMetadata.preprocess_only, ch_restart_dna_pairs, !!restart, reportMetadata.bulk)
 
     Channel
         .fromList(rawRows)
@@ -182,7 +195,7 @@ workflow TRESEQ {
     ch_samtools_stats = Channel.empty()
     ch_samtools_idxstats = Channel.empty()
     ch_samtools_quickcheck = Channel.empty()
-    if( !reportMetadata.preprocess_only ) {
+    if( !reportMetadata.preprocess_only && !reportMetadata.bulk ) {
         // Combined Samtools sidecar QC does not alter the TrESFlow data path; one
         // task per BAM emits the standardized QC text files.
         ch_rna_bams_for_qc = RNA_CORE.out.internal_filtered_bams.map { splitName, meta, bam ->
@@ -330,8 +343,23 @@ workflow TRESEQ {
             )
         }
 
-    TRES_REPORT_HTML(ch_tres_report_input)
-    MULTIQC(ch_multiqc_input)
+    if( reportMetadata.bulk ) {
+        def targets = sampleRows.collectMany { row ->
+            row.split_targets.collect { id, target ->
+                [id: id, sample: row.id, group: target.group, mark: target.mark,
+                 library: row.library_name, modality: row.modality]
+            }
+        }
+        ch_bulk_files = RNA_CORE.out.bulk_counts.mix(RNA_CORE.out.bulk_qc, DNA_CORE.out.bulk_qc, ch_routed_qc)
+            .mix(ch_barcode_report_files.filter { f -> f.name.endsWith('_barcode_composition.tsv') ||
+                f.name.endsWith('_barcode_gates.tsv') || f.name.endsWith('_sample_barcode.stats.tsv') })
+        BULK_REPORT(ch_bulk_files.toList().map { files ->
+            tuple(sampleRows[0], [targets: targets, restart: !!restart], files)
+        })
+    } else {
+        TRES_REPORT_HTML(ch_tres_report_input)
+        MULTIQC(ch_multiqc_input)
+    }
 
     emit:
     tagged_fastqs               = RNA_CORE.out.tagged_fastqs
@@ -373,11 +401,11 @@ workflow TRESEQ {
     samtools_quickcheck         = ch_samtools_quickcheck
     fastqc_html                 = FASTQC.out.html
     fastqc_zip                  = FASTQC.out.zip
-    multiqc_report              = MULTIQC.out.report
-    multiqc_data                = MULTIQC.out.data
-    tres_report_html            = TRES_REPORT_HTML.out.html
-    tres_report_read_retention  = TRES_REPORT_HTML.out.read_retention
-    tres_report_qc_metrics      = TRES_REPORT_HTML.out.qc_metrics
-    tres_report_barcode_composition = TRES_REPORT_HTML.out.barcode_composition
-    tres_report_library_complexity = TRES_REPORT_HTML.out.library_complexity
+    multiqc_report              = reportMetadata.bulk ? Channel.empty() : MULTIQC.out.report
+    multiqc_data                = reportMetadata.bulk ? Channel.empty() : MULTIQC.out.data
+    tres_report_html            = reportMetadata.bulk ? Channel.empty() : TRES_REPORT_HTML.out.html
+    tres_report_read_retention  = reportMetadata.bulk ? Channel.empty() : TRES_REPORT_HTML.out.read_retention
+    tres_report_qc_metrics      = reportMetadata.bulk ? Channel.empty() : TRES_REPORT_HTML.out.qc_metrics
+    tres_report_barcode_composition = reportMetadata.bulk ? Channel.empty() : TRES_REPORT_HTML.out.barcode_composition
+    tres_report_library_complexity = reportMetadata.bulk ? Channel.empty() : TRES_REPORT_HTML.out.library_complexity
 }

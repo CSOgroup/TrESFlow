@@ -31,6 +31,8 @@ include { RNA_STARSOLO_ALIGN }     from '../../../modules/local/rna_starsolo_ali
 include { RNA_FILTERED_BAM }       from '../../../modules/local/rna_filtered_bam/main'
 include { RNA_COVERAGE }           from '../../../modules/local/rna_coverage/main'
 
+include { PREPARE_BULK_RNA; BULK_RNA_MOLECULES } from '../../../modules/local/bulk_rna/main'
+
 def asRnaPathList(value) {
     return value instanceof List ? value : [value]
 }
@@ -66,6 +68,7 @@ workflow RNA_CORE {
     preprocessOnly
     ch_restart_rna_pairs
     restarting
+    bulk
 
     main:
     ch_versions = channel.empty()
@@ -179,6 +182,8 @@ workflow RNA_CORE {
             }
         }
 
+    ch_bulk_counts = channel.empty()
+    ch_bulk_qc = channel.empty()
     ch_usam_files = channel.empty()
     ch_aligned_solo_dirs = channel.empty()
     ch_aligned_solo_summaries = channel.empty()
@@ -194,11 +199,18 @@ workflow RNA_CORE {
             tuple(splitName, meta, splitR1, splitR2)
         }
 
-        FQ_TO_SAM(restarting ? ch_restart_rna_pairs : ch_fq_to_sam_input)
-        ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
+        ch_pairs = restarting ? ch_restart_rna_pairs : ch_fq_to_sam_input
+        if( bulk ) {
+            PREPARE_BULK_RNA(ch_pairs)
+            ch_usam_files = PREPARE_BULK_RNA.out.prepared.map { id, meta, sam, qc -> tuple(id, meta, sam) }
+        } else {
+            FQ_TO_SAM(ch_pairs)
+            ch_usam_files = FQ_TO_SAM.out.usam
+            ch_versions = ch_versions.mix(FQ_TO_SAM.out.versions)
+        }
 
         // Align each grouped unmapped SAM independently with STARsolo.
-        ch_starsolo_input = FQ_TO_SAM.out.usam
+        ch_starsolo_input = ch_usam_files
             .map { splitName, meta, usam ->
                 tuple(
                     splitName,
@@ -211,45 +223,53 @@ workflow RNA_CORE {
         RNA_STARSOLO_ALIGN(ch_starsolo_input)
         ch_versions = ch_versions.mix(RNA_STARSOLO_ALIGN.out.versions)
 
-        ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
-            .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
-            .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
-                tuple(
-                    splitName,
-                    metaFromSolo,
-                    soloDir,
-                    alignedBam,
-                    file(metaFromSolo.canonical_chromosomes)
-                )
-            }
+        if( bulk ) {
+            ch_bulk_input = RNA_STARSOLO_ALIGN.out.aligned_bam.join(RNA_STARSOLO_ALIGN.out.solo_dir)
+                .join(PREPARE_BULK_RNA.out.prepared.map { id, meta, sam, qc -> tuple(id, qc) })
+                .map { id, meta, bam, soloMeta, solo, qc -> tuple(id, meta, bam, solo, qc) }
+            BULK_RNA_MOLECULES(ch_bulk_input)
+            ch_bulk_counts = BULK_RNA_MOLECULES.out.counts
+            ch_bulk_qc = BULK_RNA_MOLECULES.out.qc
+        } else {
+            ch_filtered_bam_input = RNA_STARSOLO_ALIGN.out.solo_dir
+                .join(RNA_STARSOLO_ALIGN.out.aligned_bam)
+                .map { splitName, metaFromSolo, soloDir, metaFromBam, alignedBam ->
+                    tuple(
+                        splitName,
+                        metaFromSolo,
+                        soloDir,
+                        alignedBam,
+                        file(metaFromSolo.canonical_chromosomes)
+                    )
+                }
 
-        RNA_FILTERED_BAM(ch_filtered_bam_input)
-        ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
+            RNA_FILTERED_BAM(ch_filtered_bam_input)
+            ch_versions = ch_versions.mix(RNA_FILTERED_BAM.out.versions)
 
-        ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
-            .map { splitName, meta, filteredBam ->
-                tuple(
-                    splitName,
-                    meta,
-                    filteredBam,
-                    meta.rna_star_index_dir as String,
-                    meta.canonical_chrom_sizes as String
-                )
-            }
+            ch_coverage_input = RNA_FILTERED_BAM.out.filtered_bam
+                .map { splitName, meta, filteredBam ->
+                    tuple(
+                        splitName,
+                        meta,
+                        filteredBam,
+                        meta.rna_star_index_dir as String,
+                        meta.canonical_chrom_sizes as String
+                    )
+                }
 
-        RNA_COVERAGE(ch_coverage_input)
-        ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
+            RNA_COVERAGE(ch_coverage_input)
+            ch_versions = ch_versions.mix(RNA_COVERAGE.out.versions)
 
-        ch_usam_files = FQ_TO_SAM.out.usam
-        ch_aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
-        ch_aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
-        ch_aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
-        ch_aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
-        ch_internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
-        ch_filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
-        ch_aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
-        ch_aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
-        ch_aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
+            ch_aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
+            ch_aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
+            ch_aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
+            ch_aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
+            ch_internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+            ch_filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
+            ch_aligned_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
+            ch_aligned_stranded_bigwigs = RNA_COVERAGE.out.stranded_bw
+            ch_aligned_unstranded_bigwigs = RNA_COVERAGE.out.unstranded_bw
+        }
     }
 
     // Reclaim each producer-owned FASTQ only after its complete set of enabled
@@ -302,7 +322,7 @@ workflow RNA_CORE {
 
         if( !preprocessOnly ) {
             ch_cleanup_rna_split = ch_cleanup_rna_split
-                .join(FQ_TO_SAM.out.usam.map { splitName, _meta, _usam -> tuple(splitName, true) })
+                .join(ch_usam_files.map { splitName, _meta, _usam -> tuple(splitName, true) })
         }
 
         if( params.publish_split_fastqs || preprocessOnly ) {
@@ -360,6 +380,8 @@ workflow RNA_CORE {
         })
 
     emit:
+    bulk_counts = ch_bulk_counts
+    bulk_qc = ch_bulk_qc
     tagged_fastqs    = TAG_RNA_CELL_BARCODE.out.tagged
     trimmed_fastqs   = TRIM_RNA_FASTQS.out.trimmed
     split_fastqs     = ch_published_split_fastqs

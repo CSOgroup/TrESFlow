@@ -34,6 +34,8 @@ include { NORMALIZE_DNA_MARKDUPLICATES } from '../../../modules/local/normalize_
 include { SPLIT_DUPLICATES_DNA }     from '../../../modules/local/split_duplicates_dna/main'
 include { DEEPTOOLS_BAMCOVERAGE }    from '../../../modules/nf-core/deeptools/bamcoverage/main'
 
+include { BULK_DNA_TARGET } from '../../../modules/local/bulk_dna/main'
+
 def asDnaPathList(value) {
     return value instanceof List ? value : [value]
 }
@@ -113,6 +115,7 @@ workflow DNA_CORE {
     preprocessOnly
     ch_restart_dna_pairs
     restarting
+    bulk
 
     main:
     ch_versions = channel.empty()
@@ -243,6 +246,7 @@ workflow DNA_CORE {
             }
         }
 
+    ch_bulk_qc = channel.empty()
     ch_alignment_retention_metrics = channel.empty()
     ch_aligned_bams = channel.empty()
     ch_aligned_bais = channel.empty()
@@ -291,20 +295,24 @@ workflow DNA_CORE {
 
         // Preserve MarkDuplicates input exactly as before. A separate canonical
         // copy supplies the aligned-BAM output and QC branch.
-        ch_canonical_aligned_input = ALIGN_DNA.out.bam
-            .join(ALIGN_DNA.out.bai)
-            .map { splitName, metaFromBam, alignedBam, metaFromBai, alignedBai ->
-                tuple(
-                    splitName,
-                    metaFromBam,
-                    alignedBam,
-                    alignedBai,
-                    file(metaFromBam.canonical_chromosomes)
-                )
-            }
+        if( !bulk ) {
+            ch_canonical_aligned_input = ALIGN_DNA.out.bam
+                .join(ALIGN_DNA.out.bai)
+                .map { splitName, metaFromBam, alignedBam, metaFromBai, alignedBai ->
+                    tuple(
+                        splitName,
+                        metaFromBam,
+                        alignedBam,
+                        alignedBai,
+                        file(metaFromBam.canonical_chromosomes)
+                    )
+                }
 
-        FILTER_CANONICAL_DNA_ALIGNED_BAM(ch_canonical_aligned_input)
-        ch_versions = ch_versions.mix(FILTER_CANONICAL_DNA_ALIGNED_BAM.out.versions)
+            FILTER_CANONICAL_DNA_ALIGNED_BAM(ch_canonical_aligned_input)
+            ch_versions = ch_versions.mix(FILTER_CANONICAL_DNA_ALIGNED_BAM.out.versions)
+            ch_aligned_bams = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bam
+            ch_aligned_bais = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bai
+        }
 
         ch_gatk_markduplicates_input = ALIGN_DNA.out.bam.map { splitName, meta, alignedBam ->
             tuple(nfcoreDnaMeta(splitName, meta, 'markeddup'), alignedBam)
@@ -332,62 +340,69 @@ workflow DNA_CORE {
         NORMALIZE_DNA_MARKDUPLICATES(ch_normalize_markduplicates_input)
         ch_versions = ch_versions.mix(NORMALIZE_DNA_MARKDUPLICATES.out.versions)
 
-        ch_split_duplicates_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
-            .map { splitName, meta, markedDupBam ->
-                tuple(
-                    splitName,
-                    meta,
-                    markedDupBam,
-                    (meta.dna_effective_genome_size as String)
-                )
-            }
+        if( bulk ) {
+            ch_bulk_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
+                .join(NORMALIZE_DNA_MARKDUPLICATES.out.metrics).join(ALIGN_DNA.out.retention_metrics)
+                .map { id, meta, bam, metricMeta, metrics, alignMeta, retention ->
+                    tuple(id, meta, bam, metrics, retention, meta.bulk_reference_bed ? file(meta.bulk_reference_bed) : [])
+                }
+            BULK_DNA_TARGET(ch_bulk_input)
+            ch_bulk_qc = BULK_DNA_TARGET.out.qc
+        } else {
+            ch_split_duplicates_input = NORMALIZE_DNA_MARKDUPLICATES.out.bam
+                .map { splitName, meta, markedDupBam ->
+                    tuple(
+                        splitName,
+                        meta,
+                        markedDupBam,
+                        (meta.dna_effective_genome_size as String)
+                    )
+                }
 
-        SPLIT_DUPLICATES_DNA(ch_split_duplicates_input)
-        ch_versions = ch_versions.mix(SPLIT_DUPLICATES_DNA.out.versions)
+            SPLIT_DUPLICATES_DNA(ch_split_duplicates_input)
+            ch_versions = ch_versions.mix(SPLIT_DUPLICATES_DNA.out.versions)
 
-        ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
-            .join(SPLIT_DUPLICATES_DNA.out.bai)
-            .join(SPLIT_DUPLICATES_DNA.out.mapped_reads)
-            .filter { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
-                hasMappedDnaReads(mappedReadsFile)
-            }
-            .map { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
-                def coverageMeta = metaFromBam + [
-                    dna_effective_genome_size: effectiveGenomeSize,
-                ]
-                tuple(
-                    nfcoreDnaMeta(splitName, coverageMeta, 'nodup_coverage'),
-                    noDupBam,
-                    noDupBai
-                )
-            }
+            ch_nodup_for_coverage = SPLIT_DUPLICATES_DNA.out.bam
+                .join(SPLIT_DUPLICATES_DNA.out.bai)
+                .join(SPLIT_DUPLICATES_DNA.out.mapped_reads)
+                .filter { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
+                    hasMappedDnaReads(mappedReadsFile)
+                }
+                .map { splitName, metaFromBam, noDupBam, metaFromBai, noDupBai, metaFromCount, effectiveGenomeSize, mappedReadsFile ->
+                    def coverageMeta = metaFromBam + [
+                        dna_effective_genome_size: effectiveGenomeSize,
+                    ]
+                    tuple(
+                        nfcoreDnaMeta(splitName, coverageMeta, 'nodup_coverage'),
+                        noDupBam,
+                        noDupBai
+                    )
+                }
 
-        DEEPTOOLS_BAMCOVERAGE(
-            ch_nodup_for_coverage,
-            [],
-            [],
-            tuple([id: 'no_blacklist'], [])
-        )
-        ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_deeptools)
-        ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_samtools)
-
-        ch_coverage_bigwigs = DEEPTOOLS_BAMCOVERAGE.out.bigwig.map { nfMeta, bigwig ->
-            tuple(
-                nfMeta.tres_split_name as String,
-                restoreDnaMeta(nfMeta),
-                bigwig
+            DEEPTOOLS_BAMCOVERAGE(
+                ch_nodup_for_coverage,
+                [],
+                [],
+                tuple([id: 'no_blacklist'], [])
             )
-        }
+            ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_deeptools)
+            ch_versions = ch_versions.mix(DEEPTOOLS_BAMCOVERAGE.out.versions_samtools)
 
+            ch_coverage_bigwigs = DEEPTOOLS_BAMCOVERAGE.out.bigwig.map { nfMeta, bigwig ->
+                tuple(
+                    nfMeta.tres_split_name as String,
+                    restoreDnaMeta(nfMeta),
+                    bigwig
+                )
+            }
+            ch_nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
+            ch_nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
+            ch_coverage_warnings = SPLIT_DUPLICATES_DNA.out.warnings
+        }
         ch_alignment_retention_metrics = ALIGN_DNA.out.retention_metrics
-        ch_aligned_bams = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bam
-        ch_aligned_bais = FILTER_CANONICAL_DNA_ALIGNED_BAM.out.bai
         ch_markeddup_bams = NORMALIZE_DNA_MARKDUPLICATES.out.bam
         ch_markeddup_bais = NORMALIZE_DNA_MARKDUPLICATES.out.bai
         ch_duplicate_metrics = NORMALIZE_DNA_MARKDUPLICATES.out.metrics
-        ch_nodup_bams = SPLIT_DUPLICATES_DNA.out.bam
-        ch_nodup_bais = SPLIT_DUPLICATES_DNA.out.bai
-        ch_coverage_warnings = SPLIT_DUPLICATES_DNA.out.warnings
     }
 
     // Reclaim each producer-owned FASTQ only after its complete set of enabled
@@ -501,6 +516,7 @@ workflow DNA_CORE {
         })
 
     emit:
+    bulk_qc = ch_bulk_qc
     tagged_fastqs   = TAG_DNA_CELL_BARCODE.out.tagged
     dual_tag_artifact_filter_qc = DUAL_TAG_ARTIFACT_FILTER.out.qc
     trimmed_fastqs  = TRIM_DNA_FASTQS.out.trimmed

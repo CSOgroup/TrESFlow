@@ -81,6 +81,7 @@ EOF
           fi
         done
 
+        export BULK_DNA_METRICS="${meta.bulk ? 'true' : 'false'}"
         export ALIGN_DNA_THREADS="${alignThreads}"
         export ALIGN_DNA_VIEW_THREADS="${viewThreads}"
         export ALIGN_DNA_SORT_THREADS="${sortThreads}"

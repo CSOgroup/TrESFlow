@@ -151,7 +151,7 @@ An example samplesheet is available above and a template in: [`assets/sampleshee
 
 ## Running TrESFlow
 
-A typical run is:
+The default analysis is single-cell.
 
 ```bash
 NXF_OFFLINE=true nextflow run . \
@@ -160,10 +160,30 @@ NXF_OFFLINE=true nextflow run . \
   --max_cpus 80
 ```
 
+### Barcoded bulk analysis
+
+Use the existing raw samplesheet for technical chunks, ligation whitelist, sample-barcode groups and DNA marks. The bulk mode supports RNA-only, DNA-only (single or dual tagmentation), and combined libraries.
+
+```bash
+NXF_OFFLINE=true nextflow run . --bulk true --samplesheet raw.yaml --outdir results/bulk_raw
+NXF_OFFLINE=true nextflow run . --bulk true --preprocessed_input true --samplesheet preprocessed.yaml --outdir results/bulk_from_fastqs
+```
+
+For the second command, use the minimal RNA or DNA YAML below, or combine their entries under one sample. Supply just the routed FASTQ mates and normal runtime and reference settings. Keep the sample and group labels encoded in the headers. Paths may be relative to the YAML. Use a fresh output and work directory. [FASTQ-only samplesheets](#restart-from-preprocessed-fastqs)
+
+**RNA.** Exact split pairs are clipped once using the configured R2 barcode/UMI layout (14 bases by default). Exporter-suffixed pairs already carry the clipped insert. Both mates must retain at least 20 bases. The physical sample barcode and full namespaced ligation identity define the exporter pool. Exact pairs need a physical SB tag or an unambiguous sample barcode recoverable from an exact-match R2 layout. The molecular UM tag is used as written. Technical chunks are combined before counting each library/sample/group.
+
+STARsolo counts forward-stranded exon-plus-intron assignments with `GeneFull`, `1MM_CR`, `MultiGeneUMI_CR` and cell filtering disabled. The annotated STAR index supplies the gene features and region boundaries. `bulk/gene_by_group.tsv` contains raw integer molecules for each gene ID and sample/group, summed across physical pools. Each group under `bulk/rna/<sample>/<group>/` contains an indexed, coordinate-sorted BAM with one representative primary pair per gene, pool and corrected UMI. STAR supplies the gene and corrected UMI tags. The unstranded RPM bigWig uses spliced alignment coverage from that BAM.
+
+**DNA.** Each group/mark under `bulk/dna/<sample>/<group>/<mark>/` contains the indexed duplicate-marked BAM, CPM bigWig, treatment-only Epic2 peak BED and QC. Target fragments retain duplicate flags through coverage, peak calling and FRiP. Complete primary proper pairs on canonical chromosomes contribute one fragment each after the existing blacklist and alignment filters. deepTools counts the full insert once in 50 bp bins. Epic2 receives paired BEDPE fragments with coordinate duplicates retained, 200 bp windows, three gaps and E-value 1000. The canonical chromosome sizes come from the existing reference contract. The effective genome fraction is the configured DNA effective genome size divided by their summed length. [nf-core/cutandrun normalization and duplicate policy](https://nf-co.re/cutandrun/latest/docs/usage/) · [Epic2 options](https://github.com/biocore-ntnu/epic2/blob/master/bin/epic2)
+
+Install Epic2 in `runtime.env_prefix` before offline bulk DNA runs and check `"$prefix/bin/epic2" --version`. Epic2 0.0.54 imports `pkg_resources` and needs a compatible setuptools installation (e.g. setuptools 80). The runtime Python also needs pysam and pyBigWig. Use `--bulk_reference_bed reference.bed` for independent overlap QC. FRiP counts usable fragments that intersect any called peak, once per fragment. A successful zero-peak call produces an empty BED. An Epic2 error fails the task.
+
+Open `bulk/bulk_report.html` for observed barcode counts, assignment, fragment and duplication metrics and yield versus depth. Per-target JSON files retain numeric QC. FASTQ-only QC begins at the supplied routed pairs. Raw input counts, upstream losses and proportions of raw depth are unavailable for this entry point.
+
 ### Reference-free preprocessing
 
-For TrES-seq libraries where one or two sample/ligation barcodes identify pools,
-use `--preprocess_only true`. The normal chemistry, barcode validation and mark
+Use `--preprocess_only true` to export routed pairs. The normal chemistry, barcode validation and mark
 routing are retained. This mode runs tagging, paired trimming, eligible dual-tag
 artifact filtering, splitting and preprocessing QC, then finishes successfully
 without alignment, counting, peak calling or BAM/coverage stages.

@@ -175,6 +175,10 @@ class SamplesheetParser {
                         samplesheet_groups: [], split_targets: [:],
                     ] + analysisReferences(references, modality)
                     if( !dna ) {
+                        row.sample_bc_start = defaults.rna.sample.bc_start as int
+                        row.sample_bc_len = defaults.rna.sample.bc_len as int
+                        row.sample_hd = defaults.rna.sample.hd as int
+                        row.sample_reverse_complement = toDirection(defaults.rna.sample.reverse_complement, 'barcode_defaults.rna.sample.reverse_complement')
                         row.umi_bc_start = defaults.rna.umi.bc_start as int
                         row.umi_bc_len = defaults.rna.umi.bc_len as int
                     }

@@ -36,6 +36,16 @@
                     "description": "Publish gzip-compressed RNA and DNA split FASTQ copies under rna_split_fastqs/ and dna_split_fastqs/. Internal uncompressed split FASTQs are always retained long enough for downstream computation. Automatically enabled by --preprocess_only true, including when explicitly false.",
                     "default": false
                 },
+                "bulk": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Analyze barcoded bulk RNA and/or DNA from a raw samplesheet or supplied split FASTQ pairs."
+                },
+                "bulk_reference_bed": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Optional BED for independent bulk DNA fragment-overlap QC. Relative paths resolve from the launch directory."
+                },
                 "preprocess_only": {
                     "type": "boolean",
                     "default": false,

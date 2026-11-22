@@ -49,6 +49,13 @@ def pool_identifier(cb, sb):
     return 'P' + hashlib.sha256(json.dumps([cb, sb], separators=(',', ':')).encode()).hexdigest()
 
 
+def retained_sequences(r1, r2, prefix_length, minimum_length):
+    sequence2, quality2 = r2[1][prefix_length:], r2[3][prefix_length:]
+    if min(len(r1[1]), len(sequence2)) < minimum_length:
+        return None
+    return ((r1[1], r1[3]), (sequence2, quality2))
+
+
 def convert_pair(r1, r2, prefix_length, umi_length, minimum_length):
     name1, comment1 = parse_header(r1[0])
     name2, comment2 = parse_header(r2[0])
@@ -64,9 +71,10 @@ def convert_pair(r1, r2, prefix_length, umi_length, minimum_length):
     pool = pool_identifier(tags['CB'], tags['SB'])
     # UM is already reverse-complemented by TAG_RNA_UMI. Copy it verbatim.
     name = f"{original}_{pool}_{tags['UM']}"
-    sequence2, quality2 = r2[1][prefix_length:], r2[3][prefix_length:]
-    if len(r1[1]) < minimum_length or len(sequence2) < minimum_length:
+    retained = retained_sequences(r1, r2, prefix_length, minimum_length)
+    if retained is None:
         return None, pool, tags
+    sequence2, quality2 = retained[1]
     return (
         f'@{name} {comment1}\n{r1[1]}\n+\n{r1[3]}\n',
         f'@{name} {comment2}\n{sequence2}\n+\n{quality2}\n',

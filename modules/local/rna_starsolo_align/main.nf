@@ -18,8 +18,8 @@ process RNA_STARSOLO_ALIGN {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Solo.outGeneFull"
-    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Log.final.out"
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Solo.outGeneFull", enabled: { !meta.bulk }
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Log.final.out", enabled: { !meta.bulk }
 
     input:
     tuple val(splitName), val(meta), path(usam), val(starIndexDir)
@@ -34,6 +34,7 @@ process RNA_STARSOLO_ALIGN {
 
     script:
     def mode = task.ext.mock ? 'mock' : 'real'
+    def bulkArgs = meta.bulk ? "bulk ${meta.umi_bc_len}" : ''
     def coreScriptsDir = runtimeCoreScriptsDir()
     def runtimeExports = runtimeShellExports(meta)
 
@@ -107,7 +108,7 @@ EOF
           "${usam}" \\
           "${starIndexDir}" \\
           "." \\
-          "${task.cpus}"
+          "${task.cpus}" ${bulkArgs}
 
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \

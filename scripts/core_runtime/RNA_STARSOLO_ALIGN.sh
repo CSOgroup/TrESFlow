@@ -27,10 +27,19 @@ if [[ ! -s "${USAM_IN}" ]]; then
 fi
 
 UMIlen=10
+barcode_tag=XI
+cell_filter=(--soloCellFilter EmptyDrops_CR 15000 0.99 30 20000 90000 50 0.01 20000 0.05 10000)
+multimappers=EM
+if [[ "${6:-}" == bulk ]]; then
+    UMIlen="${7:?missing bulk UMI length}"
+    barcode_tag=XP
+    cell_filter=(--soloCellFilter None)
+    multimappers=Unique
+fi
 
 # String mode reads XI and UM independently. soloCBlen remains a valid
 # nucleotide-mode placeholder (1..31), never the namespaced string length.
-echo "Using STAR index directory=${path_refDB}; full-cell-v1 String barcode XI; separate UM (${UMIlen} nt)"
+echo "Using STAR index directory=${path_refDB}; String barcode ${barcode_tag}; separate UM (${UMIlen} nt)"
 echo "Using STAR_BIN=${STAR_BIN}"
 
 ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&2
@@ -58,7 +67,7 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --outFilterIntronMotifs RemoveNoncanonical \
   --soloType CB_UMI_Simple \
   --soloCBtype String \
-  --soloInputSAMattrBarcodeSeq XI UM \
+  --soloInputSAMattrBarcodeSeq "${barcode_tag}" UM \
   --soloInputSAMattrBarcodeQual - \
   --soloCBwhitelist None \
   --soloCBstart 1 --soloCBlen 24 \
@@ -66,10 +75,10 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --soloBarcodeReadLength 0 \
   --soloFeatures GeneFull \
   --soloStrand Forward \
-  --soloMultiMappers EM \
+  --soloMultiMappers "${multimappers}" \
   --soloUMIdedup 1MM_CR \
   --soloUMIfiltering MultiGeneUMI_CR \
-  --soloCellFilter EmptyDrops_CR 15000 0.99 30 20000 90000 50 0.01 20000 0.05 10000 \
+  "${cell_filter[@]}" \
   --soloCellReadStats Standard \
   --outSAMtype BAM SortedByCoordinate \
   --outBAMcompression 0 \
@@ -77,6 +86,9 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --outSAMunmapped None \
   --soloOutFileNames "Solo.out" "features.tsv" "barcodes.tsv" "matrix.mtx" \
   --outFileNamePrefix "${outdir}/${sample_name}."
+
+# Bulk SAM carries XI and XP. STAR supplies the sole CB and corrected UB.
+if [[ "${6:-}" == bulk ]]; then exit 0; fi
 
 # STAR's SAM transport preserves XI/CB on all alignment records, while UB output
 # also emits CB. Validate identity and retain one copy of each cell attribute.

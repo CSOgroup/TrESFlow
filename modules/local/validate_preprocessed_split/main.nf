@@ -20,5 +20,6 @@ process VALIDATE_PREPROCESSED_SPLIT {
     "\$PYTHON3_BIN" "${projectDir}/bin/preprocessed_fastqs.py" validate \
         "${options}" ${shellQuoteForFastqCleanup(r1)} ${shellQuoteForFastqCleanup(r2)} ${rgArgs}
     mv validated.txt validated/
+    ${spec.bulk && meta.modality == 'dna' ? "mv '${splitId}.dna.routed.json' validated/" : ''}
     """
 }

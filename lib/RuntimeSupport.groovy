@@ -231,7 +231,7 @@ class RuntimeSupport {
                 [name: 'fastqc', binary: 'fastqc'],
                 [name: 'multiqc', binary: 'multiqc'],
             ]
-            : STANDARD_RUNTIME_TOOLS
+            : STANDARD_RUNTIME_TOOLS + (params.bulk_dna ? [[name: 'epic2', binary: 'epic2']] : [])
         return tools.collect { tool ->
             [name: tool.name, path: runtimeToolPath(params, tool.binary), used: 'yes']
         }

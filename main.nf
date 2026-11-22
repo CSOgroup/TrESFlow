@@ -48,6 +48,8 @@ workflow {
 
         Input modes:
           Raw reads from the samplesheet                 Run the full pipeline (default).
+          --bulk true                                    Count barcoded bulk RNA and/or DNA targets.
+          --bulk_reference_bed <path>                    Optional BED for bulk DNA fragment overlap QC.
           --preprocess_only true                         Publish reference-free preprocessing outputs.
           --preprocessed_input true                      Analyze split FASTQ pairs listed in samples.<sample>.preprocessed.
           --preprocessed_input <directory|manifest.json> Restart from a version 1 manifest.
@@ -72,8 +74,10 @@ workflow {
     def rawCoreScriptsDir = params.get('core_scripts_dir')
     def avitiOpticalDuplicateDistance = null
     def filterDualTagArtifacts = null
+    def bulk = null
     def preprocessOnly = null
     try {
+        bulk = parseBooleanParameter(params.bulk, 'bulk')
         preprocessOnly = parseBooleanParameter(params.get('preprocess_only'), 'preprocess_only')
         avitiOpticalDuplicateDistance = parseNonNegativeIntegerParameter(
             params.get('aviti_optical_duplicate_distance'),
@@ -107,6 +111,13 @@ workflow {
         : null
     if( (fastqRestart || manifestPath) && preprocessOnly ) {
         error 'Use either --preprocessed_input or --preprocess_only true.'
+    }
+    if( bulk && (preprocessOnly || manifestPath) ) {
+        error 'Use --bulk true with raw reads or --preprocessed_input true.'
+    }
+    def referenceBed = params.bulk_reference_bed ? runtimeSupport.resolveLaunchPath(launchDir.toString(), params.bulk_reference_bed) : null
+    if( referenceBed && (!bulk || (!new File(referenceBed).isFile() || !new File(referenceBed).canRead())) ) {
+        error '--bulk_reference_bed requires --bulk true and a readable BED file.'
     }
     def resolvedCoreScriptsDir = rawCoreScriptsDir
         ? runtimeSupport.resolveLaunchPath(launchDir.toString(), rawCoreScriptsDir)
@@ -201,8 +212,22 @@ workflow {
         runtime_env_prefix: runtimeConfig['env_prefix'],
         runtime_tmpdir    : runtimeConfig['tmpdir'],
         preprocess_only   : preprocessOnly,
+        bulk_dna          : bulk && modalityConfig.dna,
     ]
     def sampleRows = samplesheetContract['samples'] as List<Map>
+
+    sampleRows.each { row ->
+        row.bulk = bulk
+        row.bulk_reference_bed = referenceBed
+    }
+    if( referenceBed && !modalityConfig.dna ) error '--bulk_reference_bed requires DNA inputs.'
+    if( bulk && modalityConfig.rna ) {
+        ['exonGeTrInfo.tab', 'geneInfo.tab', 'chrStart.txt'].each { filename ->
+            if( !new File(referenceConfig.rna_ref_dir.toString(), filename).isFile() ) {
+                error "Bulk RNA requires an annotated STAR index containing ${filename}: ${referenceConfig.rna_ref_dir}"
+            }
+        }
+    }
 
     log.warn """
     TrESFlow storage paths:
@@ -255,6 +280,7 @@ workflow {
         sampleRows,
         [
             preprocess_only : preprocessOnly,
+            bulk            : bulk,
             report_title    : reportTitle,
             pipeline_version: pipelineReleaseVersion,
             restart         : restart,

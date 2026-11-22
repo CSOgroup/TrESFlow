@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import sys
+from collections import Counter
 from itertools import zip_longest
 from pathlib import Path
 
@@ -114,9 +115,19 @@ def validate_pair(first, second, spec, barcodes, ligation_length):
     return None
 
 
+def observe_routed(counts, tags, width):
+    ligation = tags["CB"].rsplit("_", 1)[1]
+    for layer in range(3):
+        counts[f"L{layer + 1}"][ligation[layer * width:(layer + 1) * width]] += 1
+    counts["SB"][tags.get("SB", "unavailable")] += 1
+    if "MO" in tags:
+        counts["MO"][tags["MO"]] += 1
+
+
 def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
     count = 0
     groups = set()
+    counts = {tag: Counter() for tag in ("L1", "L2", "L3", "SB", "MO")}
     ligation_length = spec["ligation_length"]
     barcodes = spec.get("sb_indices", {})
     try:
@@ -124,6 +135,8 @@ def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
             if first is None or second is None:
                 raise ValueError("mate FASTQs have unequal record counts")
             rg = validate_pair(first, second, spec, barcodes, ligation_length)
+            if spec.get("bulk"):
+                observe_routed(counts, read_tags(parse_header(first[0])[1]), ligation_length // 3)
             if rg is not None:
                 groups.add(rg)
             count += 1
@@ -141,6 +154,8 @@ def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
             if len(set(actual)) != len(actual) or set(actual) != expected:
                 raise ValueError(f"{input_rg}: @RG rows must match the observed IDs and their SM/LB/PU/PL/PM values")
             shutil.copyfile(input_rg, output_rg)
+    if spec.get("bulk"):
+        Path(f'{spec["split_id"]}.dna.routed.json').write_text(json.dumps(counts))
     return count
 
 

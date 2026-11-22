@@ -72,6 +72,14 @@ run_unstranded_star() {
       --outFileNamePrefix "${outdir}/${sample_name}.unstranded_"
 }
 
+if [[ "${7:-}" == bulk ]]; then
+    run_unstranded_star
+    bg="${outdir}/${sample_name}.unstranded_Signal.Unique.str1.out.bg"
+    LC_ALL=C sort -k1,1 -k2,2n "$bg" > bulk.sorted.bg
+    "${BEDGRAPH_TO_BIGWIG_BIN}" bulk.sorted.bg "${path_refCHROMSIZES}" "${outdir}/${sample_name}.rpm.bw"
+    exit 0
+fi
+
 wait_for_jobs() {
     local status=0
     local pid
