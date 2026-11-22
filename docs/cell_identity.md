@@ -76,7 +76,7 @@ B:
 ```
 
 Shared `sb_oligo_indices` is exclusive with all other barcode selectors.
-Modality index lists may be mixed with the *other* modality's index or sequence
+Modality index lists may be mixed with the _other_ modality's index or sequence
 input, but conflict with their own modality's sequence field or shared
 `sb_barcodes` when it applies to that modality. Dual DNA indices may coexist
 with shared `sb_barcodes` used for RNA. Existing sequence-only precedence remains intact.

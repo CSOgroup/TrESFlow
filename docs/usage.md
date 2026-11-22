@@ -441,7 +441,6 @@ mates to survive production trimming, while retaining barcode/UMI prefixes and
 index reads, and executes the real preprocessing toolchain without alignment
 executables. Missing local test prerequisites are reported as pytest skips.
 
-
 RNA bulk export uses `--rna_export_cpus 16` by default, capped by `--max_cpus`.
 It shares the compression processes' 4 GB memory and 12-hour time settings.
 The actual task allocation is passed as the exporter's total CPU budget:

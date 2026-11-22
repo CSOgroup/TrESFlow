@@ -215,12 +215,10 @@
         },
         {
             "$ref": "#/$defs/advanced_options"
-        },
-        {
-            "not": {
-                "required": ["preprocess_only", "preprocessed_input"],
-                "properties": {"preprocess_only": {"const": true}}
-            }
         }
-    ]
+    ],
+    "not": {
+        "required": ["preprocess_only", "preprocessed_input"],
+        "properties": { "preprocess_only": { "const": true } }
+    }
 }
