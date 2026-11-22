@@ -97,10 +97,7 @@
                         "if": { "not": { "required": ["preprocessed"] } },
                         "then": {
                             "required": ["groups"],
-                            "anyOf": [
-                                { "required": ["rna"] },
-                                { "required": ["dna"] }
-                            ]
+                            "anyOf": [{ "required": ["rna"] }, { "required": ["dna"] }]
                         }
                     },
                     {
