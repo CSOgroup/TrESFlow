@@ -188,8 +188,8 @@ For bulk export, run `NXF_OFFLINE=true nextflow run . --preprocess_only true --s
 
 ### Restart from preprocessed FASTQs
 
-Save one of the samplesheets below as `preprocessed.yaml`, adjust the paths
-and labels, and run:
+Save the RNA or DNA example below as `preprocessed.yaml`. Set `r1` and `r2`
+to the current paths of your FASTQ pairs, then run the following command.
 
 ```bash
 nextflow run . --preprocessed_input true --samplesheet preprocessed.yaml --outdir results/analysis
@@ -236,45 +236,24 @@ samples:
         r2: fastqs/group_a_H3K27ac_R2.fastq.gz
 ```
 
-For a mixed run, include both reference sets and both list entries. Use the
-original sample and group labels encoded in the cell tags. FASTQs may be moved
-or renamed. Relative paths resolve from the YAML directory, and `.fastq` and
-`.fq` files may be plain or gzip-compressed. Store inputs outside the analysis
-output and work directories. This mode needs only the pairs and the settings
-shown above. Historical preprocessing QC is reported as unavailable.
+FASTQs can be moved or renamed. Relative paths resolve from the samplesheet
+directory. Both `.fastq` and `.fq` are supported, with or without gzip
+compression. Keep the read headers intact and use the sample and group labels
+encoded in the reads. Keep the FASTQs outside the analysis output and work
+directories.
 
-- RNA accepts exact tagged splits from `restart/rna/` and published
-  `rna_split_fastqs/` pairs with intact `CB`, `XI`, and `UM` tags. TrESFlow
-  recognizes clipped exports by the pool ID and UMI suffix on each read name.
-  Their existing R2 sequence and qualities go through SAM conversion unchanged.
-  Clipping and short-pair filtering can change results across formats. Use
-  the exact tagged splits to reproduce direct-run inputs or when the published
-  pairs are missing those tags.
-- DNA accepts the tagged pairs from `dna_split_fastqs/`. TrESFlow rebuilds
-  the SAM read-group header and routes the split to the declared `mark`.
-  Set the optional `mark_barcode` on the entry to check the FASTQ `MO` tag
-  against an expected barcode.
+- RNA accepts exact tagged splits and TrESFlow's clipped RNA exports with
+  intact `CB`, `XI`, and `UM` tags. Use exact splits when you need the same
+  input reads as a direct run.
+- DNA accepts tagged split FASTQs and uses the `mark` in the samplesheet.
 
-To restart with historical QC, pass a completed preprocessing output directory
-or its `restart_manifest.json` as the value of `--preprocessed_input`. Keep
-the manifest and its referenced files together and supply matching library,
-sample, group, barcode and chemistry metadata in the analysis samplesheet.
-That samplesheet may omit raw `reads` and the ligation whitelist.
-
-Version 1 manifests list one entry per samplesheet split with its `split_id`,
-`sample`, `library`, `group`, `modality`, `format` (`tresflow-split-v1`),
-and `r1` and `r2` paths relative to the manifest. DNA entries also give
-`mark` and `dna_tagmentation`. DNA `rg` is optional. If omitted, TrESFlow
-rebuilds the header from the physical AVITI groups observed in the reads and
-the verified sample and library metadata. The validator streams both mates
-before alignment, checks their records and barcode tags, and checks the
-manifest's pair count when supplied. Optional `report_inputs` and
-`multiqc_inputs` list attributable preprocessing sidecars.
+For a mixed RNA and DNA run, include both sets of references and list both
+types of pairs in the same samplesheet.
 
 Useful options include:
 
 - `--preprocess_only`: strictly validated boolean, default `false`; enable reference-free preprocessing and automatic gzip FASTQ publication.
-- `--preprocessed_input` takes `true` for samplesheet-listed pairs, or a preprocessing output directory or version 1 manifest path.
+- `--preprocessed_input true` starts from the FASTQ pairs listed in the samplesheet.
 - `nextflow run . --help` lists the input modes.
 - `--max_cpus`: maximum CPU budget available to the pipeline.
 - `--rna_export_cpus`: RNA bulk-export budget, default `16`, capped by `--max_cpus`; includes conversion and both mate compressors.
