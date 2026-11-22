@@ -241,7 +241,9 @@ workflow TRESEQ {
 
     ch_report_barcode_files = ch_barcode_report_files.filter { reportFile ->
         def name = reportFile.getName()
-        name.endsWith('.stats.tsv') || name.endsWith('_sample_barcode.counts.tsv') || name.endsWith('_barcode_gates.tsv') || name.endsWith('_barcode_composition.tsv')
+        name.endsWith('.stats.tsv') || name.endsWith('_sample_barcode.counts.tsv') ||
+            name.endsWith('_barcode_gates.tsv') || name.endsWith('_barcode_composition.tsv') ||
+            name ==~ /.+\.dna_cell\.stats_L[123]\.tsv/
     }
 
     def reportContractPaths = sampleRows

@@ -450,25 +450,38 @@ def _details(model: ReportModel) -> str:
             str(row["metric"]),
         ),
     )
-    metric_table = _table(
-        [
-            ("run", "Independent run"),
-            ("modality", "Modality"),
-            ("branch", "Branch"),
-            ("metric", "Metric"),
-            ("value", "Value"),
-            ("unit", "Unit"),
-            ("denominator", "Denominator / definition"),
-            ("source", "Source"),
-        ],
-        metrics,
-    )
+    headers = [
+        ("run", "Independent run"),
+        ("modality", "Modality"),
+        ("branch", "Branch"),
+        ("metric", "Metric"),
+        ("value", "Value"),
+        ("unit", "Unit"),
+        ("denominator", "Denominator / definition"),
+        ("source", "Source"),
+    ]
+    layer_metrics = []
+    other_metrics = []
+    for row in metrics:
+        target = layer_metrics if row["modality"] == "DNA" and str(row["metric"]).startswith("cell_barcode_L") else other_metrics
+        target.append(row)
+    layer_section = ""
+    if layer_metrics:
+        warning = ""
+        if any(row["unit"] == "percent" and row["value"] is None for row in layer_metrics):
+            warning = (
+                '<p>Some barcode percentages are unavailable because the original read-pair denominator '
+                'could not be verified for these preprocessed inputs.</p>'
+            )
+        layer_section = f'''<details id="dna-barcode-layer-qc"><summary>DNA barcode-layer QC</summary>
+          {warning}{_table(headers, layer_metrics)}</details>'''
     filenames = ("read_retention.tsv", "qc_metrics.tsv", "barcode_composition.tsv", "library_complexity.tsv")
     links = "".join(f'<a class="file-link" href="{name}" download>{name}</a>' for name in filenames)
     return f'''<section id="details"><h2>Detailed metrics</h2><div class="file-links">{links}</div>
       <details open><summary>Read-pair retention</summary>{_retention_table(model)}</details>
       <details><summary>Barcode composition</summary>{_composition_table(model)}</details>
-      <details><summary>QC metrics</summary>{metric_table}</details>
+      {layer_section}
+      <details><summary>QC metrics</summary>{_table(headers, other_metrics)}</details>
       <details><summary>DNA library complexity</summary>{_complexity_table(model)}</details>
     </section>'''
 
