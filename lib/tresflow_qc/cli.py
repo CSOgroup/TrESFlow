@@ -113,7 +113,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         pipeline_version=args.pipeline_version,
         run_metadata=metadata,
     )
-    if not model.retention:
+    if not model.retention and not metadata.get("preprocessed_splits"):
         print("error: no valid sequential retention paths could be reconstructed", file=sys.stderr)
         return 1
     tables = write_model_tables(model, output_dir)

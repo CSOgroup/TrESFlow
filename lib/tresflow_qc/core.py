@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
 
 RETENTION_FIELDS = [
@@ -338,7 +338,16 @@ def _unique_run_labels(pairs: Iterable[tuple[str, str]]) -> dict[tuple[str, str]
     return {(parent, group): group if len(owners[group]) == 1 else f"{parent}_{group}" for parent, group in pairs}
 
 
-def discover_branches(files: list[Path]) -> list[Branch]:
+def discover_branches(files: list[Path], preprocessed_splits: Sequence[dict] = ()) -> list[Branch]:
+    if preprocessed_splits:
+        labels = _unique_run_labels((split["sample"], split["group"]) for split in preprocessed_splits)
+        branches = [
+            Branch(labels[split["sample"], split["group"]], split["sample"], split["modality"].upper(),
+                   split["mark"], split["group"], split["split_id"])
+            for split in preprocessed_splits
+        ]
+        return sorted(branches, key=lambda value: (value.run, value.modality != "RNA", value.branch))
+
     rna_pairs: list[tuple[str, str]] = []
     dna_specs: list[tuple[str, str, str]] = []
     group_pairs: list[tuple[str, str]] = []
@@ -739,11 +748,12 @@ def build_report_model(
 ) -> ReportModel:
     """Parse one completed output tree or a staged explicit-input directory."""
     preprocess_only = (run_metadata or {}).get("preprocess_only") is True
+    preprocessed_splits = (run_metadata or {}).get("preprocessed_splits", [])
     files = find_files(input_root)
     by_name: dict[str, list[Path]] = defaultdict(list)
     for path in files:
         by_name[path.name].append(path)
-    branches = discover_branches(files)
+    branches = discover_branches(files, preprocessed_splits)
     warnings: list[str] = []
 
     marginal_stats: dict[tuple[str, str], tuple[dict, Path]] = {}
@@ -852,7 +862,8 @@ def build_report_model(
 
         if raw is None:
             warnings.append(f"Raw input count unavailable for {branch.parent} {branch.modality}; retention path omitted.")
-            continue
+            if not preprocessed_splits:
+                continue
 
         stages: list[tuple] = []
         if branch.modality == "RNA":
@@ -911,7 +922,7 @@ def build_report_model(
                     for metric, count in (("export_input_pairs", export_input), ("exported_pairs", export_pairs), ("export_short_pairs", export_short)):
                         _add_qc(qc, branch, metric, count, "read_pairs", "routed RNA pairs; minimum length after prefix clipping", export_name)
 
-            if stages:
+            if stages and raw is not None:
                 _add_path(retention, branch, raw, raw_source, stages)
 
             star = star_logs.get(branch.split_id)
@@ -1011,7 +1022,7 @@ def build_report_model(
                 stages.append(("Canonical marked-duplicate BAM", canonical[0]["read1"], "branch", canonical[1].name, "primary R1 pair representatives"))
             if nodup and nodup[0].get("read1") is not None:
                 stages.append(("Canonical NoDup final", nodup[0]["read1"], "branch", nodup[1].name, "primary R1 pair representatives"))
-            if stages:
+            if stages and raw is not None:
                 _add_path(retention, branch, raw, raw_source, stages)
 
             duplicate_entry = duplicates.get(branch.split_id)

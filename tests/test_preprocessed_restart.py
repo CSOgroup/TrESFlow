@@ -1,22 +1,25 @@
-"""Validate exact restart inputs and compare a bounded real-toolchain run."""
+"""Exercise manifest and FASTQ-only restarts with the real toolchain."""
 import copy
 import csv
 import gzip
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from test_preprocess_only import REPO, RUNTIME, fixture, reference_free, trace, workflow
 from test_multi_fastq_inputs import find_nextflow_jar
 
 sys.path.insert(0, str(REPO / "bin"))
 from preprocessed_fastqs import validate_split
+from tresflow_fastq_utils import fastq_iter
 
 
 LIGATION = "ACGTACGTTGCATGCAGATCGATC"
@@ -114,9 +117,11 @@ def report_rows(path):
 
 
 @pytest.mark.parametrize(("options", "exit_code", "message"), [
-    (["--help"], 0, "--preprocessed_input <directory|manifest.json>"),
+    (["--help"], 0, "--preprocessed_input true"),
     (["--preprocessed_input", "missing", "--samplesheet", "missing.yaml"], 1, "Restart manifest not found"),
     (["--preprocessed_input", "missing", "--preprocess_only", "true"], 1,
+     "Use either --preprocessed_input or --preprocess_only true."),
+    (["--preprocessed_input", "true", "--preprocess_only", "true"], 1,
      "Use either --preprocessed_input or --preprocess_only true."),
     (["--restart_from_preprocessed", "missing"], 1, "Use --preprocessed_input"),
 ])
@@ -132,6 +137,134 @@ def test_preprocessed_input_cli(tmp_path, options, exit_code, message):
     output = result.stdout + result.stderr
     assert result.returncode == exit_code and message in output, output
     assert "Submitted process" not in output
+
+
+def launch_fastq_restart(launch, sheet, opts):
+    launch.mkdir()
+    nextflow = os.environ.get("NEXTFLOW_BIN") or shutil.which("nextflow")
+    environment = dict(os.environ, NXF_OFFLINE="true", NXF_HOME=os.environ.get("NXF_HOME", str(launch / "nxf_home")))
+    result = subprocess.run(
+        [nextflow, "run", str(REPO), "--preprocessed_input", "true", "--samplesheet", str(sheet),
+         "--outdir", "results/analysis", "-ansi-log", "false", "--max_cpus", "4",
+         "--cleanup_work", "false", *opts],
+        cwd=launch, env=environment, capture_output=True, text=True, timeout=600,
+    )
+    return result, launch / "results/analysis"
+
+
+def sam_tags(tokens):
+    return dict(token.split(":", 2)[::2] for token in tokens)
+
+
+def assert_rna_restart(r2, out, work, split_id, count):
+    expected = {}
+    for header, seq, _, qual in fastq_iter(r2):
+        name, *comments = header[1:].split()
+        expected[name] = (seq, qual, sam_tags(comments))
+    assert len(expected) == count
+
+    usam, = [path for path in work.rglob(f"{split_id}_tagged.usam") if not path.is_symlink()]
+    sam_records = [line.split("\t") for line in usam.read_text().splitlines() if not line.startswith("@")]
+    assert len(sam_records) == 2 * count
+    for name, flag, *fields in sam_records:
+        seq, qual, tags = expected[name]
+        if int(flag) & 128:
+            assert fields[7:9] == [seq, qual]
+        observed = sam_tags(fields[9:])
+        assert all(observed[key] == tags[key] for key in ("CB", "XI", "UM"))
+
+    called = out / f"rna_align/{split_id}.Solo.outGeneFull/raw/barcodes.tsv"
+    assert set(called.read_text().splitlines()) == {tags["XI"] for _, _, tags in expected.values()}
+    aligned, = [path for path in work.rglob(f"{split_id}.Aligned.sortedByCoord.out.bam") if not path.is_symlink()]
+    records = run_tool("samtools", "view", aligned).splitlines()
+    assert records
+    for line in records:
+        name, *fields = line.split("\t")
+        tags = sam_tags(fields[10:])
+        original = expected[name][2]
+        assert tags["CB"] == tags["XI"] == original["XI"]
+        assert tags["UM"] == tags["UR"] == tags["UB"] == original["UM"]
+
+
+def verify_fastq_only_restarts(root, references, runtime, pre, rna, dna, opts, direct):
+    for mode in ("rna", "dna", "mixed"):
+        active = ("rna", "dna") if mode == "mixed" else (mode,)
+        sheet_dir = root / f"sheet-{mode}"
+        fastqs = sheet_dir / "recently moved"
+        fastqs.mkdir(parents=True)
+        sheet = sheet_dir / "preprocessed.yaml"
+        entries = []
+        retained = {}
+        for source in (rna, dna):
+            modality = source["modality"]
+            if modality not in active:
+                continue
+            entry = {key: source[key] for key in ("group", "modality")}
+            if modality == "dna":
+                entry["mark"] = source["mark"]
+                if mode == "mixed":
+                    entry["mark_barcode"] = "AGGCTATA"
+            for role in ("r1", "r2"):
+                path = pre / source[role]
+                if mode == "mixed" and modality == "rna":
+                    path = pre / "rna_split_fastqs" / path.name
+                dest = fastqs / f"{modality} renamed {'one' if role == 'r1' else 'two'}.fq.gz"
+                retained[dest] = path.read_bytes()
+                dest.write_bytes(retained[dest])
+                entry[role] = str(dest.relative_to(sheet_dir))
+            entries.append(entry)
+        data = {
+            "library_name": rna["library"],
+            "runtime": runtime,
+            "references": {key: value for key, value in references.items()
+                           if key != "dna_chrom_sizes" and
+                           (key in ("root", "species") or any(key.startswith(mod + "_") for mod in active))},
+            "samples": {rna["sample"]: {"preprocessed": entries}},
+        }
+        sheet.write_text(yaml.safe_dump(data))
+        launch = root / f"fastq-{mode}"
+        result, out = launch_fastq_restart(launch, Path("..") / sheet.relative_to(root), opts)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert all(path.read_bytes() == original for path, original in retained.items())
+        tasks = {row["name"].split(":")[-1].split(" (")[0] for row in trace(out)}
+        assert "VALIDATE_PREPROCESSED_SPLIT" in tasks
+        assert not any(name.startswith(("FASTQC", "TAG_", "TRIM_", "SPLIT_RNA_READS",
+                                        "SPLIT_DNA_READS", "DUAL_TAG", "CLEANUP_")) for name in tasks)
+        assert "Historical preprocessing QC is unavailable" in (out / "TrES_Stats/tres_report.html").read_text()
+        assert not (out / "restart_manifest.json").exists()
+        assert ("FQ_TO_SAM" in tasks) == ("rna" in active)
+        assert ("ALIGN_DNA" in tasks) == ("dna" in active)
+        with (out / "TrES_Stats/qc_metrics.tsv").open() as handle:
+            metrics = list(csv.DictReader(handle, delimiter="\t"))
+        assert {row["parent_sample"] for row in metrics} == {rna["sample"]}
+        assert {row["run"] for row in metrics} == {rna["group"]}
+        if "rna" in active:
+            assert_rna_restart(fastqs / "rna renamed two.fq.gz", out, launch / "work", rna["split_id"],
+                               rna["pairs"] - (mode == "mixed"))
+            assert any(row["metric"] == "estimated_cells" for row in metrics)
+        if "dna" in active:
+            assert {"GATK4_MARKDUPLICATES", "DEEPTOOLS_BAMCOVERAGE"} <= tasks
+            for stage in ("MarkedDup", "NoDup"):
+                path = Path("dna_align") / f"{dna['split_id']}_{stage}.bam"
+                assert records_and_groups(out / path) == records_and_groups(direct / path)
+            assert list((out / "dna_align").glob("*.bw"))
+            assert any(row["branch"] == dna["mark"] and row["metric"] == "read_pairs_examined" for row in metrics)
+
+        if mode == "rna":
+            affected = fastqs / "rna renamed two.fq.gz"
+            r2_lines = gzip.decompress(retained[affected]).decode().splitlines()
+            for failure, header, expected in [
+                ("missing-tag", re.sub(r"\s+UM:Z:\S+", "", r2_lines[0]), "missing required FASTQ tags: UM"),
+                ("mismatched-mate", r2_lines[0].replace("@", "@other_", 1), "mate read names differ"),
+            ]:
+                affected.write_bytes(gzip.compress(("\n".join([header, *r2_lines[1:]]) + "\n").encode()))
+                failed, _ = launch_fastq_restart(root / failure, sheet, opts)
+                log = failed.stdout + failed.stderr
+                assert failed.returncode != 0
+                assert expected in log
+                assert str(affected) in log and rna["split_id"] in log
+                if failure == "missing-tag":
+                    assert "exact tagged RNA split FASTQs" in log
 
 
 def test_restart_real_tools(tmp_path):
@@ -213,6 +346,8 @@ def test_restart_real_tools(tmp_path):
         relative = Path("TrES_Stats") / name
         assert report_rows(direct / relative) == report_rows(restarted / relative), name
 
+    verify_fastq_only_restarts(tmp_path, data["references"], data["runtime"], pre, rna, dna, opts, direct)
+
 
 @pytest.fixture
 def dna_split(tmp_path):
@@ -240,6 +375,16 @@ def test_regenerate_rg_from_renamed_reads(dna_split, tmp_path):
         validate_split(r1, r2, spec, existing_rg, output_rg)
 
 
+def test_fastq_only_label_and_optional_mark_validation(dna_split):
+    r1, r2, spec, output_rg = dna_split
+    spec = dict(spec, fastq_only=True, sb_indices={}, mo_barcode=None)
+    assert validate_split(r1, r2, spec, output_rg=output_rg) == 1
+    with pytest.raises(ValueError, match="MO 'AGGCTATA' does not match the DNA mark barcode 'ACGTACGT'"):
+        validate_split(r1, r2, dict(spec, mo_barcode="ACGTACGT"), output_rg=output_rg)
+    with pytest.raises(ValueError, match="group 'other_group'"):
+        validate_split(r1, r2, dict(spec, group="other_group"), output_rg=output_rg)
+
+
 @pytest.mark.parametrize(("change", "error"), [
     (lambda s: "", "unequal record counts"),
     (lambda s: s.replace("I:R:F:1:1000:", "I:R:F:1:1001:"), "mate read names differ"),
@@ -260,6 +405,22 @@ def test_reject_bulk_rna(tmp_path):
         write_fastq(path, [(name, "ACGT")])
     with pytest.raises(ValueError, match="RNA bulk export"):
         validate_split(r1, r2, dict(modality="rna", ligation_length=24, sb_indices={}))
+
+
+@pytest.mark.parametrize("missing", ["CB", "XI", "UM"])
+def test_clipped_rna_requires_recoverable_cell_identity_and_umi(tmp_path, missing):
+    r1, r2 = tmp_path / "r1.fq", tmp_path / "r2.fq"
+    umi = "CCGGTTAACC"
+    cell = f"sample_id_group_id_01_{LIGATION}"
+    name = f"read_P{'a' * 64}_{umi}"
+    tags = {"CB": cell, "XI": cell, "UM": umi}
+    for path in (r1, r2):
+        comment = "\t".join(f"{key}:Z:{value}" for key, value in tags.items() if key != missing)
+        write_fastq(path, [(f"{name} {comment}", "TGCA" * 20)])
+    spec = dict(modality="rna", sample="sample_id", group="group_id", fastq_only=True,
+                ligation_length=24, umi_start=4, umi_length=10)
+    with pytest.raises(ValueError, match=f"missing required FASTQ tags: {missing}.*exact tagged RNA split FASTQs"):
+        validate_split(r1, r2, spec)
 
 
 def test_reject_clipped_rna_without_bulk_name(tmp_path):

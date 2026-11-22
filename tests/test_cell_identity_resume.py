@@ -28,7 +28,7 @@ def test_lookup_content_and_identity_changes_invalidate_resumed_tasks(tmp_path):
                        'dna_effective_genome_size':12},
         'samples': {'cache_sample': {
             'groups': {'Normal': {'rna_sb_barcodes':['CAGT'], 'dna_sb_barcodes':['GTC'], 'mark_barcodes':{'M':'AGGCTATA'}},
-                       'K422_A': {'rna_sb_barcodes':['GCAT'], 'dna_sb_barcodes':['GAT'], 'mark_barcodes':{'M':'AGGCTATA'}}},
+                       'group_a': {'rna_sb_barcodes':['GCAT'], 'dna_sb_barcodes':['GAT'], 'mark_barcodes':{'M':'AGGCTATA'}}},
             'rna':{'reads':{r:str(data/f'test_rna_{r.upper()}.fastq') for r in ('i1','r1','r2')}},
             'dna':{'tagmentation':'dual','reads':{'i1':str(data/'test_dna_I1_dual_lig.fastq'),
                     'r1':str(data/'test_dna_R1.fastq'), 'r2':str(data/'test_dna_R2.fastq')}}}}

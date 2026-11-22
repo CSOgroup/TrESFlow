@@ -41,7 +41,7 @@ RGID="${sample_name}_${modality}"
 echo "Aligning"
 echo "Using BWA_MEM2_BIN=${BWA_MEM2_BIN}"
 echo "Using SAMTOOLS_BIN=${SAMTOOLS_BIN}"
-"${BWA_MEM2_BIN}" mem -t ${threads} -C -o ${RGID}_TEMP.sam ${path_bwarefDB} ${R1} ${R2}
+"${BWA_MEM2_BIN}" mem -t ${threads} -C -o ${RGID}_TEMP.sam "${path_bwarefDB}" "${R1}" "${R2}"
 
 echo "Changing header and sorting alignment..."
 # Prepare the header

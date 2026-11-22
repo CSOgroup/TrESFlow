@@ -146,9 +146,9 @@ def test_real_and_python_split_shared_identity_and_physical_tags(tmp_path,dna,se
     if sequences:
         entries = [{'sb_index':label,'rna_sb_barcode':rna,'dna_sb_barcode':dna_sb}
                    for label,rna,dna_sb in zip(('07','13'),('GCTA','GATC'),dna_sequences)]
-    result = parse_cases(tmp_path/'contract',[sheet({'K422_B':group(sb_oligo_pairings=entries)},dna=dna)])[0]
+    result = parse_cases(tmp_path/'contract',[sheet({'group_b':group(sb_oligo_pairings=entries)},dna=dna)])[0]
     records(result)
-    expected = {f'VTD11_VTR12_K422_B_{i}_{LIGATIONS}' for i in ('07','13')}
+    expected = {f'VTD11_VTR12_group_b_{i}_{LIGATIONS}' for i in ('07','13')}
     cells={}
     for row in result['samples']:
         modality=row['modality']
@@ -156,7 +156,7 @@ def test_real_and_python_split_shared_identity_and_physical_tags(tmp_path,dna,se
         indices = ('07','13') if modality=='rna' else dna_indices
         outputs={mode:split_fixture(tmp_path/modality/mode,modality,mode,physical,indices,
                                    sb_map=row['sb_group_map'],mo_map=row.get('mo_map')) for mode in ('mock','real')}
-        stem='VTD11_VTR12_K422_B'+('_H3K27ac' if modality=='dna' else '')
+        stem='VTD11_VTR12_group_b'+('_H3K27ac' if modality=='dna' else '')
         for mate in ('R1','R2'):
             text=(outputs['real']/f'{stem}_{mate}.fastq').read_text()
             assert text==(outputs['mock']/f'{stem}_{mate}.fastq').read_text()
@@ -183,13 +183,13 @@ def test_real_and_python_split_shared_identity_and_physical_tags(tmp_path,dna,se
 
 @pytest.mark.parametrize('modality',['rna','dna'])
 def test_new_indices_python_and_codon_split(tmp_path,modality):
-    result=parse_cases(tmp_path/'contract',[sheet({'K422_B':group(sb_oligo_indices=[13,14,15,16])},dna='single')])[0]
+    result=parse_cases(tmp_path/'contract',[sheet({'group_b':group(sb_oligo_indices=[13,14,15,16])},dna='single')])[0]
     row=next(r for r in result['samples'] if r['modality']==modality)
     outputs={mode:split_fixture(tmp_path/mode,modality,mode,('GATC','TGAC','CATG','TACG'),('13','14','15','16'),
                                sb_map=row['sb_group_map'],mo_map=row.get('mo_map')) for mode in ('mock','real')}
     for path in outputs['real'].glob('*.fastq'):
         assert path.read_bytes()==(outputs['mock']/path.name).read_bytes()
-        assert all(f'CB:Z:VTD11_VTR12_K422_B_{i}_' in path.read_text() for i in ('13','14','15','16'))
+        assert all(f'CB:Z:VTD11_VTR12_group_b_{i}_' in path.read_text() for i in ('13','14','15','16'))
 
 
 def test_warnings_are_logged_before_preflight_and_invalid_sheets_do_not_warn(tmp_path):

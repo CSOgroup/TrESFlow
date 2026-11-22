@@ -85,9 +85,9 @@ def group(**kwargs):
 
 def test_index_and_legacy_sequences_resolve_equally_and_keep_underscores(tmp_path):
     cases = [
-        sheet({'B': group(sb_oligo_indices=[1, '07']), 'K422_B': group(sb_oligo_indices=['12'])}),
+        sheet({'B': group(sb_oligo_indices=[1, '07']), 'group_b': group(sb_oligo_indices=['12'])}),
         sheet({'B': group(rna_sb_barcodes=['GCTA', 'GCAT'], dna_sb_barcodes=['GAT', 'GAC']),
-               'K422_B': group(rna_sb_barcodes=['TCGA'], dna_sb_barcodes=['TAC'])}),
+               'group_b': group(rna_sb_barcodes=['TCGA'], dna_sb_barcodes=['TAC'])}),
         sheet({'B': group(sb_oligo_indices=['07'])}, dna='single'),
         sheet({'B': group(sb_barcodes=['GCTA'])}, dna='single'),
         sheet({'A': {'sb_oligo_indices':[1]}}, dna=None),
@@ -102,7 +102,7 @@ def test_index_and_legacy_sequences_resolve_equally_and_keep_underscores(tmp_pat
                 for sample in result['samples'] for r in sample['cell_identity_records']}
     assert identities(results[0]) == identities(results[1])
     assert identities(results[2]) == identities(results[3])
-    assert results[0]['samples'][1]['split_targets']['VTD11_VTR12_K422_B_H3K27ac']['group'] == 'K422_B'
+    assert results[0]['samples'][1]['split_targets']['VTD11_VTR12_group_b_H3K27ac']['group'] == 'group_b'
     records = results[0]['samples'][1]['cell_identity_records']
     assert any(r['oligo_index']=='07' and r['sb_bc']=='GAC' for r in records)
     assert results[0]['samples'][0]['sb_lookup_sha256'] == results[0]['samples'][1]['sb_lookup_sha256']
@@ -131,7 +131,7 @@ def test_all_invalid_index_inputs_and_sequence_combinations(tmp_path):
         sheet({'B':group(rna_sb_barcodes=['GCAT'], dna_sb_barcodes=['AAA'])}),
         sheet({'B':group(sb_barcodes=['GCAT'])}), # legacy dual must be explicit
         sheet({'B':{'sb_oligo_indices':[1]}}), # DNA mark required
-        sheet({'B':group(sb_oligo_indices=[1]), 'K422_B':group(sb_oligo_indices=['01'])}),
+        sheet({'B':group(sb_oligo_indices=[1]), 'group_b':group(sb_oligo_indices=['01'])}),
     ]
     results = parse_cases(tmp_path, cases)
     assert all('error' in result for result in results), results
@@ -152,7 +152,7 @@ def test_lookup_validation_and_extensibility(tmp_path):
     original = LOOKUP.read_text()
     valid = tmp_path / 'extended.tsv'
     valid.write_text(original + '17\tAAAA\tAAA\n100\tCCCC\tCCC\n')
-    result = parse_cases(tmp_path/'valid', [sheet({'K422_B':group(sb_oligo_indices=[17,'00100'])})], valid)[0]
+    result = parse_cases(tmp_path/'valid', [sheet({'group_b':group(sb_oligo_indices=[17,'00100'])})], valid)[0]
     assert 'error' not in result, result
     assert {r['oligo_index'] for r in result['samples'][0]['cell_identity_records']} == {'17','100'}
     mutations = [
@@ -190,8 +190,8 @@ def test_exact_tonsil_tags_and_cross_chemistry_identity():
     rna=canonicalize_fastq_comment('VTD11_VTR12','B',
        'CB:Z:GCTATTGACTCTTGATACGTTCCTCAAT\tSB:Z:GCTA\tUM:Z:ACGTACGTAC','07')
     assert 'CB:Z:VTD11_VTR12_B_07_TTGACTCTTGATACGTTCCTCAAT' in rna
-    rna=canonicalize_fastq_comment('sample','K422_A',f'CB:Z:GCTA{LIGATIONS}\tSB:Z:GCTA','07')
-    dna=canonicalize_dna_fastq_comment('sample','K422_A','I:R:F:1:2:3:4:U',f'CB:Z:GAC{LIGATIONS}\tSB:Z:GAC','07')
+    rna=canonicalize_fastq_comment('sample','group_a',f'CB:Z:GCTA{LIGATIONS}\tSB:Z:GCTA','07')
+    dna=canonicalize_dna_fastq_comment('sample','group_a','I:R:F:1:2:3:4:U',f'CB:Z:GAC{LIGATIONS}\tSB:Z:GAC','07')
     assert next(t for t in rna.split() if t.startswith('CB:')) == next(t for t in dna.split() if t.startswith('CB:'))
     with pytest.raises(ValueError):
         canonicalize_fastq_comment('sample','A',f'CB:Z:GCTA{LIGATIONS}\tSB:Z:AGCTA','07')
@@ -210,8 +210,8 @@ def split_fixture(root, modality, mode, sb_sequences=('GCAT','CGAT'), indices=('
     for role in ('r1','r2'):
         (root/f'{role}.fastq').write_text(''.join(f'@{q} {c}\nACGTACGT\n+\nIIIIIIII\n' for q,c in records))
     (root/'sb.tsv').write_text('sample\tsb_group\tsb_bc\toligo_index\n'+''.join(
-        f'{sample}\tK422_B\t{sb}\t{index}\n' for sb,index in zip(sb_sequences,indices)))
-    (root/'mo.tsv').write_text(f'sample\tsb_group\tmark\tmo_bc\n{sample}\tK422_B\tH3K27ac\tGCCTCTAT\n')
+        f'{sample}\tgroup_b\t{sb}\t{index}\n' for sb,index in zip(sb_sequences,indices)))
+    (root/'mo.tsv').write_text(f'sample\tsb_group\tmark\tmo_bc\n{sample}\tgroup_b\tH3K27ac\tGCCTCTAT\n')
     if sb_map:
         shutil.copyfile(sb_map, root/'sb.tsv')
     if mo_map:
@@ -225,7 +225,7 @@ def split_fixture(root, modality, mode, sb_sequences=('GCAT','CGAT'), indices=('
 
 
 def test_sample_named_sample_uses_real_derived_headers(tmp_path):
-    parsed = parse_cases(tmp_path/'contract', [sheet({'K422_B':group(sb_oligo_indices=[1,2])}, sample='sample')])[0]
+    parsed = parse_cases(tmp_path/'contract', [sheet({'group_b':group(sb_oligo_indices=[1,2])}, sample='sample')])[0]
     assert 'error' not in parsed, parsed
     for row in parsed['samples']:
         modality = row['modality']
@@ -235,8 +235,8 @@ def test_sample_named_sample_uses_real_derived_headers(tmp_path):
                    for mode in ('mock','real')}
         for path in outputs['real'].glob('*.fastq'):
             assert path.read_text() == (outputs['mock']/path.name).read_text()
-            assert 'CB:Z:sample_K422_B_01_' in path.read_text()
-            assert 'CB:Z:sample_K422_B_02_' in path.read_text()
+            assert 'CB:Z:sample_group_b_01_' in path.read_text()
+            assert 'CB:Z:sample_group_b_02_' in path.read_text()
         assert not any('sb_group' in path.name for path in outputs['mock'].iterdir())
 
 
@@ -277,12 +277,12 @@ def test_real_mock_split_fq_sam_parity_and_nomatch(tmp_path):
             headers=path.read_text().splitlines()[::4]
             assert len(headers)==8 and all('NoMatch' not in h for h in headers)
             assert {h.split('CB:Z:',1)[1].split()[0] for h in headers}=={
-                f'VTD11_VTR12_K422_B_{idx}_{LIGATIONS}' for idx in ('13','100')}
+                f'VTD11_VTR12_group_b_{idx}_{LIGATIONS}' for idx in ('13','100')}
         if modality=='rna':
             for mode in ('mock','real'):
                 out=output[mode]
                 run([sys.executable,REPO/'bin/run_fq_to_sam.py','--mode',mode,'--script',REPO/'scripts/core_runtime/FqToSAM.codon',
-                     '--r1',out/'VTD11_VTR12_K422_B_R1.fastq','--r2',out/'VTD11_VTR12_K422_B_R2.fastq','--output-sam',out/'rna.sam'])
+                     '--r1',out/'VTD11_VTR12_group_b_R1.fastq','--r2',out/'VTD11_VTR12_group_b_R2.fastq','--output-sam',out/'rna.sam'])
             assert (output['mock']/'rna.sam').read_text()==(output['real']/'rna.sam').read_text()
             text=(output['real']/'rna.sam').read_text()
             assert 'CR:Z:' not in text and 'UR:Z:ACGTACGTAC' in text
@@ -292,7 +292,7 @@ def test_mock_solo_summary_matches_the_full_identity_matrix(tmp_path):
     out = split_fixture(tmp_path/'split', 'rna', 'mock')
     usam = tmp_path/'rna.sam'
     run([sys.executable,REPO/'bin/run_fq_to_sam.py','--mode','mock','--script',REPO/'scripts/core_runtime/FqToSAM.codon',
-         '--r1',out/'VTD11_VTR12_K422_B_R1.fastq','--r2',out/'VTD11_VTR12_K422_B_R2.fastq','--output-sam',usam])
+         '--r1',out/'VTD11_VTR12_group_b_R1.fastq','--r2',out/'VTD11_VTR12_group_b_R2.fastq','--output-sam',usam])
     solo = tmp_path/'Solo.outGeneFull'
     run([sys.executable, REPO/'bin/mock_starsolo_outputs.py', usam, solo])
     summary = dict(csv.reader((solo/'Summary.csv').open()))
@@ -310,7 +310,7 @@ def test_mock_solo_summary_matches_the_full_identity_matrix(tmp_path):
 
 
 @pytest.mark.parametrize('sample,group_name', [
-    ('NoMatchControl', 'K422_B'), ('NoMatch', 'K422_B'),
+    ('NoMatchControl', 'group_b'), ('NoMatch', 'group_b'),
     ('sample_id', 'NoMatchControl'), ('sample_id', 'NoMatch'),
 ])
 def test_real_mock_fq_to_sam_keeps_nomatch_names_and_excludes_failed_tags(tmp_path, sample, group_name):
@@ -362,7 +362,7 @@ def test_real_star_rejected_umis_and_unassigned_reads_keep_identity(tmp_path):
     reads = {}
     for idx, sb in [('01','GCAT'), ('02','CGAT')]:
         for kind, umi, start in cases:
-            reads[f'idx{idx}_{kind}'] = {'cell':f'RNA_sample_K422_A_{idx}_{LIGATIONS}',
+            reads[f'idx{idx}_{kind}'] = {'cell':f'RNA_sample_group_a_{idx}_{LIGATIONS}',
                                        'umi':umi, 'sb':sb, 'kind':kind, 'start':start}
     complement = str.maketrans('ACGT','TGCA')
     for mate, offset in [(1,0), (2,100)]:
@@ -417,7 +417,7 @@ def test_real_star_rejected_umis_and_unassigned_reads_keep_identity(tmp_path):
                          'raw_CB':raw_cb, 'CB':tags['CB'], 'XI':tags['XI'],
                          'UM':tags['UM'], 'UB':tags['UB'], 'GX':tags.get('GX')})
     solo = tmp_path/'fixture.Solo.outGeneFull'
-    expected = [f'RNA_sample_K422_A_{idx}_{LIGATIONS}' for idx in ('01','02')]
+    expected = [f'RNA_sample_group_a_{idx}_{LIGATIONS}' for idx in ('01','02')]
     matrices = {}
     for layer in ('raw','filtered'):
         assert (solo/layer/'barcodes.tsv').read_text().splitlines() == expected
@@ -438,7 +438,7 @@ def test_real_star_rejected_umis_and_unassigned_reads_keep_identity(tmp_path):
     # A second non-placeholder cell identity must still fail the executable
     # normalizer, even on a STAR record that also contains its '-' placeholder.
     rejected = next(r for r in raw if r[0] == 'idx01_N')
-    corrupt = '\t'.join(rejected + [f'CB:Z:RNA_sample_K422_A_02_{LIGATIONS}'])+'\n'
+    corrupt = '\t'.join(rejected + [f'CB:Z:RNA_sample_group_a_02_{LIGATIONS}'])+'\n'
     conflict = subprocess.run([sys.executable,REPO/'scripts/core_runtime/NormalizeRnaBamTags.py'],
                               input=corrupt,capture_output=True,text=True)
     assert conflict.returncode != 0 and 'Conflicting CB' in conflict.stderr
@@ -470,7 +470,7 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path, pai
     sb_map = None
     logical_indices = ('01', '02')
     if paired:
-        parsed = parse_cases(tmp_path/'contract', [sheet({'K422_B':group(sb_oligo_pairings=[
+        parsed = parse_cases(tmp_path/'contract', [sheet({'group_b':group(sb_oligo_pairings=[
             {'sb_index':'07', 'rna_oligo_index':'01', 'dna_oligo_index':'10'},
             {'sb_index':'13', 'rna_oligo_index':'02', 'dna_oligo_index':'07'},
         ])})])[0]
@@ -480,20 +480,20 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path, pai
     out=split_fixture(tmp_path/'split','rna','real', sb_map=sb_map)
     complement=str.maketrans('ACGT','TGCA')
     for mate,start,reverse in [('R1',200,False),('R2',300,True)]:
-        p=out/f'VTD11_VTR12_K422_B_{mate}.fastq';lines=p.read_text().splitlines()
+        p=out/f'VTD11_VTR12_group_b_{mate}.fastq';lines=p.read_text().splitlines()
         sequence=genome[start:start+50]
         if reverse:sequence=sequence.translate(complement)[::-1]
         for i in range(0,len(lines),4):lines[i+1]=sequence;lines[i+3]='I'*50
         p.write_text('\n'.join(lines)+'\n')
     usam=tmp_path/'rna.sam'
     run([sys.executable,REPO/'bin/run_fq_to_sam.py','--mode','real','--script',REPO/'scripts/core_runtime/FqToSAM.codon',
-         '--r1',out/'VTD11_VTR12_K422_B_R1.fastq','--r2',out/'VTD11_VTR12_K422_B_R2.fastq','--output-sam',usam])
+         '--r1',out/'VTD11_VTR12_group_b_R1.fastq','--r2',out/'VTD11_VTR12_group_b_R2.fastq','--output-sam',usam])
     script=(REPO/'scripts/core_runtime/RNA_STARSOLO_ALIGN.sh').read_text().replace(
        '--soloCellFilter EmptyDrops_CR 15000 0.99 30 20000 90000 50 0.01 20000 0.05 10000','--soloCellFilter TopCells 2')
     (tmp_path/'align.sh').write_text(script)
     shutil.copyfile(REPO/'scripts/core_runtime/NormalizeRnaBamTags.py',tmp_path/'NormalizeRnaBamTags.py')
     run(['bash',tmp_path/'align.sh','fixture',usam,index,tmp_path,'1'],cwd=tmp_path)
-    expected=[f'VTD11_VTR12_K422_B_{idx}_{LIGATIONS}' for idx in logical_indices]
+    expected=[f'VTD11_VTR12_group_b_{idx}_{LIGATIONS}' for idx in logical_indices]
     solo=tmp_path/'fixture.Solo.outGeneFull'
     for layer in ('raw','filtered'):
         assert (solo/layer/'barcodes.tsv').read_text().splitlines()==expected
@@ -524,7 +524,7 @@ def test_real_star_two_indices_independent_counts_and_filtered_bam(tmp_path, pai
 def test_identity_normalization_preserves_secondary_and_supplementary():
     spec=importlib.util.spec_from_file_location('normalize',REPO/'scripts/core_runtime/NormalizeRnaBamTags.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    full=f'sample_K422_A_100_{LIGATIONS}'
+    full=f'sample_group_a_100_{LIGATIONS}'
     for flag in (99,147,355,403,2147,2195):
         for cells in (f'CB:Z:{full}\tXI:Z:{full}\tCB:Z:{full}',
                       f'CB:Z:{full}\tXI:Z:{full}\tCB:Z:-',
@@ -540,8 +540,8 @@ def test_identity_normalization_preserves_secondary_and_supplementary():
 def test_identity_normalization_rejects_nonplaceholder_conflicts_and_missing_input_cb():
     spec=importlib.util.spec_from_file_location('normalize',REPO/'scripts/core_runtime/NormalizeRnaBamTags.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    full = f'sample_K422_A_01_{LIGATIONS}'
-    other = f'sample_K422_A_02_{LIGATIONS}'
+    full = f'sample_group_a_01_{LIGATIONS}'
+    other = f'sample_group_a_02_{LIGATIONS}'
     for cells in (f'CB:Z:{full}\tXI:Z:{full}\tCB:Z:-\tCB:Z:{other}',
                   f'CB:Z:{full}\tXI:Z:{full}\tXI:Z:{other}\tCB:Z:-',
                   f'CB:Z:{full}\tXI:Z:{other}\tCB:Z:-',
@@ -553,14 +553,15 @@ def test_identity_normalization_rejects_nonplaceholder_conflicts_and_missing_inp
 
 @pytest.mark.parametrize('paired', [False, True])
 def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path, paired):
-    assert shutil.which('bwa-mem2') and shutil.which('samtools'), 'Real bwa-mem2/samtools required'
+    bwa = shutil.which('bwa-mem2')
+    assert bwa and shutil.which('samtools'), 'Real bwa-mem2/samtools required'
     genome=''.join(random.Random(91).choices('ACGT',k=100000))
     fasta=tmp_path/'genome.fa';fasta.write_text('>chr1\n'+genome+'\n')
-    run(['bwa-mem2','index',fasta],cwd=tmp_path)
+    run([bwa,'index',fasta],cwd=tmp_path)
     sb_map = None
     logical_indices = ('01','02')
     if paired:
-        parsed = parse_cases(tmp_path/'contract', [sheet({'K422_B':group(sb_oligo_pairings=[
+        parsed = parse_cases(tmp_path/'contract', [sheet({'group_b':group(sb_oligo_pairings=[
             {'sb_index':'07','rna_oligo_index':'07','dna_oligo_index':'01'},
             {'sb_index':'13','rna_oligo_index':'13','dna_oligo_index':'02'},
         ])})])[0]
@@ -570,7 +571,7 @@ def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path, paired):
     out=split_fixture(tmp_path/'split','dna','real',('GAT','AGT'),sb_map=sb_map)
     complement=str.maketrans('ACGT','TGCA')
     for mate,start,reverse in [('R1',200,False),('R2',400,True)]:
-        p=out/f'VTD11_VTR12_K422_B_H3K27ac_{mate}.fastq';lines=p.read_text().splitlines()
+        p=out/f'VTD11_VTR12_group_b_H3K27ac_{mate}.fastq';lines=p.read_text().splitlines()
         sequence=genome[start:start+100]
         if reverse:sequence=sequence.translate(complement)[::-1]
         for i in range(0,len(lines),4):lines[i+1]=sequence;lines[i+3]='I'*100
@@ -581,22 +582,23 @@ def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path, paired):
             extra[i]=extra[i].replace(':1:U ',':2:U ',1)
         p.write_text('\n'.join(lines+extra)+'\n')
     blacklist=tmp_path/'blacklist.bed';blacklist.write_text('chr1\t90000\t90001\n')
-    environment=dict(os.environ,ALIGN_DNA_THREADS='1',ALIGN_DNA_VIEW_THREADS='1',ALIGN_DNA_SORT_THREADS='1',ALIGN_DNA_SORT_MEM='64M')
-    run(['bash',REPO/'scripts/core_runtime/AlignDNA.sh','H3K27ac','VTD11_VTR12_K422_B',
-         out/'VTD11_VTR12_K422_B_H3K27ac_R1.fastq',out/'VTD11_VTR12_K422_B_H3K27ac_R2.fastq',blacklist,
-         out/'SAM_RG_Header_VTD11_VTR12_K422_B_H3K27ac.tsv',fasta,'100000',tmp_path],cwd=tmp_path,env=environment)
-    records=run(['samtools','view',tmp_path/'VTD11_VTR12_K422_B_H3K27ac.bam']).splitlines()
+    environment=dict(os.environ,BWA_MEM2_BIN=bwa,ALIGN_DNA_THREADS='1',ALIGN_DNA_VIEW_THREADS='1',
+                     ALIGN_DNA_SORT_THREADS='1',ALIGN_DNA_SORT_MEM='64M')
+    run(['bash',REPO/'scripts/core_runtime/AlignDNA.sh','H3K27ac','VTD11_VTR12_group_b',
+         out/'VTD11_VTR12_group_b_H3K27ac_R1.fastq',out/'VTD11_VTR12_group_b_H3K27ac_R2.fastq',blacklist,
+         out/'SAM_RG_Header_VTD11_VTR12_group_b_H3K27ac.tsv',fasta,'100000',tmp_path],cwd=tmp_path,env=environment)
+    records=run(['samtools','view',tmp_path/'VTD11_VTR12_group_b_H3K27ac.bam']).splitlines()
     assert len(records)==32
-    expected={f'VTD11_VTR12_K422_B_{index}_{LIGATIONS}' for index in logical_indices}
+    expected={f'VTD11_VTR12_group_b_{index}_{LIGATIONS}' for index in logical_indices}
     for record in records:
         tags=dict(t.split(':',2)[::2] for t in record.split('\t')[11:])
         assert tags['CB']==tags['XI'] and tags['CB'] in expected
         assert tags['SB'] in ('GAT','AGT') and tags['RG']=='I:R:F:L1'
-    header=run(['samtools','view','-H',tmp_path/'VTD11_VTR12_K422_B_H3K27ac.bam'])
+    header=run(['samtools','view','-H',tmp_path/'VTD11_VTR12_group_b_H3K27ac.bam'])
     assert '\tLB:TEST\tPU:I:R:F:L1' in header
 
     if paired:
-        stem = 'VTD11_VTR12_K422_B_H3K27ac'
+        stem = 'VTD11_VTR12_group_b_H3K27ac'
         aligned = tmp_path/f'{stem}.bam'
         marked = tmp_path/f'{stem}_MarkedDup.bam'
         run(['gatk','--java-options','-Xmx1g -XX:-UsePerfData','MarkDuplicates',
@@ -609,7 +611,7 @@ def test_real_dna_alignment_preserves_full_tags_on_both_mates(tmp_path, paired):
         run(['bash',REPO/'scripts/core_runtime/FilterCanonicalBam.sh',marked,normalized,canonical,'1','normal'])
         nodup=tmp_path/f'{stem}_NoDup.bam'
         run(['bash',REPO/'scripts/core_runtime/SplitDuplicatesDNA.sh',normalized,nodup,tmp_path/'nodup.bai',
-             tmp_path/'mapped.txt',tmp_path/'warning.tsv','1','VTD11_VTR12','K422_B','H3K27ac',stem])
+             tmp_path/'mapped.txt',tmp_path/'warning.tsv','1','VTD11_VTR12','group_b','H3K27ac',stem])
         nodup_records=run(['samtools','view',nodup]).splitlines()
         assert len(nodup_records)==4  # one surviving pair for each shared identity
         assert {dict(t.split(':',2)[::2] for t in r.split('\t')[11:])['CB'] for r in nodup_records}==expected

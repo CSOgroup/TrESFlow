@@ -191,7 +191,7 @@ def exports(out):
 
 def assert_preprocess(result, out):
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "--publish_split_fastqs false is overridden" in result.stdout
+    assert "--publish_split_fastqs false is overridden" in result.stdout + result.stderr
     tasks = trace(out)
     assert all(row["status"] == "COMPLETED" for row in tasks)
     assert not {row["name"].split(":")[-1].split(" (")[0] for row in tasks} & DISABLED
@@ -366,11 +366,12 @@ def test_rna_export_failure_retains_split_inputs(tmp_path, preprocess_runtime):
     broken = tmp_path / "runtime"
     shutil.copytree(preprocess_runtime, broken, symlinks=True)
     (broken / "bin/pigz").unlink()
-    # Tag-record compression also uses pigz. Fail only the export's stdin
-    # compression (-c), after the unchanged upstream consumers have succeeded.
+    # The exact restart copy passes a filename to pigz. Fail only the export's
+    # stdin compressor, whose arguments are just "-c -p <threads>".
     pigz = broken / "bin/pigz"
     real_pigz = shlex.quote(str((preprocess_runtime / "bin/pigz").resolve()))
-    pigz.write_text('#!/bin/sh\nif [ "$1" = "-c" ]; then exit 1; fi\nexec ' + real_pigz + ' "$@"\n')
+    pigz.write_text('#!/bin/sh\nif [ "$#" -eq 3 ] && [ "$1" = "-c" ] && [ "$2" = "-p" ]; then exit 1; fi\n'
+                    'exec ' + real_pigz + ' "$@"\n')
     pigz.chmod(0o755)
     data = reference_free(extend_rna_fixture(tmp_path, fixture("rna")))
     data["runtime"]["env_prefix"] = str(broken)

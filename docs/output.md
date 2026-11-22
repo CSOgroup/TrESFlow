@@ -32,6 +32,11 @@ the existing `dna_split_fastqs/` files directly. The RNA pairs under
 `restart/rna/` retain the same read names, R2 prefix, tags and quality strings
 that the direct workflow passes to SAM conversion.
 
+A FASTQ-only restart accepts these exact RNA pairs, tagged pairs from
+`rna_split_fastqs/`, and the published DNA pairs. Clipped RNA sequences and
+qualities reach SAM unchanged. DNA read groups are rebuilt from the reads.
+The analysis report marks historical preprocessing QC as unavailable.
+
 `TrES_Stats/` retains barcode statistics, tag records, split retention, barcode
 composition/gates, eligible dual-tag artifact-filter metrics, FastQC, MultiQC
 and the HTML/TSV reports. The HTML identifies **Preprocessing-only** and shows

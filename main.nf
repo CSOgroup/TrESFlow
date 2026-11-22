@@ -49,15 +49,18 @@ workflow {
         Input modes:
           Raw reads from the samplesheet                 Run the full pipeline (default).
           --preprocess_only true                         Publish reference-free preprocessing outputs.
-          --preprocessed_input <directory|manifest.json> Analyze published split FASTQs.
+          --preprocessed_input true                      Analyze split FASTQ pairs listed in samples.<sample>.preprocessed.
+          --preprocessed_input <directory|manifest.json> Restart from a version 1 manifest.
 
-        Supply matching sample metadata and genome references in the samplesheet
-        with --preprocessed_input. Use a separate output directory for analysis.
+        FASTQ paths are relative to the samplesheet directory. Supply the original
+        sample and group labels, a mark for DNA, and the runtime and genome references.
+        Set mark_barcode on a DNA split to check its MO tags.
+        Use a separate output directory for analysis.
         Use either --preprocess_only true or --preprocessed_input.
         '''.stripIndent().trim())
     }
     if( params.containsKey('restart_from_preprocessed') ) {
-        error 'Use --preprocessed_input <directory|manifest.json> in place of --restart_from_preprocessed.'
+        error 'Use --preprocessed_input in place of --restart_from_preprocessed.'
     }
 
     def runtimeSupport = loadGroovySupportClass("${projectDir}/lib/RuntimeSupport.groovy")
@@ -93,11 +96,16 @@ workflow {
         launchDir.toString(),
         rawOutdir ?: 'results'
     )
-    if( rawPreprocessedInput != null && (!(rawPreprocessedInput instanceof String) || !rawPreprocessedInput.trim()) ) {
-        error 'Parameter --preprocessed_input requires a preprocessing output directory or version 1 restart manifest path.'
+    if( rawPreprocessedInput != null && !(rawPreprocessedInput instanceof Boolean) &&
+        (!(rawPreprocessedInput instanceof String) || !rawPreprocessedInput.trim()) ) {
+        error 'Parameter --preprocessed_input accepts true, false, a preprocessing output directory, or a version 1 restart manifest path.'
     }
-    def resolvedPreprocessedInput = runtimeSupport.resolveLaunchPath(launchDir.toString(), rawPreprocessedInput)
-    if( resolvedPreprocessedInput && preprocessOnly ) {
+    def inputMode = rawPreprocessedInput?.toString()?.trim()?.toLowerCase()
+    def fastqRestart = inputMode == 'true'
+    def manifestPath = inputMode && !(inputMode in ['true', 'false'])
+        ? runtimeSupport.resolveLaunchPath(launchDir.toString(), rawPreprocessedInput)
+        : null
+    if( (fastqRestart || manifestPath) && preprocessOnly ) {
         error 'Use either --preprocessed_input or --preprocess_only true.'
     }
     def resolvedCoreScriptsDir = rawCoreScriptsDir
@@ -154,21 +162,27 @@ workflow {
     def restart = null
     try {
         // Check source paths before the samplesheet parser writes derived files.
-        def manifestSupport = resolvedPreprocessedInput
+        def manifestSupport = (fastqRestart || manifestPath)
             ? loadGroovySupportClass("${projectDir}/lib/PreprocessedManifest.groovy")
             : null
-        if( manifestSupport ) restart = manifestSupport.read(resolvedPreprocessedInput, resolvedOutdir, workflow.workDir.toString())
+        if( manifestPath ) restart = manifestSupport.read(manifestPath, resolvedOutdir, workflow.workDir.toString())
         samplesheetContract = samplesheetParser.parseContract(
             resolvedSamplesheet,
             [
                 preprocess_only : preprocessOnly,
-                restart         : !!resolvedPreprocessedInput,
+                restart         : !!manifestPath,
+                fastq_restart   : fastqRestart,
                 outdir          : resolvedOutdir,
                 barcode_defaults: params.barcode_defaults,
                 sb_oligo_lookup : params.sb_oligo_lookup ?: "${projectDir}/assets/sb_oligo_lookup.v1.tsv",
             ]
         )
-        if( restart ) manifestSupport.bindSamples(restart, samplesheetContract.samples)
+        if( fastqRestart ) {
+            restart = manifestSupport.readFastqList(
+                samplesheetContract.splits, resolvedSamplesheet, resolvedOutdir, workflow.workDir.toString()
+            )
+        }
+        else if( restart ) manifestSupport.bindSamples(restart, samplesheetContract.samples)
     }
     catch( IllegalArgumentException e ) {
         error e.message

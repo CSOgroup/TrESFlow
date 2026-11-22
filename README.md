@@ -188,31 +188,78 @@ For bulk export, run `NXF_OFFLINE=true nextflow run . --preprocess_only true --s
 
 ### Restart from preprocessed FASTQs
 
-Use the completed preprocessing output directory or its `restart_manifest.json`
-with `--preprocessed_input`. Run both steps from the same checkout and
-use matching library names, sample IDs, group definitions, barcode settings and
-chemistry. The restart samplesheet needs runtime settings and genome references
-for its active modalities. It can omit `reads` and the ligation whitelist.
+Save one of the samplesheets below as `preprocessed.yaml`, adjust the paths
+and labels, and run:
 
 ```bash
-NXF_OFFLINE=true nextflow run . \
-  -work-dir work/preprocess \
-  --samplesheet /path/to/raw-samplesheet.yaml \
-  --preprocess_only true --outdir results/preprocess
-
-NXF_OFFLINE=true nextflow run . \
-  -work-dir work/restart \
-  --samplesheet /path/to/analysis-samplesheet.yaml \
-  --preprocessed_input results/preprocess --outdir results/restart
+nextflow run . --preprocessed_input true --samplesheet preprocessed.yaml --outdir results/analysis
 ```
 
-The manifest points to exact RNA split pairs in `restart/rna/`, exact DNA
-split pairs in `dna_split_fastqs/`, DNA read-group headers in `restart/dna/`
-and preprocessing metrics in `restart/preprocessing_qc/`. Keep these paths
-together when moving the output directory. RNA starts at the input to
-`FQ_TO_SAM` and DNA starts at the input to `ALIGN_DNA`. For RNA restart, use
-the exact pairs in `restart/rna/`. The transformed bulk pairs are available
-separately in `rna_split_fastqs/`.
+**RNA-only samplesheet**
+
+```yaml
+library_name: library_01
+runtime:
+  env_prefix: /path/to/tres
+references:
+  root: /path/to/references
+  species: human
+  rna_ref_dir: /path/to/references/star
+samples:
+  sample_01:
+    preprocessed:
+      - group: group_a
+        modality: rna
+        r1: fastqs/group_a_rna_R1.fastq.gz
+        r2: fastqs/group_a_rna_R2.fastq.gz
+```
+
+**DNA-only samplesheet**
+
+```yaml
+library_name: library_01
+runtime:
+  env_prefix: /path/to/tres
+references:
+  root: /path/to/references
+  species: human
+  dna_ref_dir: /path/to/references/bwa
+  dna_blacklist_bed: /path/to/references/hg38-blacklist.bed
+  dna_effective_genome_size: 2913022398
+samples:
+  sample_01:
+    preprocessed:
+      - group: group_a
+        modality: dna
+        mark: H3K27ac
+        r1: fastqs/group_a_H3K27ac_R1.fastq.gz
+        r2: fastqs/group_a_H3K27ac_R2.fastq.gz
+```
+
+For a mixed run, include both reference sets and both list entries. Use the
+original sample and group labels encoded in the cell tags. FASTQs may be moved
+or renamed. Relative paths resolve from the YAML directory, and `.fastq` and
+`.fq` files may be plain or gzip-compressed. Store inputs outside the analysis
+output and work directories. This mode needs only the pairs and the settings
+shown above. Historical preprocessing QC is reported as unavailable.
+
+- RNA accepts exact tagged splits from `restart/rna/` and published
+  `rna_split_fastqs/` pairs with intact `CB`, `XI`, and `UM` tags. TrESFlow
+  recognizes clipped exports by the pool ID and UMI suffix on each read name.
+  Their existing R2 sequence and qualities go through SAM conversion unchanged.
+  Clipping and short-pair filtering can change results across formats. Use
+  the exact tagged splits to reproduce direct-run inputs or when the published
+  pairs are missing those tags.
+- DNA accepts the tagged pairs from `dna_split_fastqs/`. TrESFlow rebuilds
+  the SAM read-group header and routes the split to the declared `mark`.
+  Set the optional `mark_barcode` on the entry to check the FASTQ `MO` tag
+  against an expected barcode.
+
+To restart with historical QC, pass a completed preprocessing output directory
+or its `restart_manifest.json` as the value of `--preprocessed_input`. Keep
+the manifest and its referenced files together and supply matching library,
+sample, group, barcode and chemistry metadata in the analysis samplesheet.
+That samplesheet may omit raw `reads` and the ligation whitelist.
 
 Version 1 manifests list one entry per samplesheet split with its `split_id`,
 `sample`, `library`, `group`, `modality`, `format` (`tresflow-split-v1`),
@@ -224,17 +271,10 @@ before alignment, checks their records and barcode tags, and checks the
 manifest's pair count when supplied. Optional `report_inputs` and
 `multiqc_inputs` list attributable preprocessing sidecars.
 
-The [K422 GEO manifest](assets/restart.k422-geo.example.json) and its
-[DNA-only samplesheet](assets/samplesheet.restart.k422-geo.example.yaml)
-illustrate using renamed FASTQs in place on the original server. The example
-uses the two DNA marks from `Ori` / `K422` and regenerates their RG headers.
-To restart RNA for that library, recover or regenerate the exact
-`Ori_K422_R1.fastq` and `Ori_K422_R2.fastq` split pair.
-
 Useful options include:
 
 - `--preprocess_only`: strictly validated boolean, default `false`; enable reference-free preprocessing and automatic gzip FASTQ publication.
-- `--preprocessed_input` takes the preprocessing output directory or a version 1 manifest and skips raw preprocessing.
+- `--preprocessed_input` takes `true` for samplesheet-listed pairs, or a preprocessing output directory or version 1 manifest path.
 - `nextflow run . --help` lists the input modes.
 - `--max_cpus`: maximum CPU budget available to the pipeline.
 - `--rna_export_cpus`: RNA bulk-export budget, default `16`, capped by `--max_cpus`; includes conversion and both mate compressors.
