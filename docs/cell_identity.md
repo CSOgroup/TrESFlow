@@ -45,7 +45,7 @@ samples:
         sb_oligo_indices: ["01", "02", 7]
         mark_barcodes:
           H3K27ac: GCCTCTAT
-      K422_B:
+      group_b:
         sb_oligo_indices: ["12"]
         mark_barcodes:
           H3K27ac: GCCTCTAT

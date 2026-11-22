@@ -22,7 +22,7 @@
                     "type": "string",
                     "format": "file-path",
                     "mimetype": "text/yaml",
-                    "description": "Hierarchical YAML samplesheet describing runtime, references, biological groups, and modality-specific FASTQ inputs. Restart uses the samplesheet metadata and references without resolving raw read paths. Samplesheet-internal relative paths resolve from the samplesheet directory."
+                    "description": "Hierarchical YAML samplesheet describing runtime, references, and FASTQ inputs. With --preprocessed_input true, list split FASTQ pairs in samples.<sample>.preprocessed. Samplesheet-internal relative paths resolve from the samplesheet directory."
                 },
                 "outdir": {
                     "type": "string",
@@ -42,9 +42,9 @@
                     "description": "Run reference-free RNA/DNA preprocessing and QC only. Publish bulk RNA exports, exact RNA and DNA split FASTQs, DNA read groups, and a restart manifest."
                 },
                 "preprocessed_input": {
-                    "type": "string",
+                    "type": ["boolean", "string"],
                     "minLength": 1,
-                    "description": "Path to a completed preprocessing output directory or its version 1 restart manifest, relative to the launch directory or absolute. Starts analysis from published split FASTQs. Requires matching samplesheet metadata and genome references for active modalities. Incompatible with --preprocess_only true."
+                    "description": "Use true to analyze the split FASTQ pairs listed in the samplesheet. A preprocessing output directory or version 1 manifest path selects manifest restart and is resolved from the launch directory. Both restart modes skip raw preprocessing and require genome references for active modalities. Use false for raw inputs."
                 },
                 "help": {
                     "type": "boolean",
@@ -219,6 +219,9 @@
     ],
     "not": {
         "required": ["preprocess_only", "preprocessed_input"],
-        "properties": { "preprocess_only": { "const": true } }
+        "properties": {
+            "preprocess_only": { "const": true },
+            "preprocessed_input": { "not": { "enum": [false, "false"] } }
+        }
     }
 }

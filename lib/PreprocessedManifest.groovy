@@ -12,9 +12,10 @@ class PreprocessedManifest {
         }
     }
 
-    private static Path resolveInput(Path base, Object value, String label, List<Path> destinations) {
-        if( !(value instanceof String) || !value.trim() || Path.of(value).isAbsolute() ) {
-            throw new IllegalArgumentException("${label}: expected a path relative to the restart manifest")
+    private static Path resolveInput(Path base, Object value, String label, List<Path> destinations, boolean allowAbsolute = false) {
+        if( !(value instanceof String) || !value.trim() || (!allowAbsolute && Path.of(value).isAbsolute()) ) {
+            def requirement = allowAbsolute ? 'a FASTQ path' : 'a path relative to the restart manifest'
+            throw new IllegalArgumentException("${label}: expected ${requirement}")
         }
         Path source = base.resolve(value).normalize()
         if( !Files.isRegularFile(source) || !Files.isReadable(source) ) {
@@ -23,6 +24,31 @@ class PreprocessedManifest {
         protect(source, destinations, label)
         // Keep the listed basename and compression suffix even when it is a symlink.
         return source
+    }
+
+    private static Map resolveReads(Map entry, Path base, List<Path> destinations, Set readFiles, boolean fromSheet) {
+        String label = "Restart split '${entry.modality}:${entry.split_id}'"
+        return ['r1', 'r2'].collectEntries { role ->
+            Path source = resolveInput(base, entry[role], "${label} ${role}", destinations, fromSheet)
+            if( !(source.fileName.toString() ==~ /.+\.(?:fastq|fq)(?:\.gz)?/) ) {
+                throw new IllegalArgumentException("${label} ${role}: expected .fastq or .fq, optionally gzip compressed: ${source}")
+            }
+            def physicalFile = Files.readAttributes(source, java.nio.file.attribute.BasicFileAttributes).fileKey() ?: source.toRealPath()
+            if( !readFiles.add(physicalFile) ) {
+                throw new IllegalArgumentException("${label} ${role}: FASTQ is reused in the restart inputs: ${source}")
+            }
+            [(role): source]
+        }
+    }
+
+    static Map readFastqList(List<Map> splits, String sheet, String output, String workDir) {
+        Path base = Path.of(sheet).parent
+        List<Path> destinations = [Path.of(output), new File(workDir).canonicalFile.toPath()]
+        Set readFiles = new HashSet()
+        return [
+            fastq_only: true,
+            splits: splits.collect { split -> split + resolveReads(split.entry, base, destinations, readFiles, true) },
+        ]
     }
 
     static Map read(String input, String output, String workDir) {
@@ -56,19 +82,9 @@ class PreprocessedManifest {
             if( entry.containsKey('pairs') && (!(entry.pairs instanceof Integer || entry.pairs instanceof Long) || entry.pairs < 0) ) {
                 throw new IllegalArgumentException("${label}: pairs must be a nonnegative integer.")
             }
-            def reads = ['r1', 'r2'].collect { role ->
-                Path source = resolveInput(base, entry[role], "${label} ${role}", destinations)
-                if( !(source.fileName.toString() ==~ /.+\.(?:fastq|fq)(?:\.gz)?/) ) {
-                    throw new IllegalArgumentException("${label} ${role}: expected .fastq or .fq, optionally gzip compressed: ${source}")
-                }
-                def physicalFile = Files.readAttributes(source, java.nio.file.attribute.BasicFileAttributes).fileKey() ?: source.toRealPath()
-                if( !readFiles.add(physicalFile) ) {
-                    throw new IllegalArgumentException("${label} ${role}: FASTQ is reused in this manifest: ${source}")
-                }
-                source
-            }
+            Map reads = resolveReads(entry, base, destinations, readFiles, false)
             Path rg = entry.rg == null ? null : resolveInput(base, entry.rg, "${label} rg", destinations)
-            [entry: entry, r1: reads[0], r2: reads[1], rg: rg]
+            [entry: entry, rg: rg] + reads
         }
         Map qc = ['report_inputs', 'multiqc_inputs'].collectEntries { key ->
             def values = doc.containsKey(key) ? doc[key] : []

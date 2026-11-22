@@ -63,8 +63,13 @@
             "minProperties": 1,
             "additionalProperties": {
                 "type": "object",
-                "required": ["groups"],
                 "properties": {
+                    "preprocessed": {
+                        "description": "One FASTQ pair per RNA group or DNA group and mark. Used with --preprocessed_input true. Relative FASTQ paths resolve from the samplesheet directory.",
+                        "type": "array",
+                        "minItems": 1,
+                        "items": { "$ref": "#/$defs/preprocessed_pair" }
+                    },
                     "groups": {
                         "type": "object",
                         "minProperties": 1,
@@ -87,15 +92,17 @@
                         }
                     }
                 },
-                "anyOf": [
-                    {
-                        "required": ["rna"]
-                    },
-                    {
-                        "required": ["dna"]
-                    }
-                ],
                 "allOf": [
+                    {
+                        "if": { "not": { "required": ["preprocessed"] } },
+                        "then": {
+                            "required": ["groups"],
+                            "anyOf": [
+                                { "required": ["rna"] },
+                                { "required": ["dna"] }
+                            ]
+                        }
+                    },
                     {
                         "if": {
                             "required": ["dna"],
@@ -127,6 +134,31 @@
         }
     },
     "$defs": {
+        "preprocessed_pair": {
+            "type": "object",
+            "required": ["group", "modality", "r1", "r2"],
+            "properties": {
+                "group": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" },
+                "modality": { "enum": ["rna", "dna"] },
+                "mark": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" },
+                "mark_barcode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional expected MO tag on a DNA split."
+                },
+                "r1": { "$ref": "#/$defs/preprocessed_fastq_path" },
+                "r2": { "$ref": "#/$defs/preprocessed_fastq_path" }
+            },
+            "if": { "properties": { "modality": { "const": "dna" } } },
+            "then": { "required": ["mark"] },
+            "else": {
+                "not": { "anyOf": [{ "required": ["mark"] }, { "required": ["mark_barcode"] }] }
+            }
+        },
+        "preprocessed_fastq_path": {
+            "type": "string",
+            "pattern": ".+\\.(fastq|fq)(\\.gz)?$"
+        },
         "index": {
             "oneOf": [
                 {

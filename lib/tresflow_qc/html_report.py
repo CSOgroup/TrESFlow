@@ -250,6 +250,8 @@ def _overview(model: ReportModel) -> str:
             for parent in dna_parents
         ]
     mode = '<p><strong>Preprocessing-only</strong> · Alignment, duplication, coverage and cell calling: not run.</p>' if model.run_metadata.get("preprocess_only") is True else ''
+    if model.run_metadata.get("preprocessed_splits"):
+        mode = '<p><strong>FASTQ restart</strong> · Historical preprocessing QC is unavailable.</p>'
     return f'''<section id="overview"><h2>Run overview</h2><p class="library-name">{esc(model.library_name)}</p>{mode}
       <div class="overview-strip">
         <div><span>Independent runs</span><strong>{esc(", ".join(groups) or "unavailable")}</strong></div>

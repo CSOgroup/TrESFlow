@@ -140,7 +140,10 @@ workflow TRESEQ {
             def entry = split.entry
             def meta = split.row
             def spec = entry + [
-                sb_indices: meta.cell_identity_records.findAll { it.group == entry.group }
+                fastq_only: restart.fastq_only == true,
+                r1: split.r1.toString(),
+                r2: split.r2.toString(),
+                sb_indices: (meta.cell_identity_records ?: []).findAll { it.group == entry.group }
                     .collectEntries { [(it.sb_bc): it.sb_index] },
                 ligation_length: 3 * meta.cell_bc_len,
                 umi_start: meta.umi_bc_start,
@@ -298,7 +301,12 @@ workflow TRESEQ {
             preprocess_only : reportMetadata.preprocess_only,
             report_title    : reportMetadata.report_title,
             pipeline_version: reportMetadata.pipeline_version,
-            filter_dual_tag_artifacts: restart?.filter_dual_tag_artifacts == null ? params.filter_dual_tag_artifacts : restart.filter_dual_tag_artifacts,
+            preprocessed_splits: restart && !restart.report_inputs ? restart.splits.collect { split ->
+                def entry = split.entry
+                [sample: entry.sample, group: entry.group, modality: entry.modality,
+                 mark: split.row.split_targets[entry.split_id].mark, split_id: entry.split_id]
+            } : [],
+            filter_dual_tag_artifacts: restart ? restart.filter_dual_tag_artifacts : params.filter_dual_tag_artifacts,
             runtime_env_prefix: sampleRows ? sampleRows[0].runtime_env_prefix : '',
             runtime_tmpdir  : sampleRows ? sampleRows[0].runtime_tmpdir : '',
             samples         : sampleRows.collect { row -> [

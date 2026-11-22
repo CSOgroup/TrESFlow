@@ -139,7 +139,8 @@ and repository assets are never early-cleanup targets. `--cleanup_work false`
 retains intermediates and successful task work directories. With default
 cleanup enabled, `-resume` can recompute removed outputs and is not a reliable
 zero-recomputation restart. Launch a fresh invocation with
-`--preprocessed_input` to use the completed manifest and published files. See
+`--preprocessed_input true` and list the split pairs in the samplesheet, or
+pass the completed preprocessing directory as the value of the flag. See
 the [restart instructions](../README.md#restart-from-preprocessed-fastqs).
 
 ## Samplesheet Contract
@@ -311,7 +312,7 @@ The main public parameters are:
 - `--sb_oligo_lookup` (optional versioned chemistry lookup override)
 - `--outdir`
 - `--preprocess_only` (strict boolean, default `false`)
-- `--preprocessed_input` (completed preprocessing output directory or version 1 restart manifest)
+- `--preprocessed_input` (`true` for pairs listed in the samplesheet, or a preprocessing output directory or version 1 manifest path)
 - `--publish_split_fastqs`
 - `--max_cpus`
 - `--cleanup_work`

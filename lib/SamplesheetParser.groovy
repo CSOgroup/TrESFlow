@@ -41,8 +41,11 @@ class SamplesheetParser {
         final File baseDir = sheetFile.parentFile ?: new File('.')
         final String libraryName = requireString(parsed.library_name, 'library_name')
         final Map runtime = resolveRuntime(parsed, baseDir, options)
-        final Map references = resolveReferences(parsed, baseDir, options.preprocess_only == true, options.restart == true)
-        final Map resolved = parseUnified(parsed, baseDir, libraryName, options, references)
+        final boolean fastqRestart = options.fastq_restart == true
+        final Map references = resolveReferences(parsed, baseDir, options.preprocess_only == true, options.restart == true || fastqRestart)
+        final Map resolved = fastqRestart
+            ? parseFastqList(parsed.samples as Map, libraryName, normalizedDefaults(options), references)
+            : parseUnified(parsed, baseDir, libraryName, options, references)
         final List<Map> samples = resolved.samples
         samples.each { row ->
             row.runtime_env_prefix = runtime['env_prefix']
@@ -59,7 +62,7 @@ class SamplesheetParser {
             ],
             samples     : samples,
             sb_identity_warnings: resolved.warnings,
-        ]
+        ] + (fastqRestart ? [splits: resolved.splits] : [:])
     }
 
     static String normalizeOligoIndex(final Object value, final String fieldName) {
@@ -129,6 +132,89 @@ class SamplesheetParser {
         if( firstPass == 'first_pass' ) return ''
         if( firstPass ==~ /first_pass_withBC_[ACGT]/ ) return firstPass[-1]
         throw new IllegalArgumentException("Unsupported SB upstream tag format '${firstPass}'")
+    }
+
+    private static Map parseFastqList(final Map samples, final String libraryName, final Map defaults, final Map references) {
+        final List<Map> rows = []
+        final List<Map> splits = []
+        final Map namespaces = [:]
+        final Map outputs = [:]
+        samples.each { sampleKey, config ->
+            final String sample = requireIdentityName(sampleKey, 'samples.<sample_id>')
+            final String listField = "samples.${sample}.preprocessed"
+            final def entries = asMap(config, "samples.${sample}").preprocessed
+            if( !(entries instanceof List) || entries.isEmpty() ) {
+                throw new IllegalArgumentException("${listField} must be a nonempty list for --preprocessed_input true")
+            }
+            final Map modalityRows = [:]
+            entries.eachWithIndex { item, index ->
+                final String field = "${listField}[${index}]"
+                final Map entry = asMap(item, field)
+                final String group = requireIdentityName(entry.group, "${field}.group")
+                final String modality = requireString(entry.modality, "${field}.modality")
+                if( !(modality in [MODALITY_RNA, MODALITY_DNA]) ) {
+                    throw new IllegalArgumentException("${field}.modality must be rna or dna")
+                }
+                final boolean dna = modality == MODALITY_DNA
+                if( !dna && (entry.containsKey('mark') || entry.containsKey('mark_barcode')) ) {
+                    throw new IllegalArgumentException("${field}: mark and mark_barcode apply to DNA splits")
+                }
+                final String mark = dna ? requireIdentityName(entry.mark, "${field}.mark") : 'RNA'
+                final String moBarcode = entry.containsKey('mark_barcode')
+                    ? requireString(entry.mark_barcode, "${field}.mark_barcode")
+                    : null
+                final String sampleGroup = "${sample}_${group}"
+                final String splitId = dna ? "${sampleGroup}_${mark}" : sampleGroup
+                registerSerializedName(namespaces, sampleGroup, [sample, group], 'cell namespace')
+                registerSerializedName(outputs, "${modality}:${splitId}", [sample, group, mark], 'output name')
+
+                if( !modalityRows.containsKey(modality) ) {
+                    final Map row = [
+                        id: sample, modality: modality, library_name: libraryName,
+                        cell_bc_len: defaults[modality].cell.bc_len as int,
+                        samplesheet_groups: [], split_targets: [:],
+                    ] + analysisReferences(references, modality)
+                    if( !dna ) {
+                        row.umi_bc_start = defaults.rna.umi.bc_start as int
+                        row.umi_bc_len = defaults.rna.umi.bc_len as int
+                    }
+                    modalityRows[modality] = row
+                    rows << row
+                }
+                final Map row = modalityRows[modality]
+                if( row.split_targets.containsKey(splitId) ) {
+                    throw new IllegalArgumentException("${field}: duplicate ${modality} split '${splitId}'")
+                }
+                if( !(group in row.samplesheet_groups) ) row.samplesheet_groups << group
+                row.split_targets[splitId] = [sample: sample, group: group, mark: mark, sample_group: sampleGroup, mo_barcode: moBarcode]
+                splits << [
+                    row: row,
+                    entry: [
+                        split_id: splitId, sample: sample, group: group, modality: modality, library: libraryName,
+                        r1: entry.r1, r2: entry.r2,
+                    ],
+                ]
+            }
+        }
+        return [samples: rows, splits: splits, warnings: []]
+    }
+
+    private static Map analysisReferences(final Map references, final String modality) {
+        if( modality == MODALITY_RNA ) {
+            return [
+                reference_species : references.species,
+                rna_star_index_dir: references.preprocess_only ? references.rna_ref_dir : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
+                rna_chrom_sizes   : references.preprocess_only ? references.rna_chrom_sizes : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
+            ]
+        }
+        return [
+            reference_species        : references.species,
+            dna_ref_dir              : references.dna_ref_dir,
+            dna_bwa_reference        : references.dna_bwa_reference ?: '',
+            dna_blacklist_bed        : references.dna_blacklist_bed,
+            dna_chrom_sizes          : references.dna_chrom_sizes,
+            dna_effective_genome_size: references.dna_effective_genome_size,
+        ]
     }
 
     private static Map parseUnified(
@@ -315,14 +401,11 @@ class SamplesheetParser {
             cell_bc_len               : defaults.rna.cell.bc_len as int,
             cell_hd                   : defaults.rna.cell.hd as int,
             cell_tag                  : defaults.rna.cell.tag.toString(),
-            reference_species         : references.species,
-            rna_star_index_dir        : references.preprocess_only ? references.rna_ref_dir : requireString(references.rna_ref_dir, 'references.rna_ref_dir'),
-            rna_chrom_sizes           : references.preprocess_only ? references.rna_chrom_sizes : requireString(references.rna_chrom_sizes, 'references.rna_ref_dir/chrNameLength.txt'),
             library_name              : libraryName,
             group_definitions         : normalizedGroups,
             rna_sb_barcode_source     : sbSourceSummary,
             rna_sb_barcode_len        : RNA_SB_BARCODE_LENGTH,
-        ]
+        ] + analysisReferences(references, MODALITY_RNA)
     }
 
     private static Map buildDnaRow(
@@ -369,18 +452,12 @@ class SamplesheetParser {
             cell_bc_len                 : defaults.dna.cell.bc_len as int,
             cell_hd                     : defaults.dna.cell.hd as int,
             cell_tag                    : defaults.dna.cell.tag.toString(),
-            reference_species           : references.species,
-            dna_ref_dir                 : references.dna_ref_dir,
-            dna_bwa_reference           : references.dna_bwa_reference ?: '',
-            dna_blacklist_bed           : references.dna_blacklist_bed,
-            dna_chrom_sizes             : references.dna_chrom_sizes,
-            dna_effective_genome_size   : references.dna_effective_genome_size,
             library_name                : libraryName,
             group_definitions           : normalizedGroups,
             dna_sb_barcode_source       : sbSourceSummary,
             dna_sb_barcode_len          : dnaSbBarcodeLength(tagmentation),
             mark_barcodes               : markBarcodesByGroup,
-        ]
+        ] + analysisReferences(references, MODALITY_DNA)
     }
 
     private static List<Map> attachDerivedArtifacts(final File derivedDir, final List<Map> samples) {
