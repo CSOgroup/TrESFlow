@@ -13,7 +13,7 @@ import argparse
 import csv
 import gzip
 import sys
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from itertools import zip_longest
 from pathlib import Path
 
@@ -128,6 +128,7 @@ def write_composition_rows(
     sample_denominator: int,
     mark_counts: dict[str, OrderedDict[str, int]],
     mark_denominators: dict[str, int],
+    round_counts: dict[str, Counter],
 ) -> None:
     fields = [
         "sample_id",
@@ -164,6 +165,17 @@ def write_composition_rows(
                     "source": "existing_tag_decisions_intersected_with_split_input_qnames",
                 }
             )
+        for layer, sequences in round_counts.items():
+            denominator = sum(sequences.values())
+            for sequence, count in sorted(sequences.items()):
+                writer.writerow({
+                    "sample_id": sample, "modality": modality, "group": "__all__",
+                    "barcode_type": layer, "category": sequence, "barcode_label": sequence,
+                    "barcode_sequence": "" if sequence == NO_MATCH else sequence,
+                    "count": count, "percentage": f"{percentage(count, denominator):.6f}",
+                    "denominator_count": denominator, "denominator_definition": "all split-input read pairs",
+                    "source": "existing_tag_decisions_intersected_with_split_input_qnames",
+                })
         for group, categories in mark_counts.items():
             denominator = mark_denominators[group]
             for category, count in categories.items():
@@ -212,11 +224,14 @@ def calculate(args):
             mark_counts[group][NO_MATCH] = 0
 
     total = ligation = sample_accepted = modality_accepted = 0
+    round_counts = {layer: Counter({NO_MATCH: 0}) for layer in ("L1", "L2", "L3")}
     qnames = retained_qnames(args.r1, args.r2)
     records = tag_record_iter(args.tag_records)
     for qname, fields in matched_tag_fields(qnames, records):
         total += 1
         l_values = [tag_value(fields, f"L{layer}") for layer in (1, 2, 3)]
+        for layer, value in zip(round_counts, l_values):
+            round_counts[layer][value] += 1
         if any(value == NO_MATCH for value in l_values):
             continue
         ligation += 1
@@ -267,7 +282,7 @@ def calculate(args):
     values = list(counts.values())
     if any(later > earlier for earlier, later in zip(values, values[1:])):
         raise ValueError(f"Cumulative barcode gates are not nested: {counts}")
-    return counts, sample_counts, mark_counts, mark_denominators
+    return counts, sample_counts, mark_counts, mark_denominators, round_counts
 
 
 def parse_args(argv=None):
@@ -286,7 +301,7 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
-    counts, sample_counts, mark_counts, mark_denominators = calculate(args)
+    counts, sample_counts, mark_counts, mark_denominators, round_counts = calculate(args)
     write_gate_rows(args.output_gates, args.sample, args.modality, counts)
     write_composition_rows(
         args.output_composition,
@@ -297,6 +312,7 @@ def main(argv=None):
         counts["ligation_barcode_accepted_pairs"],
         mark_counts,
         mark_denominators,
+        round_counts,
     )
 
 

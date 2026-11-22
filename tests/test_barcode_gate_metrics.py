@@ -87,6 +87,11 @@ class BarcodeGateMetricTests(unittest.TestCase):
             )
             self.assertGreaterEqual(values["split_input_pairs"], values["ligation_barcode_accepted_pairs"])
             self.assertGreaterEqual(values["ligation_barcode_accepted_pairs"], values["sample_barcode_accepted_pairs"])
+            layers = {(r["barcode_type"], r["category"]): int(r["count"]) for r in composition}
+            self.assertEqual(layers["L1", "A"], 4)
+            self.assertEqual(layers["L3", "C"], 3)
+            self.assertEqual(layers["L3", "NoMatch"], 1)
+            composition = [r for r in composition if r["barcode_type"] == "sample_barcode"]
             counts = {row["category"]: int(row["count"]) for row in composition}
             self.assertEqual(counts, {"AAA": 1, "CCC": 1, "NoMatch": 1})
             self.assertEqual(sum(counts.values()), 3)

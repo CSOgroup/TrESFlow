@@ -500,6 +500,8 @@ def _parse_composition(files: list[Path], branches: list[Branch], warnings: list
             if row.get("barcode_type") == "dna_mark":
                 mark_groups[row.get("group", "__all__")].append(row)
         category_sets = [("sample_barcode", "__all__", sample_rows)] + [("dna_mark", group, values) for group, values in mark_groups.items()]
+        for layer in ("L1", "L2", "L3"):
+            category_sets.append((layer, "__all__", [row for row in rows if row.get("barcode_type") == layer]))
         for barcode_type, logical_group, category_rows in category_sets:
             if not category_rows:
                 continue
@@ -529,6 +531,8 @@ def _parse_composition(files: list[Path], branches: list[Branch], warnings: list
                 if not run:
                     run = sample_composition_run
                 count = int(integer(row.get("count")))
+                if barcode_type == "sample_barcode" and category == "NoMatch" and count:
+                    warnings.append(f"{parent} {modality.upper()}: {count} ligation-accepted split-input pairs had no sample-barcode group assignment.")
                 result.append(
                     {
                         "run": run, "parent_sample": parent, "modality": modality.upper(),
