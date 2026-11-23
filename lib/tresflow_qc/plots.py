@@ -158,6 +158,10 @@ def _short_stage(stage: str) -> str:
         "Canonical chromosomes": "Canonical",
         "Called-cell final BAM": "Called-cell BAM",
         "Joint barcode accepted": "Joint barcode",
+        "Mark barcode accepted": "Mark barcode",
+        "Routed group pairs": "Group input",
+        "Gene-assigned pairs": "Gene assignment",
+        "Mapped pairs (R1)": "Mapped R1",
     }.get(stage, stage)
 
 
@@ -203,7 +207,11 @@ def _retention_panel(rows: list[dict[str, object]], color: str, title: str, widt
     raw = values[0]
     node_spacing = (right - left) / max(1, count - 1)
     for index, (row, x, y) in enumerate(zip(rows, xs, ys)):
-        cumulative = float(row.get("cumulative_raw_pct") or (values[index] / raw * 100 if raw else 0))
+        basis = row.get("percentage_basis", "raw")
+        cumulative = None
+        if basis is not None:
+            cumulative = float(row.get("cumulative_raw_pct") or (values[index] / raw * 100 if raw else 0))
+        percentage_detail = f"{cumulative:.1f}% of {basis}" if cumulative is not None else "percentage unavailable"
         loss_detail = ""
         if index:
             lost = values[index - 1] - values[index]
@@ -217,7 +225,7 @@ def _retention_panel(rows: list[dict[str, object]], color: str, title: str, widt
             else ""
         )
         tooltip = (
-            f"{display_stage}: {values[index]:,} pairs; {cumulative:.1f}% of raw{loss_detail}; "
+            f"{display_stage}: {values[index]:,} pairs; {percentage_detail}{loss_detail}; "
             f"source {row.get('count_source', 'unavailable')}{counter_detail}"
         )
         parts.append(
@@ -226,7 +234,7 @@ def _retention_panel(rows: list[dict[str, object]], color: str, title: str, widt
         )
         value_y = max(y_offset + 52, y - 28)
         value_text = count_label(values[index])
-        percent_text = f"{cumulative:.1f}%"
+        percent_text = f"{cumulative:.1f}%" if cumulative is not None else "unavailable"
         value_width = max(_text_width(value_text, 13, weight=650), _text_width(percent_text, 13))
         value_scope = f"retention-values-{y_offset}"
         parts.append(f'<g {_layout_attributes(x - value_width / 2, value_y - 14, value_width, 32, value_scope)}>')
@@ -244,6 +252,39 @@ def _retention_panel(rows: list[dict[str, object]], color: str, title: str, widt
         # prioritizes the exact stage count and cumulative percentage when
         # vertical or horizontal room is insufficient for a second annotation.
     return "".join(parts)
+
+
+def retention_figure(
+    run: str,
+    panels: list[tuple[list[dict[str, object]], str, str]],
+) -> dict[str, object]:
+    """Render the shared retention geometry for single-cell and bulk stages."""
+    maximum_stages = max((len(rows) for rows, _, _ in panels), default=1)
+    maximum_stage_width = max(
+        (_text_width(_short_stage(str(row["stage"])), 14, weight=650) for rows, _, _ in panels for row in rows),
+        default=90.0,
+    )
+    maximum_value_width = max(
+        (_text_width(count_label(row["output_pairs"]), 13, weight=650) for rows, _, _ in panels for row in rows),
+        default=60.0,
+    )
+    step_spacing = max(128.0, maximum_stage_width + 24.0, maximum_value_width + 24.0)
+    left_margin = max(112.0, maximum_stage_width / 2 + 20.0, maximum_value_width / 2 + 20.0)
+    right_margin = max(34.0, maximum_stage_width / 2 + 20.0, maximum_value_width / 2 + 20.0)
+    content_width = left_margin + max(0, maximum_stages - 1) * step_spacing + right_margin
+    title_width = max((_text_width(title, 17, weight=750) for _, _, title in panels), default=0.0) + 60.0
+    width = int(math.ceil(max(820.0, content_width, title_width)))
+    height = 272 * len(panels) + 8
+    body = "".join(
+        _retention_panel(rows, color, title, width, index * 272)
+        for index, (rows, color, title) in enumerate(panels)
+    )
+    return {
+        "kind": "retention",
+        "run": run,
+        "title": f"{run} read-pair retention",
+        "svg": svg_figure(width, height, body, f"{run} read-pair retention"),
+    }
 
 
 def _retention_figures(model: ReportModel) -> list[dict[str, object]]:
@@ -271,34 +312,7 @@ def _retention_figures(model: ReportModel) -> list[dict[str, object]]:
                     anchor["stage_order"] = 0
                     branch_rows = [anchor, *branch_rows]
                 panels.append((branch_rows, colors[branch], f"DNA · {branch}"))
-        maximum_stages = max((len(rows) for rows, _, _ in panels), default=1)
-        maximum_stage_width = max(
-            (_text_width(_short_stage(str(row["stage"])), 14, weight=650) for rows, _, _ in panels for row in rows),
-            default=90.0,
-        )
-        maximum_value_width = max(
-            (_text_width(count_label(row["output_pairs"]), 13, weight=650) for rows, _, _ in panels for row in rows),
-            default=60.0,
-        )
-        step_spacing = max(128.0, maximum_stage_width + 24.0, maximum_value_width + 24.0)
-        left_margin = max(112.0, maximum_stage_width / 2 + 20.0, maximum_value_width / 2 + 20.0)
-        right_margin = max(34.0, maximum_stage_width / 2 + 20.0, maximum_value_width / 2 + 20.0)
-        content_width = left_margin + max(0, maximum_stages - 1) * step_spacing + right_margin
-        title_width = max((_text_width(title, 17, weight=750) for _, _, title in panels), default=0.0) + 60.0
-        width = int(math.ceil(max(820.0, content_width, title_width)))
-        height = 272 * len(panels) + 8
-        body = "".join(
-            _retention_panel(rows, color, title, width, index * 272)
-            for index, (rows, color, title) in enumerate(panels)
-        )
-        figures.append(
-            {
-                "kind": "retention",
-                "run": run,
-                "title": f"{run} read-pair retention",
-                "svg": svg_figure(width, height, body, f"{run} read-pair retention"),
-            }
-        )
+        figures.append(retention_figure(run, panels))
     return figures
 
 

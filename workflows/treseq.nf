@@ -347,15 +347,19 @@ workflow TRESEQ {
         def targets = sampleRows.collectMany { row ->
             row.split_targets.collect { id, target ->
                 [id: id, sample: row.id, group: target.group, mark: target.mark,
-                 library: row.library_name, modality: row.modality]
+                 library: row.library_name, modality: row.modality, dna_tagmentation: row.dna_tagmentation]
             }
         }
         ch_bulk_files = RNA_CORE.out.bulk_counts.mix(RNA_CORE.out.bulk_qc, DNA_CORE.out.bulk_qc, ch_routed_qc)
             .mix(ch_barcode_report_files.filter { f -> f.name.endsWith('_barcode_composition.tsv') ||
                 f.name.endsWith('_barcode_gates.tsv') || f.name.endsWith('_sample_barcode.stats.tsv') ||
                 f.name.endsWith('_sample_barcode.counts.tsv') })
+        ch_bulk_files = ch_bulk_files.mix(ch_report_preprocessing_files.filter { f ->
+            f.name.endsWith('_read_retention.tsv') || f.name.endsWith('.dual_tag_artifact_filter.summary.tsv')
+        })
         BULK_REPORT(ch_bulk_files.toList().map { files ->
-            tuple(sampleRows[0], [targets: targets, restart: !!restart], files)
+            tuple(sampleRows[0], [targets: targets, restart: !!restart,
+                                 pipeline_version: reportMetadata.pipeline_version], files)
         })
     } else {
         TRES_REPORT_HTML(ch_tres_report_input)

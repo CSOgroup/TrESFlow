@@ -121,6 +121,11 @@ def test_bulk_routes(tmp_path):
     with pyBigWig.open(str(track)) as bw:
         assert bw.values("chr1", 200, 201)[0] == pytest.approx(32 / 48 * 1e6, rel=1e-5)
     assert "had no sample-barcode group" in (start / "bulk_report.html").read_text()
+    report = (start / "bulk_report.html").read_text()
+    assert 'class="overview-strip"' in report and 'id="retention"' in report
+    assert "shared_reads: " + raw["samples"]["shared_reads"]["dna"]["tagmentation"] in report
+    assert '<span>Pipeline version</span><strong>unavailable' not in report
+    assert "After DT artifact filter" in report and "Gene-assigned pairs" in report
     launch(root, ["--preprocess_only", "true", "--samplesheet", "preprocess.yaml", "--outdir", "results/pre"])
     pre = root / "results/pre"
     copies = root / "sheets" / "pairs"
@@ -157,6 +162,10 @@ def test_bulk_routes(tmp_path):
         result = root / "results" / out / "alignments"
         assert snapshot(start) == snapshot(result)
         assert "unassigned totals" in (result / "bulk_report.html").read_text()
+        report = (result / "bulk_report.html").read_text()
+        assert 'id="retention"' in report and "% of supplied group pairs" in report
+        assert "% of supplied mark pairs" in report and "of raw RNA input" not in report
+        assert "shared_reads: unavailable" in report
         assert all(hashlib.sha256(p.read_bytes()).digest() == digest for p, digest in hashes.items())
         assert not any(p.is_file() for p in (root / f"work-{out}").rglob("*"))
 

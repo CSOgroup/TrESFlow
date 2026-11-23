@@ -4,6 +4,7 @@ import base64
 import csv
 import json
 import sys
+from datetime import datetime, timezone
 from html import escape
 from itertools import groupby, zip_longest
 from contextlib import ExitStack
@@ -12,9 +13,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from tresflow_qc.bulk_barcodes import abundance_svg, label, raw_panels, routed_panels
-from tresflow_qc.core import read_barcode_counts, read_duplicate_metrics
+from tresflow_qc.core import _unique_run_labels, read_barcode_counts, read_duplicate_metrics
 from tresflow_qc.bulk_fragments import fragment_figure
-from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, plot_markup, prepare_plots
+from tresflow_qc.bulk_retention import retention_figures
+from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, overview_strip, plot_markup, prepare_plots
 from tresflow_qc.plots import _complexity_figure, _rna_complexity_figure, mark_palette
 
 
@@ -221,6 +223,20 @@ def dna_complexity(q, root, split, scope, branch):
     return cards([figure], wide=True) + unavailable
 
 
+def run_overview(spec, targets):
+    groups = _unique_run_labels((t["sample"], t["group"]) for t in targets)
+    modes = sorted({(t["sample"], t.get("dna_tagmentation") or "unavailable")
+                    for t in targets if t["modality"] == "dna"})
+    return overview_strip([
+        ("Independent runs", ", ".join(sorted(groups.values())) or "unavailable"),
+        ("Modalities", ", ".join(sorted({t["modality"].upper() for t in targets}))),
+        ("DNA marks", ", ".join(sorted({t["mark"] for t in targets if t["modality"] == "dna"})) or "none"),
+        ("DNA tagmentation", ", ".join(f"{sample}: {mode}" for sample, mode in modes) or "not present"),
+        ("Pipeline version", spec.get("pipeline_version") or "unavailable"),
+        ("Generated", spec.get("generated_at") or datetime.now(timezone.utc).isoformat()),
+    ])
+
+
 def render(spec, root):
     restart = spec["restart"]
     panels, metrics, warnings = ([], [], []) if restart else preprocessing(root)
@@ -232,6 +248,7 @@ def render(spec, root):
             with path.open() as handle:
                 raw_counts[sample_mod] = {row[0]: int(row[1]) for row in csv.reader(handle, delimiter="\t")}["reads"]
     overview, rna_plots, dna_plots, fragment_plots, routed = [], [], [], [], {}
+    observations = {}
     for t in targets:
         mod, split = t["modality"], t["id"]
         rna = mod == "rna"
@@ -242,6 +259,7 @@ def render(spec, root):
         overview.append(target_card(scope, q, rna, int(raw) if raw is not None else None))
         if q is None:
             continue
+        observations[mod, split] = q
         if restart:
             routed[mod, split] = q["barcodes"] if rna else json.loads((root / f"{split}.dna.routed.json").read_text())
         if rna:
@@ -266,6 +284,13 @@ def render(spec, root):
 
     if restart:
         panels = [p for p in routed_panels(targets, routed) if p.tag != "SB"]
+    retention_plots = retention_figures(targets, observations, root, restart)
+    retention_section = ""
+    if retention_plots:
+        retention_section = f'''<section id="retention"><h2>Read-pair retention</h2>
+<p>Each node shows surviving pairs and their percentage of the input named in the panel.
+Routing steps select the displayed group or mark. RNA ends at gene assignment, before UMI collapse. DNA alignment counts use primary R1 records,
+and final fragments are complete pairs including duplicates.</p>{cards(retention_plots, wide=True)}</section>'''
     library = ", ".join(sorted({t["library"] for t in targets}))
     stage = ("Measurements start at the supplied routed pairs. Raw depth, upstream losses, unassigned totals "
              "and percentages of raw input are unavailable." if restart else
@@ -293,6 +318,7 @@ Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>
         fragment_section = '<section id="fragment-lengths">' + details(
             "Fragment lengths", "".join(fragment_plots)) + '</section>'
     css = """
+    @media(min-width:951px){.overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
     .hero .brand{text-transform:none}.hero h1,main h3{overflow-wrap:anywhere}
     .barcode-sample{padding:0;border:0;margin:1rem 0 1.5rem}
     .run-plots{min-width:0}.run-plots>.plot-card{min-width:0}
@@ -304,10 +330,11 @@ Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(library)} · TrESFlow - Bulk</title><style>{CSS}{css}</style></head>
 <body><header class="hero"><div class="brand">TrESFlow - Bulk</div><h1>{escape(library)}</h1></header>
-<nav aria-label="Report sections"><a href="#overview">Overview</a><a href="#barcodes">Barcode abundance</a>
+<nav aria-label="Report sections"><a href="#overview">Overview</a>{'<a href="#retention">Retention</a>' if retention_section else ""}<a href="#barcodes">Barcode abundance</a>
 {'<a href="#rna-complexity">RNA saturation</a>' if rna_section else ""}{'<a href="#complexity">DNA complexity</a>' if dna_section else ""}{'<a href="#fragment-lengths">Fragment lengths</a>' if fragment_section else ""}<a href="#metrics">Metrics</a></nav><main>
-<section id="overview" aria-label="Overview"><p class="subtle">{stage}</p>{warnings_html}
+<section id="overview" aria-label="Overview">{run_overview(spec, targets)}<p class="subtle">{stage}</p>{warnings_html}
 <div class="run-cards">{"".join(overview)}</div></section>
+{retention_section}
 <section id="barcodes"><h2>Barcode abundance</h2>{'<p class="unavailable">Raw-input sample barcode composition unavailable for supplied FASTQs.</p>' if restart else ""}{barcode_section(panels)}</section>
 {rna_section}{dna_section}{fragment_section}
 <section id="metrics"><h2>Metrics</h2>{"".join(metrics)}</section></main>{PLOT_EXPORT_SCRIPT}</body></html>'''

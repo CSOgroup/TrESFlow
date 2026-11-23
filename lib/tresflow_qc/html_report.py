@@ -224,6 +224,14 @@ def _run_cards(model: ReportModel) -> str:
     return "".join(cards) or '<p class="unavailable">No independent-run identities could be reconstructed.</p>'
 
 
+def overview_strip(fields: Iterable[tuple[str, object]]) -> str:
+    cells = "".join(
+        f"<div><span>{esc(label)}</span><strong>{esc(value)}</strong></div>"
+        for label, value in fields
+    )
+    return f'<div class="overview-strip">{cells}</div>'
+
+
 def _overview(model: ReportModel) -> str:
     modalities = sorted({branch.modality for branch in model.branches})
     groups = sorted({branch.run for branch in model.branches})
@@ -253,14 +261,14 @@ def _overview(model: ReportModel) -> str:
     if model.run_metadata.get("preprocessed_splits"):
         mode = '<p><strong>FASTQ restart</strong> · Historical preprocessing QC is unavailable.</p>'
     return f'''<section id="overview"><h2>Run overview</h2><p class="library-name">{esc(model.library_name)}</p>{mode}
-      <div class="overview-strip">
-        <div><span>Independent runs</span><strong>{esc(", ".join(groups) or "unavailable")}</strong></div>
-        <div><span>Modalities</span><strong>{esc(", ".join(modalities) or "unavailable")}</strong></div>
-        <div><span>DNA marks</span><strong>{esc(", ".join(marks) or "none")}</strong></div>
-        <div><span>DNA tagmentation</span><strong>{esc("; ".join(dna_modes) if dna_modes else "not present")}</strong></div>
-        <div><span>Pipeline version</span><strong>{esc(model.pipeline_version)}</strong></div>
-        <div><span>Generated</span><strong>{esc(model.generated_at)}</strong></div>
-      </div>
+      {overview_strip([
+          ("Independent runs", ", ".join(groups) or "unavailable"),
+          ("Modalities", ", ".join(modalities) or "unavailable"),
+          ("DNA marks", ", ".join(marks) or "none"),
+          ("DNA tagmentation", "; ".join(dna_modes) if dna_modes else "not present"),
+          ("Pipeline version", model.pipeline_version),
+          ("Generated", model.generated_at),
+      ])}
       <div class="run-cards">{_run_cards(model)}</div>
     </section>'''
 

@@ -34,6 +34,10 @@ Epic2 uses treatment-only paired BEDPE input with coordinate duplicates retained
 
 ### Reading the bulk report
 
+The overview band lists independent sample/group runs, modalities, DNA marks, recorded tagmentation, the launch-resolved pipeline version and the UTC report-generation time. Missing historical metadata is labeled unavailable.
+
+Read-pair retention uses the single-cell report's plotting and export components. Shared raw processing is shown once per sample/modality, followed by each RNA group or DNA group/mark. Routing steps select the named branch. Raw-start percentages use that sample/modality's raw pairs. FASTQ-only plots start at the supplied group/mark pairs and use those pairs as their percentage denominator. RNA retention ends at gene-assigned pairs before UMI collapse. DNA retention ends at all final eligible fragments, including duplicates. Unknown upstream stages are omitted.
+
 Overview cards show raw input pairs for the sample/modality, final RNA molecules or DNA aligned fragments for the group/mark, and the final yield as a percentage of raw input. RNA cards include genes detected and sequencing saturation (1 − corrected molecules / uniquely assigned GeneFull pairs). DNA cards include Picard duplicate-pair percentage, peaks and FRiP. Final DNA aligned fragments include every complete primary proper pair passing blacklist and canonical-chromosome filtering, including duplicate-flagged fragments. Peak overlap is measured afterward and is used only for the FRiP numerator.
 
 Unassigned sample-barcode warnings show percentages with their measurement stage and denominator. The sample-barcode plots use raw input pairs only. Barcode plots are grouped by sample, with sample-barcode and DNA-mark plots side by side. Each sample has a collapsed L1/L2/L3 menu. Plot labels retain their modality, group and measurement stage. DNA marks retain their observed stage and denominator. FASTQ-only reports show the observed supplied group pairs and their final yield, with raw counts and upstream unassigned percentages labeled unavailable. A missing physical tag is labeled separately from an observed unassigned barcode.
