@@ -88,7 +88,6 @@ def assigned_pair(records, annotation, stats):
 
     hits = defaultdict(list)
     genes = set()
-    unmapped = [r for r in records if r.is_unmapped and not r.is_secondary]
     for read in mapped:
         if not read.has_tag("UB") or read.get_tag("UB") == "-":
             continue
@@ -109,7 +108,36 @@ def assigned_pair(records, annotation, stats):
     if any(tuple(r.get_tag(t) for t in ("GX", "XP", "UB")) != key for r in chosen):
         raise ValueError(f"{one.query_name}: inconsistent STAR gene/pool/corrected UMI")
     complete = len(chosen) == 2
-    pair = chosen if complete else chosen + unmapped
+    pair = chosen
+    if not complete:
+        # STAR can count a singleton secondary hit while both primary mates map
+        # elsewhere. Recover the other mate from its primary record and place
+        # the unmapped mate at the selected hit, including when the original
+        # unmapped record referred to a different alignment.
+        originals = [r for r in records if not r.is_secondary and r.is_read1 != one.is_read1]
+        if len(originals) == 1 and originals[0].query_sequence is not None:
+            original = originals[0]
+            mate = pysam.AlignedSegment(one.header)
+            mate.query_name = original.query_name
+            mate.query_sequence = original.get_forward_sequence()
+            mate.query_qualities = original.get_forward_qualities()
+            mate.flag = 0x1 | 0x4 | (0x80 if one.is_read1 else 0x40)
+            mate.mate_is_reverse = one.is_reverse
+            mate.reference_id = mate.next_reference_id = one.reference_id
+            mate.reference_start = mate.next_reference_start = one.reference_start
+            for tag in ("CB", "XI", "XP", "SB", "UM", "ZI", "RG"):
+                if original.has_tag(tag):
+                    mate.set_tag(tag, original.get_tag(tag))
+            mate.set_tag("UB", one.get_tag("UB"))
+            mate.set_tag("GX", one.get_tag("GX"))
+            one.is_proper_pair = False
+            one.mate_is_unmapped = True
+            one.mate_is_reverse = False
+            one.next_reference_id = one.next_reference_start = -1
+            one.template_length = 0
+            if one.has_tag("MC"):
+                one.set_tag("MC", None)
+            pair = [one, mate]
     if len(pair) != 2 or {r.is_read1 for r in pair} != {True, False}:
         raise ValueError(f"{one.query_name}: missing mate for counted STAR alignment")
     for read in pair:

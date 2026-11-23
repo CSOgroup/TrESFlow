@@ -22,7 +22,7 @@ Technical FASTQ chunks enter counting together. Exact split pairs lose the confi
 
 STARsolo uses the pool identifier and the observed UM tag for forward-stranded `GeneFull` (exon-plus-intron) counting, with `1MM_CR`, `MultiGeneUMI_CR` and cell filtering disabled. Molecules assigned to a unique gene are deduplicated by gene, pool and corrected UMI across alignment coordinates. The matrix sums those molecules across pools within each group.
 
-The BAM retains one primary pair per counted molecule, preferring two mapped mates and then the lexically first read name. If only one mate mapped, both records retain their mapping flags. For a multimapping pair assigned to one gene, the representative uses a STAR alignment to that gene and retains NH and MAPQ. The RPM bigWig counts each template’s union of aligned blocks once per base and normalizes to one million counted molecules.
+The BAM retains one primary pair per counted molecule, preferring two mapped mates and then the lexically first read name. If only one mate maps at the selected gene alignment, its mate retains the original sequence and qualities as an unmapped primary record. This also handles counted singleton secondary alignments whose mate maps at another STAR hit. For a multimapping pair assigned to one gene, the representative uses a STAR alignment to that gene and retains NH and MAPQ. The RPM bigWig counts each template’s union of aligned blocks once per base and normalizes to one million counted molecules.
 
 ### DNA coverage and peaks
 
