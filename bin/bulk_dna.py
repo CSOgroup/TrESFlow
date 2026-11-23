@@ -2,6 +2,7 @@
 """Use the same complete primary target fragments for CPM, Epic2 and overlap QC."""
 import argparse
 import csv
+import gzip
 import json
 import re
 import subprocess
@@ -65,7 +66,7 @@ def create_fragments(by_name, sizes):
 
 def bed_intervals(path):
     intervals = defaultdict(list)
-    with path.open() as handle:
+    with (gzip.open(path, "rt") if path.suffix == ".gz" else path.open()) as handle:
         for raw in handle:
             if raw.strip() and not raw.startswith(("#", "track ", "browser ")):
                 chrom, lo, hi = raw.split()[:3]
@@ -154,6 +155,7 @@ def analyze(args):
               effective_genome_size=args.effective, epic2_genome_fraction=fraction,
               epic2_bin_bp=200, epic2_gaps=3, epic2_e_value=1000, epic2_keep_duplicates=True)
     if args.reference:
+        qc["reference_bed"] = args.reference.name
         qc["fragments_in_reference"] = overlap_count(args.reference)[0]
     qc["depth"] = [[f * qc["bwa_primary_pairs"], f * n] for f in (0.1, 0.25, 0.5, 0.75, 1)]
     Path(f"{args.split}.dna.qc.json").write_text(json.dumps(qc, sort_keys=True))

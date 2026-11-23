@@ -94,7 +94,7 @@ def dna_metrics(q):
         metric("Picard optical duplicate pairs", q["read_pair_optical_duplicates"], q["read_pair_duplicates"], "duplicate pairs"),
         metric("Peaks", q["peak_count"]), metric("Peak union (bp)", q["peak_bases"]),
         metric("Fragments in peaks (FRiP)", q["fragments_in_peaks"], n, "usable fragments"),
-    ] + ([metric("Fragments in reference BED", q["fragments_in_reference"], n, "usable fragments")]
+    ] + ([metric(f"Fragments in reference BED ({q['reference_bed']})", q["fragments_in_reference"], n, "usable fragments")]
          if "fragments_in_reference" in q else [])
 
 
@@ -112,7 +112,11 @@ def render(spec, root):
             stats = (root / f"{prefix}_sample_barcode.stats.tsv").read_text().splitlines()
             raw = int(next(line.split()[1] for line in stats if line.startswith("reads\t")))
             sections.append(f"<h2>{escape(sample)} · {modality.upper()} preprocessing</h2>")
-            gates = [metric("Raw input pairs", raw)]
+            no_sb = int(next(line.split()[1] for line in stats if line.startswith("reads_without_bc\t")))
+            gates = [metric("Raw input pairs", raw),
+                     metric("Unassigned at sample-barcode tagging", no_sb, raw, "raw input pairs")]
+            if no_sb:
+                sections.append(f"<p><b>Unassigned</b> · {no_sb:,} raw pairs had no accepted sample barcode at tagging.</p>")
             with (root / f"{prefix}_barcode_gates.tsv").open() as h:
                 for row in csv.DictReader(h, delimiter="\t"):
                     gates.append(metric(row["metric"].replace("_", " "), int(row["pairs"]), raw, "raw input pairs"))

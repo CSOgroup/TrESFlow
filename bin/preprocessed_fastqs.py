@@ -120,7 +120,7 @@ def observe_routed(counts, tags, width):
     for layer in range(3):
         counts[f"L{layer + 1}"][ligation[layer * width:(layer + 1) * width]] += 1
     counts["SB"][tags.get("SB", "unavailable")] += 1
-    if "MO" in tags:
+    if "MO" in counts and "MO" in tags:
         counts["MO"][tags["MO"]] += 1
 
 

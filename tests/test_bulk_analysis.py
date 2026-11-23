@@ -138,11 +138,18 @@ def test_bulk_routes(tmp_path):
         sheet = dict(raw, samples={"shared_reads": {"preprocessed": entries}}, references=dict(raw["references"]))
         sheet["references"].pop("ligation_barcode_whitelist")
         path = root / "sheets" / "preprocessed.yaml"
+        sheet_name = "sheets/preprocessed.yaml"
+        if fmt == "clipped":
+            path = root / "preprocessed.yaml"
+            sheet_name = path.name
+            for item in entries:
+                for mate in ("r1", "r2"):
+                    item[mate] = "sheets/" + item[mate]
         path.write_text(yaml.safe_dump(sheet))
         # The samplesheet may itself be a symlink. Use an actual nested path so
         # resolution of pairs/ is demonstrably independent of the launch folder.
         launch(root, ["--bulk", "true", "--preprocessed_input", "true", "--samplesheet",
-                      "sheets/preprocessed.yaml", "--outdir", f"results/{out}"])
+                      sheet_name, "--outdir", f"results/{out}"])
         result = root / "results" / out / "bulk"
         assert snapshot(start) == snapshot(result)
         assert "unassigned totals" in (result / "bulk_report.html").read_text()
@@ -248,3 +255,22 @@ def test_rna_only_physical_pools_and_splice(tmp_path):
         gap = bw.values("chr1", 2000, 2001)[0]
         assert math.isnan(gap) or gap == 0
     assert (out / "gene_by_group.tsv").read_text() == "gene_id\ts_g\ng1\t3\n"
+
+
+def test_empty_and_failed_epic2_calls(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from bulk_dna import call_peaks
+
+    monkeypatch.chdir(tmp_path)
+    caller = tmp_path / "caller"
+    caller.write_text("#!/bin/sh\nprintf '#Chromosome\\tStart\\tEnd\\tChIPCount\\tScore\\tStrand\\n' > islands.tsv\n"
+                      "echo 'Valid ChIP reads: 3 (3 before out of bounds removal)'\n")
+    caller.chmod(0o755)
+    args = Namespace(epic2=caller, sizes=tmp_path / "chrom.sizes")
+    bed = tmp_path / "success.bed"
+    assert call_peaks(args, 3, {"chr1": 3000}, bed, 0.9) == 0
+    assert bed.read_bytes() == b""
+    caller.write_text("#!/bin/sh\nexit 7\n")
+    with pytest.raises(RuntimeError, match="Epic2 failed with exit status 7"):
+        call_peaks(args, 3, {"chr1": 3000}, tmp_path / "failure.bed", 0.9)
+    assert not (tmp_path / "failure.bed").exists()

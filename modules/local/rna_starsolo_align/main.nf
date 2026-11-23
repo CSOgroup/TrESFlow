@@ -18,8 +18,8 @@ process RNA_STARSOLO_ALIGN {
     tag "${splitName}"
     label 'codon_wrapper'
 
-    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Solo.outGeneFull", enabled: { !meta.bulk }
-    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Log.final.out", enabled: { !meta.bulk }
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Solo.outGeneFull", enabled: !params.bulk.toString().toBoolean()
+    publishDir { "${runtimeOutdir()}/rna_align" }, mode: 'copy', overwrite: true, pattern: "*.Log.final.out", enabled: !params.bulk.toString().toBoolean()
 
     input:
     tuple val(splitName), val(meta), path(usam), val(starIndexDir)

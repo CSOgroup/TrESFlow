@@ -1,4 +1,4 @@
-include { runtimeShellExports; runtimeOutdir; shellQuoteForFastqCleanup } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; runtimeWorkDir; intermediateFastqCleanupCommand; shellQuoteForFastqCleanup } from '../runtime_support/main'
 
 process PREPARE_BULK_RNA {
     tag "${splitName}"
@@ -17,11 +17,14 @@ process PREPARE_BULK_RNA {
         sb_start: meta.sample_bc_start, sb_length: meta.sample_bc_len, sb_hd: meta.sample_hd,
         sb_rc: meta.sample_reverse_complement == 'rev',
     ] + (meta.bulk_validation ?: [:])
+    def stagedCleanup = intermediateFastqCleanupCommand(meta.restart_input ? false : params.cleanup_work,
+        'staged-input', runtimeWorkDir(), "${projectDir}/bin/cleanup_intermediate_fastqs.py", [r1, r2])
     def encoded = groovy.json.JsonOutput.toJson(spec).bytes.encodeBase64().toString()
     """
     ${runtimeShellExports(meta)}
     "\$PYTHON3_BIN" "${projectDir}/bin/prepare_bulk_rna.py" '${encoded}' \
         ${shellQuoteForFastqCleanup(r1)} ${shellQuoteForFastqCleanup(r2)} input.sam preparation.json
+    ${stagedCleanup}
     """
 }
 

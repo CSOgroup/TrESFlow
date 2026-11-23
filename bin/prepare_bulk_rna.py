@@ -27,6 +27,8 @@ def prepare(spec, r1, r2, output):
                 name, comment = parse_header(first[0])
                 name = normalize_qname(name)
                 tags = read_tags(comment)
+                if "SB" in tags and (len(tags["SB"]) != spec["sb_length"] or set(tags["SB"].upper()) - set("ACGT")):
+                    raise ValueError(f"invalid physical SB sequence {tags['SB']!r}")
                 suffix = CLIPPED_RNA_SUFFIX.search(name)
                 if suffix:
                     pool = suffix[1]

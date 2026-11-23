@@ -5,6 +5,19 @@
 `TrESFlow` writes modality-specific outputs directly under `--outdir`.
 The exact directories present depend on whether the YAML samplesheet contains `rna`, `dna`, or both modalities.
 
+## Barcoded bulk outputs
+
+With `--bulk true`, open `bulk/bulk_report.html`. Raw-start reports include the shared corrected ligation-round composition at split input. FASTQ-only reports measure barcodes on the supplied, already-routed mates.
+
+| Output under `bulk/`           | Contents                                                                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gene_by_group.tsv`            | STARsolo unique GeneFull counts, summed over physical pools. Each integer is a gene/pool/corrected-UMI molecule in a sample/group.                                                                                                   |
+| `rna/<sample>/<group>/`        | Coordinate-sorted representative-pair BAM and BAI, unstranded molecule RPM bigWig, and numeric QC JSON. XI retains the full TrES identity. XP and STAR CB identify the physical pool. UM and UB give the observed and corrected UMI. |
+| `dna/<sample>/<group>/<mark>/` | Duplicate-marked BAM, BAI, Picard metrics, 50 bp fragment CPM bigWig, treatment-only Epic2 BED, and numeric QC JSON with exact fragment-length frequencies.                                                                          |
+| `bulk_report.html`             | Mapping, assignment or fragment yield, barcode composition, depth plots, and peak overlap QC with labeled denominators.                                                                                                              |
+
+The RNA bigWig counts aligned blocks once per representative template at each covered base. DNA coverage and FRiP include duplicate-flagged complete target fragments. Peak BED coordinates are zero-based, half-open. The DNA JSON records the caller status and optional reference BED overlap separately. [Bulk commands and reference settings](../README.md#barcoded-bulk-analysis)
+
 ## Preprocessing-only outputs
 
 With `--preprocess_only true`, gzip split FASTQs are always published, including
