@@ -161,7 +161,7 @@ def _short_stage(stage: str) -> str:
     }.get(stage, stage)
 
 
-def _svg(width: int, height: int, body: str, title: str) -> str:
+def svg_figure(width: int, height: int, body: str, title: str) -> str:
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title, quote=True)}">
 <title>{escape(title)}</title>
 <style>
@@ -296,7 +296,7 @@ def _retention_figures(model: ReportModel) -> list[dict[str, object]]:
                 "kind": "retention",
                 "run": run,
                 "title": f"{run} read-pair retention",
-                "svg": _svg(width, height, body, f"{run} read-pair retention"),
+                "svg": svg_figure(width, height, body, f"{run} read-pair retention"),
             }
         )
     return figures
@@ -512,7 +512,7 @@ def _stacked_composition_svg(
         denominator_text = f"Total: {denominator:,} pairs"
         parts.append(f'<text class="axis muted" x="{left}" y="{y + bar_height + 18}">{escape(denominator_text)}</text>')
     parts.extend(legend_parts)
-    return _svg(width, height, "".join(parts), title)
+    return svg_figure(width, height, "".join(parts), title)
 
 
 def _sample_composition_figures(model: ReportModel) -> list[dict[str, object]]:
@@ -736,7 +736,7 @@ def _complexity_figure(
                     parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{mark_colors[branch]}"><title>{escape(branch)} {depth:g}×: {value:,.0f} estimated unique pairs</title></circle>')
         parts.append(f'<text class="axis muted" x="{(plot_left + plot_right) / 2:.1f}" y="{height - 12}" text-anchor="middle">Sequencing-depth multiplier (log scale)</text>')
     title = f"{run} DNA library complexity"
-    return {"kind": "complexity", "run": run, "title": title, "svg": _svg(width, height, "".join(parts), title)}
+    return {"kind": "complexity", "run": run, "title": title, "svg": svg_figure(width, height, "".join(parts), title)}
 
 
 def _complexity_figures(model: ReportModel) -> list[dict[str, object]]:
@@ -796,7 +796,7 @@ def _rna_complexity_figure(run: str, rows: list[dict[str, object]]) -> dict[str,
         f'<text class="legend" x="{left + 281}" y="{legend_y}">New-UMI contribution</text>'
     )
     title = f"{run} RNA library complexity"
-    return {"kind": "rna_complexity", "run": run, "title": title, "svg": _svg(width, height, "".join(parts), title)}
+    return {"kind": "rna_complexity", "run": run, "title": title, "svg": svg_figure(width, height, "".join(parts), title)}
 
 
 def _rna_complexity_figures(model: ReportModel) -> list[dict[str, object]]:

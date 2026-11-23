@@ -5,9 +5,16 @@ import csv
 import json
 import sys
 from html import escape
-from itertools import zip_longest
+from itertools import groupby, zip_longest
 from contextlib import ExitStack
 from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+from tresflow_qc.bulk_barcodes import abundance_svg, label, raw_panels, routed_panels
+from tresflow_qc.core import read_barcode_counts
+from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, plot_markup, prepare_plots
+from tresflow_qc.plots import DNA, RNA, _ellipsize_pixels, svg_figure
 
 
 def merge_counts(paths, output):
@@ -32,26 +39,34 @@ def number(value):
 def table(headers, rows):
     head = "".join(f"<th>{escape(col)}</th>" for col in headers)
     body = "".join("<tr>" + "".join(f"<td>{escape(number(v))}</td>" for v in row) + "</tr>" for row in rows)
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+    return f'<div class="table-scroll"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
 def metric(label, value, denominator=None, scope=""):
-    pct = f"{100 * value / denominator:.2f}%" if denominator and value is not None else "—"
+    pct = f"{100 * value / denominator:.2f}%" if denominator and value is not None else ("unavailable" if scope else "—")
     return label, value, pct, scope
 
 
-def plot(points, title, xlabel, ylabel):
-    width, height = 440, 110
-    xmax = max([p[0] for p in points] + [1])
-    ymax = max([p[1] for p in points] + [1])
-    coords = " ".join(f"{50 + x * width / xmax:.2f},{height + 10 - y * height / ymax:.2f}" for x, y in points)
-    return (f"<figure><figcaption>{escape(title)}</figcaption><svg viewBox='0 0 510 160' role='img' "
-            f"aria-label='{escape(title)}'><path d='M50 10V120H490' stroke='#aaa' fill='none'/>"
-            f"<polyline points='{coords}' fill='none' stroke='#256b74' stroke-width='2'/>"
-            f"<text x='0' y='12'>{ymax:,.0f}</text><text x='38' y='134'>0</text>"
-            f"<text x='490' y='134' text-anchor='end'>{xmax:,.0f}</text>"
-            f"<text x='250' y='152' text-anchor='middle'>{escape(xlabel)}</text></svg>"
-            f"<small>{escape(ylabel)}</small></figure>")
+def yield_svg(points, title, scope, xlabel, ylabel, color, bin_size=0):
+    left, right, top, bottom = 65, 430, 85, 178
+    xmax = max([x + bin_size for x, _ in points] + [1])
+    ymax = max([y for _, y in points] + [1])
+    coords = [(left + x*(right-left)/xmax, bottom - y*(bottom-top)/ymax) for x, y in points]
+    if bin_size:
+        marks = "".join(f'<rect x="{x:.2f}" y="{y:.2f}" width="{bin_size*(right-left)/xmax:.2f}" '
+                        f'height="{bottom-y:.2f}" fill="{color}"/>' for x, y in coords)
+    else:
+        line = " ".join(f"{x:.2f},{y:.2f}" for x, y in coords)
+        marks = f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="2.5"/>'
+    body = (f'<text class="panel-title" x="10" y="22">{escape(title)}</text>'
+            f'<text class="axis muted" x="10" y="44">{escape(_ellipsize_pixels(scope, 435, 13))}</text>'
+            f'<text class="axis" x="{left}" y="70">{escape(ylabel)}</text>'
+            f'<path d="M{left} {top}V{bottom}H{right}" fill="none" stroke="#aeb4b4"/>{marks}'
+            f'<text class="axis" x="{left-5}" y="{top+5}" text-anchor="end">{ymax:,.0f}</text>'
+            f'<text class="axis" x="{left}" y="198">0</text>'
+            f'<text class="axis" x="{right}" y="198" text-anchor="end">{xmax:,.0f}</text>'
+            f'<text class="axis" x="240" y="217" text-anchor="middle">{escape(xlabel)}</text>')
+    return svg_figure(460, 228, body, f"{title} · {scope}")
 
 
 def rna_metrics(q):
@@ -98,87 +113,148 @@ def dna_metrics(q):
          if "fragments_in_reference" in q else [])
 
 
-def render(spec, root):
-    sections = ["<h1>Bulk TrES-seq QC</h1>"]
-    if spec["restart"]:
-        sections.append("<p>Measurements start at the supplied routed pairs. Raw depth, upstream losses, "
-                        "unassigned totals and percentages of raw input are unavailable.</p>")
+def records(path):
+    with path.open() as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
+METRIC_HEADERS = ["Metric", "Count", "Percent", "Denominator"]
+
+
+def details(title, content):
+    return f'<details><summary>{escape(title)}</summary>{content}</details>'
+
+
+def cards(figures):
+    return '<div class="bulk-grid">' + "".join(
+        f'<article class="plot-card">{plot_markup(item)}</article>' for item in prepare_plots(figures)
+    ) + '</div>'
+
+
+def preprocessing(root):
+    panels, tables, warnings = [], [], []
+    for path in sorted(root.glob("*_barcode_composition.tsv")):
+        rows = records(path)
+        sample, mod = rows[0]["sample_id"], rows[0]["modality"]
+        prefix = f"{sample}.{mod}"
+        scope = f"{sample} · {mod.upper()}"
+        with (root / f"{prefix}_sample_barcode.stats.tsv").open() as handle:
+            stats = {r[0]: int(r[1]) for r in csv.reader(handle, delimiter="\t")}
+        raw, no_sb = stats["reads"], stats["reads_without_bc"]
+        gates = [metric("Raw input pairs", raw), metric("Unassigned at sample-barcode tagging", no_sb, raw, "raw input pairs")]
+        gates.extend(metric(r["metric"].replace("_", " "), int(r["pairs"]), raw, "raw input pairs")
+                     for r in records(root / f"{prefix}_barcode_gates.tsv"))
+        tables.append(details(f"{scope} · preprocessing counts", table(METRIC_HEADERS, gates)))
+        tag_counts = read_barcode_counts(root / f"{prefix}_sample_barcode.counts.tsv")
+        panels.extend(raw_panels(sample, mod, rows, tag_counts, raw, no_sb))
+        if no_sb:
+            warnings.append(f"{scope} · {no_sb:,} of {raw:,} raw pairs had no accepted sample barcode at tagging.")
+        for r in rows:
+            if r["barcode_type"] == "sample_barcode" and r["category"] == "NoMatch" and int(r["count"]):
+                warnings.append(f"{scope} · {int(r['count']):,} of {int(r['denominator_count']):,} "
+                                "ligation-accepted split-input pairs had no sample-barcode group.")
+    return panels, tables, warnings
+
+
+def barcode_section(panels):
+    sections = []
+    for scope, subset in groupby(sorted(panels, key=lambda p: p.scope), key=lambda p: p.scope):
+        figures, exact = [], []
+        for p in subset:
+            figures.append(dict(kind=f"{p.stage}-{p.tag}", run=scope, svg=abundance_svg(p)))
+            for identity, count in sorted(p.counts.items(), key=lambda item: (-item[1], item[0])):
+                pct = f"{100 * count / p.denominator:.2f}%" if p.denominator else "unavailable"
+                exact.append([p.stage, p.title, label(identity), count, pct, p.denominator, p.definition])
+        sections.append(f'<h3>{escape(scope)}</h3>' + cards(figures)
+                        + details("Exact barcode counts and denominators", table(
+                            ["Stage", "Barcode", "Sequence / group or mark", "Read pairs", "Percent",
+                             "Denominator (pairs)", "Denominator definition"], exact)))
+    return "".join(sections)
+
+
+def target_card(title, q, rna):
+    if q is None:
+        return f'<article class="run-card"><h3>{escape(title)}</h3><p>No routed analysis output was observed.</p></article>'
+    if rna:
+        fields = [("Routed input pairs", q["routed_pairs"]), ("Corrected molecules", q["molecules"]),
+                  ("Genes detected", q["genes_detected"]), ("Pools with molecules", q["pools_detected"])]
     else:
-        for path in sorted(root.glob("*_barcode_composition.tsv")):
-            with path.open() as h:
-                composition = list(csv.DictReader(h, delimiter="\t"))
-            sample, modality = composition[0]["sample_id"], composition[0]["modality"]
-            prefix = f"{sample}.{modality}"
-            stats = (root / f"{prefix}_sample_barcode.stats.tsv").read_text().splitlines()
-            raw = int(next(line.split()[1] for line in stats if line.startswith("reads\t")))
-            sections.append(f"<h2>{escape(sample)} · {modality.upper()} preprocessing</h2>")
-            no_sb = int(next(line.split()[1] for line in stats if line.startswith("reads_without_bc\t")))
-            gates = [metric("Raw input pairs", raw),
-                     metric("Unassigned at sample-barcode tagging", no_sb, raw, "raw input pairs")]
-            if no_sb:
-                sections.append(f"<p><b>Unassigned</b> · {no_sb:,} raw pairs had no accepted sample barcode at tagging.</p>")
-            with (root / f"{prefix}_barcode_gates.tsv").open() as h:
-                for row in csv.DictReader(h, delimiter="\t"):
-                    gates.append(metric(row["metric"].replace("_", " "), int(row["pairs"]), raw, "raw input pairs"))
-            sections.append(table(["Stage", "Read pairs", "Percent", "Denominator"], gates))
-            for row in composition:
-                if row["barcode_type"] == "sample_barcode" and row["category"] == "NoMatch" and int(row["count"]):
-                    sections.append(f"<p><b>Unassigned</b> · {int(row['count']):,} ligation-accepted split-input pairs had no sample-barcode group.</p>")
-            sections.append("<details><summary>Split-input barcode composition</summary>" +
-                            table(["Barcode", "Group", "Sequence or label", "Read pairs", "Percent", "Denominator"],
-                                  [(r["barcode_type"], r["group"], r["category"], int(r["count"]),
-                                    f"{float(r['percentage']):.2f}%", r["denominator_definition"])
-                                   for r in composition]) + "</details>")
-    for target in sorted(spec["targets"], key=lambda t: (t["sample"], t["group"], t["modality"], t["id"])):
-        mod, split = target["modality"], target["id"]
-        path = root / f"{split}.{mod}.qc.json"
-        title = " · ".join(str(t) for t in [target["library"], target["sample"], target["group"],
-                                           mod.upper(), target["mark"] if mod == "dna" else None] if t)
-        sections.append(f"<h2>{escape(title)}</h2>")
-        if not path.exists():
-            sections.append("<p>No routed analysis output was observed.</p>")
-            continue
-        q = json.loads(path.read_text())
+        frip = q["frip"]
+        fields = [("BWA input pairs", q["bwa_primary_pairs"]), ("Usable fragments", q["usable_fragments"]),
+                  ("Peaks", q["peak_count"]), ("FRiP · usable fragments", "unavailable" if frip is None else f"{100*frip:.2f}%")]
+    values = "".join(f"<div><span>{escape(k)}</span><strong>{escape(number(v))}</strong></div>" for k, v in fields)
+    return f'<article class="run-card"><h3>{escape(title)}</h3><div class="mini-grid">{values}</div></article>'
+
+
+def render(spec, root):
+    restart = spec["restart"]
+    panels, metrics, warnings = ([], [], []) if restart else preprocessing(root)
+    targets = sorted(spec["targets"], key=lambda t: (t["sample"], t["group"], t["modality"] != "rna", t["id"]))
+    overview, yields, routed = [], [], {}
+    for t in targets:
+        mod, split = t["modality"], t["id"]
         rna = mod == "rna"
-        sections.append(table(["Metric", "Count", "Percent", "Denominator"], rna_metrics(q) if rna else dna_metrics(q)))
-        if spec["restart"]:
-            barcodes = q["barcodes"] if rna else json.loads((root / f"{split}.dna.routed.json").read_text())
-            rows = []
-            for tag, values in sorted(barcodes.items()):
-                n = sum(values.values())
-                rows.extend(metric(f"{tag} · {seq}", v, n, "supplied routed pairs") for seq, v in sorted(values.items()))
-            sections.append("<details><summary>Barcode observations on routed pairs</summary>" +
-                            table(["Barcode", "Read pairs", "Percent", "Denominator"], rows) + "</details>")
+        scope = " · ".join([t["sample"], t["group"], mod.upper()] + ([] if rna else [t["mark"]]))
+        path = root / f"{split}.{mod}.qc.json"
+        q = json.loads(path.read_text()) if path.exists() else None
+        overview.append(target_card(scope, q, rna))
+        if q is None:
+            continue
+        if restart:
+            routed[mod, split] = q["barcodes"] if rna else json.loads((root / f"{split}.dna.routed.json").read_text())
+        figures = []
         if rna:
-            sections.append("<p>Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes "
-                            "precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation.</p>")
-            labels = ["corrected molecules", "genes"]
+            labels = ["Corrected molecules", "Detected genes"]
+            note = "Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation."
         else:
-            sections.append(f"<p>Epic2 · {escape(q['caller_status'])}. CPM coverage in 50 bp bins includes duplicate-flagged target fragments.</p>")
-            # Bin fragment lengths for display only. The JSON retains exact lengths.
             bins = {}
             for length, count in q["fragment_lengths"].items():
                 lo = int(length) // 25 * 25
                 bins[lo] = bins.get(lo, 0) + count
-            sections.append(plot(sorted(bins.items()), "Fragment lengths (25 bp bins)", "Fragment length (bp)", "Y axis · fragments"))
-            labels = ["usable fragments"]
-        for i, label in enumerate(labels, 1):
-            sections.append(plot([(0, 0)] + [(v[0], v[i]) for v in q["depth"]], f"Depth and {label}",
-                                 "Retained sequencing pairs" if rna else "Sequencing pairs at BWA", "Y axis · " + label))
-        sections.append("<p>Expected yield under independent thinning of observed pairs at 10, 25, 50, 75 and 100%. "
-                        + ("Uses observed support per corrected molecule and per gene with assignments fixed." if rna else
-                           "Fragment yield scales linearly with retained depth under the target duplicate policy.") + "</p>")
-    return ("<!doctype html><html lang='en'><meta charset='utf-8'><title>Bulk TrES-seq QC</title>"
-            "<style>body{font:16px system-ui;color:#24363b;max-width:64em;margin:3em auto;padding:0 1em}"
-            "table{border-collapse:collapse}th,td{padding:.3em .8em;border-bottom:1px solid #ddd;text-align:left}"
-            "h2{margin-top:2em}details{margin:1em 0}figure{display:inline-block;width:27em;max-width:95%;margin:1em}"
-            "svg{width:100%;font:11px system-ui}figcaption{font-weight:bold}</style>" + "\n".join(sections) + "</html>")
+            figures.append(dict(kind="Fragment lengths", run=scope, svg=yield_svg(sorted(bins.items()), "Fragment lengths",
+                                scope, "Fragment length (bp, 25 bp bins)", "Usable fragments", DNA, bin_size=25)))
+            labels = ["Usable fragments"]
+            note = f"Epic2 · {q['caller_status']}. CPM coverage in 50 bp bins includes duplicate-flagged target fragments."
+        for i, name in enumerate(labels, 1):
+            points = [(0, 0)] + [(row[0], row[i]) for row in q["depth"]]
+            figures.append(dict(kind=f"Depth and {name}", run=scope, svg=yield_svg(points, f"{name} by depth", scope,
+                                "Retained sequencing pairs" if rna else "Sequencing pairs at BWA",
+                                name, RNA if rna else DNA)))
+        yields.append(f"<h3>{escape(scope)}</h3>" + cards(figures))
+        metrics.append(details(scope + " · analysis metrics", table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
+                               + f"<p>{escape(note)}</p>"))
 
+    if restart:
+        panels = routed_panels(targets, routed)
+    library = ", ".join(sorted({t["library"] for t in targets}))
+    stage = ("Measurements start at the supplied routed pairs. Raw depth, upstream losses, unassigned totals "
+             "and percentages of raw input are unavailable." if restart else
+             "Measurements start at raw input. Sample-barcode tagging and split-input plots have separate denominators.")
+    warnings_html = "".join(f'<li>{escape(w)}</li>' for w in warnings)
+    if warnings:
+        warnings_html = '<aside class="bulk-warnings"><strong>Unassigned sample barcodes</strong><ul>' + warnings_html + '</ul></aside>'
+    css = """
+    .bulk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:.8rem;margin:.75rem 0 1.2rem}
+    .bulk-grid .plot-card{min-width:0;padding:.65rem}.bulk-grid .svg-scroll svg{width:100%;max-width:560px;height:auto}
+    .bulk-grid .plot-actions{margin-bottom:.2rem}.bulk-warnings{border-left:3px solid var(--orange);padding:.5rem 1rem;background:#fff6ed;margin:1rem 0}
+    .bulk-warnings ul{margin:.25rem 0}section{scroll-margin-top:3rem}.bulk-grid+h3{margin-top:1.6rem}
+    """
+    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(library)} · Bulk TrES-seq QC</title><style>{CSS}{css}</style></head>
+<body><header class="hero"><div class="brand">TrESFlow</div><h1>Bulk TrES-seq QC</h1></header>
+<nav aria-label="Report sections"><a href="#overview">Overview</a><a href="#barcodes">Barcode abundance</a>
+<a href="#yield">Yield and depth</a><a href="#metrics">Detailed metrics</a></nav><main>
+<section id="overview"><h2>{escape(library)}</h2><p class="subtle">{stage}</p>{warnings_html}
+<div class="run-cards">{"".join(overview)}</div></section>
+<section id="barcodes"><h2>Barcode abundance</h2>{barcode_section(panels)}</section>
+<section id="yield"><h2>Yield and sequencing depth</h2><p>Expected yield under independent thinning of observed pairs at 10, 25, 50, 75 and 100% depth. RNA curves use support per corrected molecule and gene with assignments fixed. DNA fragment yield scales linearly because duplicate-flagged fragments are retained.</p>{"".join(yields)}</section>
+<section id="metrics"><h2>Detailed metrics</h2>{"".join(metrics)}</section></main>{PLOT_EXPORT_SCRIPT}</body></html>'''
 
 if __name__ == "__main__":
     spec = json.loads(base64.b64decode(sys.argv[1]))
     root = Path(sys.argv[2])
-    paths = list(root.glob("*.counts.tsv"))
+    paths = [root / f"{target['id']}.counts.tsv" for target in spec["targets"] if target["modality"] == "rna"]
+    paths = [path for path in paths if path.is_file()]
     if paths:
         merge_counts(paths, Path("gene_by_group.tsv"))
     Path("bulk_report.html").write_text(render(spec, root))

@@ -352,7 +352,8 @@ workflow TRESEQ {
         }
         ch_bulk_files = RNA_CORE.out.bulk_counts.mix(RNA_CORE.out.bulk_qc, DNA_CORE.out.bulk_qc, ch_routed_qc)
             .mix(ch_barcode_report_files.filter { f -> f.name.endsWith('_barcode_composition.tsv') ||
-                f.name.endsWith('_barcode_gates.tsv') || f.name.endsWith('_sample_barcode.stats.tsv') })
+                f.name.endsWith('_barcode_gates.tsv') || f.name.endsWith('_sample_barcode.stats.tsv') ||
+                f.name.endsWith('_sample_barcode.counts.tsv') })
         BULK_REPORT(ch_bulk_files.toList().map { files ->
             tuple(sampleRows[0], [targets: targets, restart: !!restart], files)
         })

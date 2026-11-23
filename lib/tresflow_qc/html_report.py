@@ -269,7 +269,7 @@ def _plots_of_kind(plots: list[dict[str, object]], kind: str) -> list[dict[str, 
     return [item for item in plots if item["kind"] == kind]
 
 
-def _plot_markup(item: dict[str, object]) -> str:
+def plot_markup(item: dict[str, object]) -> str:
     return (
         f'<div class="plot-actions"><button type="button" id="{esc(item["svg_download_id"])}" '
         f'class="plot-download" data-svg-download="{esc(item["dom_id"])}" data-export-format="svg" '
@@ -286,7 +286,7 @@ def _retention_section(plots: list[dict[str, object]]) -> str:
     if not selected:
         return ""
     cards = "".join(
-        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{_plot_markup(item)}</article>'
+        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
     return f'<section id="retention"><h2>Read-pair retention</h2><div class="run-plots">{cards}</div></section>'
@@ -297,7 +297,7 @@ def _single_plot_section(plots: list[dict[str, object]], kind: str, heading: str
     if not selected:
         return ""
     figures = "".join(
-        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{_plot_markup(item)}</article>'
+        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
     return f'<section id="{esc(section_id)}"><h2>{esc(heading)}</h2><div class="run-plots">{figures}</div></section>'
@@ -308,7 +308,7 @@ def _sample_section(plots: list[dict[str, object]]) -> str:
     if not selected:
         return ""
     panels = "".join(
-        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{_plot_markup(item)}</article>'
+        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
     return f'<section id="sample-composition"><h2>Sample barcode composition</h2><div class="run-plots">{panels}</div></section>'
@@ -319,7 +319,7 @@ def _dna_complexity_section(plots: list[dict[str, object]]) -> str:
     if not selected:
         return ""
     cards = "".join(
-        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{_plot_markup(item)}</article>'
+        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
     explanation = (
@@ -344,7 +344,7 @@ def _rna_complexity_section(plots: list[dict[str, object]]) -> str:
     if not selected:
         return ""
     cards = "".join(
-        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{_plot_markup(item)}</article>'
+        f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
     explanation = (
@@ -505,7 +505,14 @@ footer{max-width:1540px;margin:auto;padding:1.5rem max(4vw,2rem);color:var(--mut
 """
 
 
-def render_report(model: ReportModel, plots: list[dict[str, object]], output_path: Path) -> None:
+PLOT_EXPORT_SCRIPT = r'''<script>(()=>{
+const prepareSvg=(svg)=>{const clone=svg.cloneNode(true);clone.removeAttribute('id');clone.setAttribute('xmlns','http://www.w3.org/2000/svg');const viewBox=(clone.getAttribute('viewBox')||'0 0 1200 800').trim().split(/\s+/).map(Number);clone.setAttribute('width',String(viewBox[2]));clone.setAttribute('height',String(viewBox[3]));return {clone,viewBox,text:new XMLSerializer().serializeToString(clone)};};
+const saveBlob=(blob,filename)=>{const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);};
+document.querySelectorAll('[data-svg-download]').forEach(button=>{button.addEventListener('click',()=>{const svg=document.getElementById(button.dataset.svgDownload);if(!svg)return;const prepared=prepareSvg(svg);if(button.dataset.exportFormat==='svg'){saveBlob(new Blob([prepared.text],{type:'image/svg+xml;charset=utf-8'}),button.dataset.filename);return;}const source=new Blob([prepared.text],{type:'image/svg+xml;charset=utf-8'});const url=URL.createObjectURL(source);const image=new Image();image.onload=()=>{const scale=2;const canvas=document.createElement('canvas');canvas.width=Math.ceil(prepared.viewBox[2]*scale);canvas.height=Math.ceil(prepared.viewBox[3]*scale);const context=canvas.getContext('2d');context.setTransform(scale,0,0,scale,0,0);context.fillStyle='#ffffff';context.fillRect(0,0,prepared.viewBox[2],prepared.viewBox[3]);context.drawImage(image,0,0,prepared.viewBox[2],prepared.viewBox[3]);URL.revokeObjectURL(url);canvas.toBlob(blob=>{if(blob)saveBlob(blob,button.dataset.filename);},'image/png');};image.src=url;});});
+})();</script>'''
+
+
+def prepare_plots(plots: list[dict[str, object]]) -> list[dict[str, object]]:
     prepared_plots: list[dict[str, object]] = []
     for index, item in enumerate(plots, start=1):
         identity = "-".join(
@@ -531,7 +538,11 @@ def render_report(model: ReportModel, plots: list[dict[str, object]], output_pat
                 "png_filename": f"{slug}.png",
             }
         )
-    plots = prepared_plots
+    return prepared_plots
+
+
+def render_report(model: ReportModel, plots: list[dict[str, object]], output_path: Path) -> None:
+    plots = prepare_plots(plots)
     retention = _retention_section(plots)
     mark = _single_plot_section(plots, "mark_composition", "DNA mark composition", "mark-composition")
     sample = _sample_section(plots)
@@ -542,10 +553,6 @@ def render_report(model: ReportModel, plots: list[dict[str, object]], output_pat
 <nav><a href="#overview">Overview</a><a href="#retention">Retention</a>{'<a href="#mark-composition">DNA marks</a>' if mark else ''}{'<a href="#sample-composition">Sample barcodes</a>' if sample else ''}{'<a href="#complexity">DNA complexity</a>' if complexity else ''}{'<a href="#rna-complexity">RNA complexity</a>' if rna_complexity else ''}<a href="#details">Metrics</a></nav>
 <main>{_overview(model)}{retention}{mark}{sample}{complexity}{rna_complexity}{_details(model)}</main>
 <footer>Offline TrESFlow QC report · normalized schema 2.0 · no external resources</footer>
-<script>(()=>{{
-const prepareSvg=(svg)=>{{const clone=svg.cloneNode(true);clone.removeAttribute('id');clone.setAttribute('xmlns','http://www.w3.org/2000/svg');const viewBox=(clone.getAttribute('viewBox')||'0 0 1200 800').trim().split(/\\s+/).map(Number);clone.setAttribute('width',String(viewBox[2]));clone.setAttribute('height',String(viewBox[3]));return {{clone,viewBox,text:new XMLSerializer().serializeToString(clone)}};}};
-const saveBlob=(blob,filename)=>{{const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);}};
-document.querySelectorAll('[data-svg-download]').forEach(button=>{{button.addEventListener('click',()=>{{const svg=document.getElementById(button.dataset.svgDownload);if(!svg)return;const prepared=prepareSvg(svg);if(button.dataset.exportFormat==='svg'){{saveBlob(new Blob([prepared.text],{{type:'image/svg+xml;charset=utf-8'}}),button.dataset.filename);return;}}const source=new Blob([prepared.text],{{type:'image/svg+xml;charset=utf-8'}});const url=URL.createObjectURL(source);const image=new Image();image.onload=()=>{{const scale=2;const canvas=document.createElement('canvas');canvas.width=Math.ceil(prepared.viewBox[2]*scale);canvas.height=Math.ceil(prepared.viewBox[3]*scale);const context=canvas.getContext('2d');context.setTransform(scale,0,0,scale,0,0);context.fillStyle='#ffffff';context.fillRect(0,0,prepared.viewBox[2],prepared.viewBox[3]);context.drawImage(image,0,0,prepared.viewBox[2],prepared.viewBox[3]);URL.revokeObjectURL(url);canvas.toBlob(blob=>{{if(blob)saveBlob(blob,button.dataset.filename);}},'image/png');}};image.src=url;}});}});
-}})();</script></body></html>'''
+{PLOT_EXPORT_SCRIPT}</body></html>'''
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(document, encoding="utf-8")
