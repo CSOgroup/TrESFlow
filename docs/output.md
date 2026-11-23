@@ -16,7 +16,25 @@ With `--bulk true`, open `bulk/bulk_report.html`. Raw-start reports include the 
 | `dna/<sample>/<group>/<mark>/` | Duplicate-marked BAM, BAI, Picard metrics, 50 bp fragment CPM bigWig, treatment-only Epic2 BED, and numeric QC JSON with exact fragment-length frequencies.                                                                          |
 | `bulk_report.html`             | Mapping, assignment or fragment yield, barcode composition, depth plots, and peak overlap QC with labeled denominators.                                                                                                              |
 
-The RNA bigWig counts aligned blocks once per representative template at each covered base. DNA coverage and FRiP include duplicate-flagged complete target fragments. Peak BED coordinates are zero-based, half-open. The DNA JSON records the caller status and optional reference BED overlap separately. [Bulk commands and reference settings](../README.md#barcoded-bulk-analysis)
+### RNA counting and coverage
+
+Technical FASTQ chunks enter counting together. Exact split pairs lose the configured R2 sample-barcode/UMI prefix once (14 bases by default). TrESFlow recognizes clipped exports by their validated read-name suffix. Both mates must retain at least 20 bases. The full namespaced CB and physical SB identify a pool within its library/sample/group. Exact pairs need an SB tag or a physical barcode that can be recovered unambiguously from an exact-match R2 layout.
+
+STARsolo uses the pool identifier and the observed UM tag for forward-stranded `GeneFull` (exon-plus-intron) counting, with `1MM_CR`, `MultiGeneUMI_CR` and cell filtering disabled. Molecules assigned to a unique gene are deduplicated by gene, pool and corrected UMI across alignment coordinates. The matrix sums those molecules across pools within each group.
+
+The BAM retains one primary pair per counted molecule, preferring two mapped mates and then the lexically first read name. If only one mate mapped, both records retain their mapping flags. For a multimapping pair assigned to one gene, the representative uses a STAR alignment to that gene and retains NH and MAPQ. The RPM bigWig counts each template’s union of aligned blocks once per base and normalizes to one million counted molecules.
+
+### DNA coverage and peaks
+
+Complete primary proper pairs on canonical chromosomes contribute one fragment after the existing blacklist and alignment filters. Picard flags remain in the published BAM. Duplicate-flagged target fragments contribute to deepTools CPM coverage, Epic2 and FRiP. deepTools counts the full insert once in 50 bp bins.
+
+Epic2 uses treatment-only paired BEDPE input with coordinate duplicates retained, 200 bp windows, three allowed gaps and an E-value of 1000. The effective genome fraction is the configured DNA effective genome size divided by the sum of canonical chromosome lengths. Peak BED coordinates are zero-based and half-open. A successful zero-peak call produces an empty BED. Caller failures fail the task. FRiP counts each usable fragment overlapping any peak once. `--bulk_reference_bed reference.bed` adds independent overlap QC to the per-target JSON. [nf-core/cutandrun target policy and normalization](https://nf-co.re/cutandrun/latest/docs/usage/) · [Epic2 options](https://github.com/biocore-ntnu/epic2/blob/master/bin/epic2)
+
+### Reading the bulk report
+
+Compare a group’s RNA molecule yield or each DNA mark’s fragment yield in the overview. Barcode plots show read-pair counts and percentages. Raw-start sample barcodes are measured at tagging and again among ligation-accepted split-input pairs. Each ligation round uses all split-input pairs. DNA mark composition uses the group-assigned pairs at that stage. FASTQ-only plots use the supplied routed pairs within each sample/group and modality. DNA mark percentages there describe the mix of supplied mark splits. Upstream unassigned totals and fractions of raw input are unavailable. A missing physical tag is labeled separately from an observed unassigned barcode.
+
+Large plots show the eight most abundant assigned categories plus any measured unassigned or missing-tag category. Expand the exact counts for all categories, group labels and denominators. Each figure exports as SVG or PNG directly from the offline HTML. [Bulk launch commands](../README.md#barcoded-bulk-analysis)
 
 ## Preprocessing-only outputs
 
