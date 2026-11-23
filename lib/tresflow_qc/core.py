@@ -812,6 +812,20 @@ def build_report_model(
         or (str(row["parent_sample"]), str(row["modality"]).lower()) not in count_contracts
     ]
     composition.extend(count_composition)
+    for branch in branches:
+        for path in by_name[f"{branch.split_id}.{branch.modality.lower()}.routed.json"]:
+            for tag, sequences in json.loads(path.read_text()).items():
+                denominator = sum(sequences.values())
+                for sequence, count in sorted(sequences.items()):
+                    composition.append({
+                        "run": branch.run, "parent_sample": branch.parent, "modality": branch.modality,
+                        "group": branch.group, "barcode_type": tag, "category": sequence,
+                        "barcode_sequence": sequence if sequence != "unavailable" else "",
+                        "barcode_label": sequence, "count": count, "percentage": percentage(count, denominator),
+                        "denominator_count": denominator,
+                        "denominator_definition": f"supplied routed read pairs for {branch.split_id}",
+                        "contract_level": "routed_sequence", "source": path.name,
+                    })
     legacy_sample_contracts = {
         (str(row["parent_sample"]), str(row["modality"]))
         for row in composition

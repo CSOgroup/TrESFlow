@@ -14,12 +14,12 @@ process VALIDATE_PREPROCESSED_SPLIT {
     def options = groovy.json.JsonOutput.toJson(spec).bytes.encodeBase64().toString()
     def rgArgs = meta.modality == 'dna' ? "--output-rg validated/SAM_RG_Header_${splitId}.tsv" : ''
     if( rg ) rgArgs += " --input-rg ${shellQuoteForFastqCleanup(rg)}"
+    def qcArg = spec.fastq_only ? "--routed-qc validated/${splitId}.${meta.modality}.routed.json" : ''
     """
     ${runtimeShellExports(meta)}
     mkdir validated
     "\$PYTHON3_BIN" "${projectDir}/bin/preprocessed_fastqs.py" validate \
-        "${options}" ${shellQuoteForFastqCleanup(r1)} ${shellQuoteForFastqCleanup(r2)} ${rgArgs}
+        "${options}" ${shellQuoteForFastqCleanup(r1)} ${shellQuoteForFastqCleanup(r2)} ${rgArgs} ${qcArg}
     mv validated.txt validated/
-    ${spec.bulk && meta.modality == 'dna' ? "mv '${splitId}.dna.routed.json' validated/" : ''}
     """
 }

@@ -235,6 +235,15 @@ def verify_fastq_only_restarts(root, references, runtime, pre, rna, dna, opts, d
         assert not any(name.startswith(("FASTQC", "TAG_", "TRIM_", "SPLIT_RNA_READS",
                                         "SPLIT_DNA_READS", "DUAL_TAG", "CLEANUP_")) for name in tasks)
         assert "Historical preprocessing QC is unavailable" in (out / "TrES_Stats/tres_report.html").read_text()
+        with (out / "TrES_Stats/barcode_composition.tsv").open() as handle:
+            composition = list(csv.DictReader(handle, delimiter="\t"))
+        for modality, split in (("rna", rna), ("dna", dna)):
+            if modality in active:
+                routed = [row for row in composition if row["modality"] == modality.upper()]
+                for tag in ("L1", "L2", "L3"):
+                    assert sum(int(row["count"]) for row in routed if row["barcode_type"] == tag) == (
+                        split["pairs"] - (modality == "rna" and mode == "mixed"))
+                assert all(row["contract_level"] == "routed_sequence" for row in routed)
         assert not (out / "restart_manifest.json").exists()
         assert ("FQ_TO_SAM" in tasks) == ("rna" in active)
         assert ("ALIGN_DNA" in tasks) == ("dna" in active)

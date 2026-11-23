@@ -142,7 +142,6 @@ workflow TRESEQ {
             def entry = split.entry
             def meta = split.row
             def spec = entry + [
-                bulk: reportMetadata.bulk,
                 fastq_only: restart.fastq_only == true,
                 r1: split.r1.toString(),
                 r2: split.r2.toString(),
@@ -158,9 +157,9 @@ workflow TRESEQ {
         // Bulk RNA validates and converts in the same pass over the supplied pair.
         def bulk = reportMetadata.bulk
         VALIDATE_PREPROCESSED_SPLIT(ch_validation.filter { id, meta, spec, r1, r2, rg -> !(bulk && meta.modality == 'rna') })
-        if( bulk ) {
+        if( restart.fastq_only ) {
             ch_routed_qc = VALIDATE_PREPROCESSED_SPLIT.out.validated.map { id, meta, validated ->
-                validated.resolve("${id}.dna.routed.json")
+                validated.resolve("${id}.${meta.modality}.routed.json")
             }
         }
         ch_validated_pairs = VALIDATE_PREPROCESSED_SPLIT.out.validated
@@ -298,6 +297,7 @@ workflow TRESEQ {
     }
 
     ch_report_source_files = ch_report_preprocessing_files
+        .mix(ch_routed_qc)
         .mix(Channel.fromList(restart?.report_inputs ?: []))
         .mix(RNA_CORE.out.filter_retention_metrics.map { splitName, meta, metrics -> metrics })
         .mix(DNA_CORE.out.alignment_retention_metrics.map { splitName, meta, metrics -> metrics })

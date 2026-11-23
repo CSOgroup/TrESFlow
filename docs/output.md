@@ -48,7 +48,7 @@ that the direct workflow passes to SAM conversion.
 A FASTQ-only restart accepts these exact RNA pairs, tagged pairs from
 `rna_split_fastqs/`, and the published DNA pairs. Clipped RNA sequences and
 qualities reach SAM unchanged. DNA read groups are rebuilt from the reads.
-The analysis report marks historical preprocessing QC as unavailable.
+The analysis report marks historical preprocessing QC as unavailable. Its barcode composition table counts L1, L2, L3 and available SB/MO tags on the supplied routed read pairs for each split.
 
 `TrES_Stats/` retains barcode statistics, tag records, split retention, barcode
 composition/gates, eligible dual-tag artifact-filter metrics, FastQC, MultiQC

@@ -124,7 +124,7 @@ def observe_routed(counts, tags, width):
         counts["MO"][tags["MO"]] += 1
 
 
-def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
+def validate_split(r1, r2, spec, input_rg=None, output_rg=None, routed_qc=None):
     count = 0
     groups = set()
     counts = {tag: Counter() for tag in ("L1", "L2", "L3", "SB", "MO")}
@@ -135,7 +135,7 @@ def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
             if first is None or second is None:
                 raise ValueError("mate FASTQs have unequal record counts")
             rg = validate_pair(first, second, spec, barcodes, ligation_length)
-            if spec.get("bulk"):
+            if routed_qc is not None:
                 observe_routed(counts, read_tags(parse_header(first[0])[1]), ligation_length // 3)
             if rg is not None:
                 groups.add(rg)
@@ -154,8 +154,8 @@ def validate_split(r1, r2, spec, input_rg=None, output_rg=None):
             if len(set(actual)) != len(actual) or set(actual) != expected:
                 raise ValueError(f"{input_rg}: @RG rows must match the observed IDs and their SM/LB/PU/PL/PM values")
             shutil.copyfile(input_rg, output_rg)
-    if spec.get("bulk"):
-        Path(f'{spec["split_id"]}.dna.routed.json').write_text(json.dumps(counts))
+    if routed_qc is not None:
+        routed_qc.write_text(json.dumps(counts))
     return count
 
 
@@ -214,6 +214,7 @@ def main():
     validate.add_argument("r2", type=Path)
     validate.add_argument("--input-rg", type=Path)
     validate.add_argument("--output-rg", type=Path)
+    validate.add_argument("--routed-qc", type=Path)
     write = modes.add_parser("write")
     write.add_argument("spec")
     write.add_argument("--report", nargs="*", type=Path, default=[])
@@ -225,7 +226,7 @@ def main():
         if args.mode == "write":
             write_manifest(spec, args.report, args.multiqc, args.read_groups)
         else:
-            count = validate_split(args.r1, args.r2, spec, args.input_rg, args.output_rg)
+            count = validate_split(args.r1, args.r2, spec, args.input_rg, args.output_rg, args.routed_qc)
             Path("validated.txt").write_text(f"{count}\n")
     except (ValueError, OSError, KeyError) as error:
         split = spec.get("split_id", "manifest")
