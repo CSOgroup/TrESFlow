@@ -20,6 +20,7 @@ class BarcodePanel:
     definition: str
     # (sequence or mark, group or mark label) -> read pairs
     counts: Counter
+    sample: str = ""
 
     def __post_init__(self):
         if sum(self.counts.values()) != self.denominator:
@@ -38,7 +39,7 @@ def raw_panels(sample, modality, composition, tag_counts, raw_pairs, unmatched):
     if tag_counts.setdefault("NoMatch", unmatched) != unmatched:
         raise ValueError(f"{scope}: sample-barcode NoMatch disagrees with tagging stats")
     tagged = Counter({(seq, groups.get(seq, "")): n for seq, n in tag_counts.items()})
-    panels = [BarcodePanel(scope, modality, "SB", "Sample-barcode tagging", raw_pairs, "raw input pairs", tagged)]
+    panels = [BarcodePanel(scope, modality, "SB", "Sample-barcode tagging", raw_pairs, "raw input pairs", tagged, sample=sample)]
     subsets = defaultdict(list)
     for row in composition:
         kind = row["barcode_type"]
@@ -52,7 +53,7 @@ def raw_panels(sample, modality, composition, tag_counts, raw_pairs, unmatched):
             counts[row["category"], label] += int(row["count"])
         panels.append(BarcodePanel(scope if not group else f"{scope} · {group}", modality, tag,
                                    "Split input", int(rows[0]["denominator_count"]),
-                                   rows[0]["denominator_definition"], counts))
+                                   rows[0]["denominator_definition"], counts, sample=sample))
     return panels
 
 
@@ -75,7 +76,7 @@ def routed_panels(targets, observations):
             for seq, n in barcodes[tag].items():
                 counts[seq, t["mark"] if tag == "MO" else ""] += n
     return [BarcodePanel(f"{sample} · {mod.upper()} · {group}", mod, tag, "Supplied routed pairs",
-                         totals[sample, mod, group], "supplied routed read pairs in this group", counts)
+                         totals[sample, mod, group], "supplied routed read pairs in this group", counts, sample=sample)
             for ((sample, mod, group), tag), counts in grouped.items()]
 
 
@@ -133,7 +134,7 @@ def abundance_svg(panel):
     if maximum:
         text(left, bottom, "0", "muted axis")
         text((left + right) / 2, bottom, "Read pairs", "muted axis", "middle")
-        text(right, bottom, f"{maximum:,}", "muted axis", "end")
+        text(right, bottom, count_label(maximum), "muted axis", "end")
         bottom += 22
     if not shown:
         text(10, bottom, "No read pairs observed.", "muted axis")

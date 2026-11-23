@@ -54,41 +54,33 @@ def rna_metrics(q):
     sense, anti = q.get("sense", 0), q.get("antisense", 0)
     return [
         metric("Routed input pairs", routed),
-        metric("Pairs after clipping and length gate", retained, routed, "routed pairs"),
+        metric("Pairs submitted to STAR", retained, routed, "routed pairs"),
         metric("Uniquely mapped pairs", mapped, retained, "pairs submitted to STAR"),
         metric("Multimapped pairs", q["genomeM"], retained, "pairs submitted to STAR"),
-        metric("Uniquely assigned GeneFull pairs", q["featureU"], retained, "pairs submitted to STAR"),
+        metric("Gene-assigned pairs", q["featureU"], retained, "pairs submitted to STAR"),
         *(metric(f"{region.capitalize()} pairs", q.get(region, 0), mapped, "uniquely mapped pairs")
           for region in ("exonic", "intronic", "intergenic")),
         metric("Sense pairs", sense, sense + anti, "unambiguous annotated strand"),
-        metric("Antisense pairs", anti, sense + anti, "unambiguous annotated strand"),
-        metric("Strand ambiguous pairs", q.get("ambiguous", 0)),
         metric("Corrected molecules", q["molecules"], retained, "pairs submitted to STAR"),
-        metric("Representatives with one mate mapped", q.get("one_mate_mapped_representatives", 0),
-               q["molecules"], "molecule representatives"),
         metric("Detected genes", q["genes_detected"]),
     ]
 
 
 def dna_metrics(q):
     n, aligned = q["usable_fragments"], q["bwa_primary_pairs"]
-    post, mapped, proper = (q[k] for k in ("post_blacklist_primary_pairs", "post_blacklist_mapped_primary_pairs",
-                                          "proper_pair_primary_pairs"))
+    post, proper = q["post_blacklist_primary_pairs"], q["proper_pair_primary_pairs"]
     return [
         metric("BWA input pairs", aligned),
-        metric("Mapped primary R1", q.get("bwa_mapped_primary_pairs"), aligned, "input pairs"),
-        metric("R1 removed by blacklist", aligned - post, aligned, "input pairs"),
-        metric("Unmapped R1 after blacklist", post - mapped, post, "post-blacklist R1"),
-        metric("R1 removed by proper-pair filter", mapped - proper, mapped, "post-blacklist mapped R1"),
-        metric("Proper-pair R1 outside usable complete fragments", proper - n, proper, "proper-pair R1"),
-        metric("Usable fragments", n, aligned, "input pairs"),
-        metric("Duplicate-flagged usable fragments", q["usable_duplicate_fragments"], n, "usable fragments"),
-        metric("Picard pairs examined", q["read_pairs_examined"]),
-        metric("Picard duplicate pairs", q["read_pair_duplicates"], q["read_pairs_examined"], "Picard pairs examined"),
-        metric("Picard optical duplicate pairs", q["read_pair_optical_duplicates"], q["read_pair_duplicates"], "duplicate pairs"),
-        metric("Peaks", q["peak_count"]), metric("Peak union (bp)", q["peak_bases"]),
-        metric("Fragments in peaks (FRiP)", q["fragments_in_peaks"], n, "usable fragments"),
-    ] + ([metric(f"Fragments in reference BED ({q['reference_bed']})", q["fragments_in_reference"], n, "usable fragments")]
+        metric("Pairs with mapped R1", q.get("bwa_mapped_primary_pairs"), aligned, "BWA input pairs"),
+        metric("Blacklist filter losses", aligned - post, aligned, "BWA input pairs"),
+        metric("Unmapped / improper-pair losses", post - proper, post, "post-blacklist pairs"),
+        metric("Final fragment-selection losses", proper - n, proper, "proper-pair R1"),
+        metric("Final aligned fragments", n, aligned, "BWA input pairs"),
+        metric("Duplicate pairs · Picard", q["read_pair_duplicates"], q["read_pairs_examined"], "Picard pairs examined"),
+        metric("Optical duplicate pairs · Picard", q["read_pair_optical_duplicates"], q["read_pairs_examined"], "Picard pairs examined"),
+        metric("Peaks", q["peak_count"]), metric("Bases in peaks (bp)", q["peak_bases"]),
+        metric("Fragments in peaks (FRiP)", q["fragments_in_peaks"], n, "final aligned fragments"),
+    ] + ([metric(f"Fragments in reference BED ({q['reference_bed']})", q["fragments_in_reference"], n, "final aligned fragments")]
          if "fragments_in_reference" in q else [])
 
 
@@ -130,7 +122,14 @@ def preprocessing(root):
             stats = {r[0]: int(r[1]) for r in csv.reader(handle, delimiter="\t")}
         raw, no_sb = stats["reads"], stats["reads_without_bc"]
         gates = [metric("Raw input pairs", raw), metric("Unassigned at sample-barcode tagging", no_sb, raw, "raw input pairs")]
-        gates.extend(metric(r["metric"].replace("_", " "), int(r["pairs"]), raw, "raw input pairs")
+        gate_labels = {
+            "split_input_pairs": "Pairs entering routing",
+            "ligation_barcode_accepted_pairs": "L1 + L2 + L3 assigned pairs",
+            "sample_barcode_accepted_pairs": "Group-assigned pairs",
+            "modality_barcode_accepted_pairs": "Group + mark-assigned pairs",
+        }
+        gates.extend(metric(gate_labels.get(r["metric"], r["metric"].replace("_", " ")),
+                            int(r["pairs"]), raw, "raw input pairs")
                      for r in records(root / f"{prefix}_barcode_gates.tsv"))
         tables.append(details(f"{scope} · preprocessing counts", table(METRIC_HEADERS, gates)))
         tag_counts = read_barcode_counts(root / f"{prefix}_sample_barcode.counts.tsv")
@@ -146,25 +145,29 @@ def preprocessing(root):
 
 
 def barcode_section(panels):
-    visible = [p for p in panels if p.tag not in {"L1", "L2", "L3"}]
-    ligation = [p for p in panels if p.tag in {"L1", "L2", "L3"}]
-    return barcode_panels(visible) + (details("Ligation barcode abundance · L1 / L2 / L3", barcode_panels(ligation)) if ligation else "")
+    sections = []
+    for sample, subset in groupby(sorted(panels, key=lambda p: p.sample or p.scope),
+                                   key=lambda p: p.sample or p.scope):
+        observed = sorted(subset, key=lambda p: (p.modality, p.scope, p.tag))
+        visible = [p for p in observed if p.tag not in {"L1", "L2", "L3"}]
+        ligation = [p for p in observed if p.tag in {"L1", "L2", "L3"}]
+        content = barcode_panels(visible) if visible else ""
+        if ligation:
+            content += details("Ligation barcode abundance · L1 / L2 / L3", barcode_panels(ligation))
+        sections.append(f'<section class="barcode-sample"><h3>{escape(sample)}</h3>{content}</section>')
+    return "".join(sections)
 
 
 def barcode_panels(panels):
-    sections = []
-    for scope, subset in groupby(sorted(panels, key=lambda p: p.scope), key=lambda p: p.scope):
-        figures, exact = [], []
-        for p in subset:
-            figures.append(dict(kind=f"{p.stage}-{p.tag}", run=scope, svg=abundance_svg(p)))
-            for identity, count in sorted(p.counts.items(), key=lambda item: (-item[1], item[0])):
-                pct = f"{100 * count / p.denominator:.2f}%" if p.denominator else "unavailable"
-                exact.append([p.stage, p.title, label(identity), count, pct, p.denominator, p.definition])
-        sections.append(f'<h3>{escape(scope)}</h3>' + cards(figures)
-                        + details("Exact barcode counts and denominators", table(
-                            ["Stage", "Barcode", "Sequence / group or mark", "Read pairs", "Percent",
-                             "Denominator (pairs)", "Denominator definition"], exact)))
-    return "".join(sections)
+    figures, exact = [], []
+    for p in panels:
+        figures.append(dict(kind=f"{p.stage}-{p.tag}", run=p.scope, svg=abundance_svg(p)))
+        for identity, count in sorted(p.counts.items(), key=lambda item: (-item[1], item[0])):
+            pct = percent(count, p.denominator)
+            exact.append([p.scope, p.stage, p.title, label(identity), count, pct, p.denominator, p.definition])
+    return cards(figures) + details("Exact barcode counts and denominators", table(
+        ["Scope", "Stage", "Barcode", "Sequence / group or mark", "Read pairs", "Percent",
+         "Denominator (pairs)", "Denominator definition"], exact))
 
 
 def target_card(title, q, rna, raw=None):
@@ -228,7 +231,7 @@ def render(spec, root):
             sample_mod = path.name.removesuffix("_sample_barcode.stats.tsv")
             with path.open() as handle:
                 raw_counts[sample_mod] = {row[0]: int(row[1]) for row in csv.reader(handle, delimiter="\t")}["reads"]
-    overview, rna_plots, dna_plots, routed = [], [], [], {}
+    overview, rna_plots, dna_plots, fragment_plots, routed = [], [], [], [], {}
     for t in targets:
         mod, split = t["modality"], t["id"]
         rna = mod == "rna"
@@ -256,9 +259,9 @@ def render(spec, root):
             if any(int(length) > 1000 for length in lengths):
                 distribution += details("Full fragment-length range", cards(
                     [fragment_figure(lengths, scope, full_range=True)], wide=True))
-            metrics.append(details(scope + " · fragment lengths", distribution))
-            note = f"Epic2 · {q['caller_status']}. Final aligned fragments are complete primary, proper pairs on canonical chromosomes after blacklist filtering, including duplicate-flagged fragments. Every eligible fragment contributes to coverage and the FRiP denominator, regardless of peak overlap. CPM coverage uses 50 bp bins."
-        metrics.append(details(scope + " · analysis metrics", table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
+            fragment_plots.append(f"<h3>{escape(scope)}</h3>" + distribution)
+            note = f"Alignment filter losses count primary R1 records. Final fragments include duplicate-flagged pairs. FRiP uses all final fragments. CPM · 50 bp bins. Epic2 · {q['caller_status']}."
+        metrics.append(details(scope, table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
                                + f"<p>{escape(note)}</p>"))
 
     if restart:
@@ -270,7 +273,28 @@ def render(spec, root):
     warnings_html = "".join(f'<li>{escape(w)}</li>' for w in warnings)
     if warnings:
         warnings_html = '<aside class="bulk-warnings"><strong>Unassigned sample barcodes</strong><ul>' + warnings_html + '</ul></aside>'
+    rna_section = ""
+    if rna_plots:
+        rna_section = f'''<section id="rna-complexity">
+<h2>RNA sequencing saturation</h2>
+<p>Fraction of uniquely assigned GeneFull pairs that do not contribute a new corrected molecule ·
+1 − molecules / assigned pairs. UMI correction and gene assignments are fixed by STARsolo.</p>
+{"".join(rna_plots)}</section>'''
+    dna_section = ""
+    if dna_plots:
+        dna_section = f'''<section id="complexity">
+<h2>DNA library complexity</h2>
+<p>Picard pairs examined are split into observed unique, PCR/library duplicate, and optical duplicate pairs.
+Predictions use Picard’s ROI histogram and describe unique pairs expected from deeper sequencing of the same library.
+Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>
+{"".join(dna_plots)}</section>'''
+    fragment_section = ""
+    if fragment_plots:
+        fragment_section = '<section id="fragment-lengths">' + details(
+            "Fragment lengths", "".join(fragment_plots)) + '</section>'
     css = """
+    .hero .brand{text-transform:none}.hero h1,main h3{overflow-wrap:anywhere}
+    .barcode-sample{padding:0;border:0;margin:1rem 0 1.5rem}
     .run-plots{min-width:0}.run-plots>.plot-card{min-width:0}
     .bulk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:.8rem;margin:.75rem 0 1.2rem}
     .bulk-grid .plot-card{min-width:0;padding:.65rem}.bulk-grid .svg-scroll svg{width:100%;max-width:560px;height:auto}
@@ -278,16 +302,15 @@ def render(spec, root):
     .bulk-warnings ul{margin:.25rem 0}section{scroll-margin-top:3rem}.bulk-grid+h3{margin-top:1.6rem}
     """
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{escape(library)} · Bulk TrES-seq QC</title><style>{CSS}{css}</style></head>
-<body><header class="hero"><div class="brand">TrESFlow</div><h1>Bulk TrES-seq QC</h1></header>
+<title>{escape(library)} · TrESFlow - Bulk</title><style>{CSS}{css}</style></head>
+<body><header class="hero"><div class="brand">TrESFlow - Bulk</div><h1>{escape(library)}</h1></header>
 <nav aria-label="Report sections"><a href="#overview">Overview</a><a href="#barcodes">Barcode abundance</a>
-<a href="#rna-complexity">RNA saturation</a><a href="#complexity">DNA complexity</a><a href="#metrics">Detailed metrics</a></nav><main>
-<section id="overview"><h2>{escape(library)}</h2><p class="subtle">{stage}</p>{warnings_html}
+{'<a href="#rna-complexity">RNA saturation</a>' if rna_section else ""}{'<a href="#complexity">DNA complexity</a>' if dna_section else ""}{'<a href="#fragment-lengths">Fragment lengths</a>' if fragment_section else ""}<a href="#metrics">Metrics</a></nav><main>
+<section id="overview" aria-label="Overview"><p class="subtle">{stage}</p>{warnings_html}
 <div class="run-cards">{"".join(overview)}</div></section>
 <section id="barcodes"><h2>Barcode abundance</h2>{'<p class="unavailable">Raw-input sample barcode composition unavailable for supplied FASTQs.</p>' if restart else ""}{barcode_section(panels)}</section>
-<section id="rna-complexity"><h2>RNA sequencing saturation</h2><p>Fraction of uniquely assigned GeneFull pairs that do not contribute a new corrected molecule · 1 − molecules / assigned pairs. UMI correction and gene assignments are fixed by STARsolo.</p>{"".join(rna_plots) if rna_plots else '<p class="unavailable">No RNA analysis.</p>'}</section>
-<section id="complexity"><h2>DNA library complexity</h2><p>Picard pairs examined are split into observed unique, PCR/library duplicate, and optical duplicate pairs. Predictions use Picard’s ROI histogram and describe unique pairs expected from deeper sequencing of the same library. Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>{"".join(dna_plots) if dna_plots else '<p class="unavailable">No DNA analysis.</p>'}</section>
-<section id="metrics"><h2>Detailed metrics</h2>{"".join(metrics)}</section></main>{PLOT_EXPORT_SCRIPT}</body></html>'''
+{rna_section}{dna_section}{fragment_section}
+<section id="metrics"><h2>Metrics</h2>{"".join(metrics)}</section></main>{PLOT_EXPORT_SCRIPT}</body></html>'''
 
 if __name__ == "__main__":
     spec = json.loads(base64.b64decode(sys.argv[1]))

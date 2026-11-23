@@ -86,7 +86,9 @@ def test_ligation_plots_are_collapsed():
     panel = BarcodePanel("s · RNA", "rna", "L1", "Split input", 3, "split-input pairs",
                          Counter({("AAA", ""): 3}))
     html = barcode_section([panel])
-    assert html.startswith('<details><summary>Ligation barcode abundance')
+    root = ElementTree.fromstring("<root>" + html + "</root>")
+    menu = root.find("./section/details")
+    assert menu is not None and menu.find("summary").text.startswith("Ligation barcode abundance")
     assert '<details open' not in html
 
 
@@ -147,3 +149,76 @@ def test_final_fragments_include_pairs_outside_peaks(tmp_path, monkeypatch):
     assert overlap_count(Path("peaks.bed")) == (1, 40)
     with pysam.AlignmentFile("spans.bam") as bam:
         assert sum(1 for _ in bam) == 2
+
+
+def test_barcode_panels_share_a_sample_row_and_keep_separate_menus():
+    panels = []
+    for sample in ("s1 · original label", "s2"):
+        for scope, tag in ((f"{sample} · DNA", "SB"), (f"{sample} · DNA · g", "MO"),
+                           (f"{sample} · DNA", "L1"), (f"{sample} · RNA", "L1")):
+            panels.append(BarcodePanel(scope, "rna" if "RNA" in scope else "dna", tag,
+                                       "Split input", 2, "observed pairs",
+                                       Counter({("AAA", ""): 2}), sample=sample))
+    root = ElementTree.fromstring("<root>" + barcode_section(panels) + "</root>")
+    samples = root.findall("./section")
+    assert [s.find("h3").text for s in samples] == ["s1 · original label", "s2"]
+    for sample in samples:
+        assert len(sample.findall("./div/article")) == 2
+        menu = [d for d in sample.findall("./details")
+                if d.find("summary").text.startswith("Ligation barcode abundance")]
+        assert len(menu) == 1 and "open" not in menu[0].attrib
+        assert len(menu[0].findall("./div/article")) == 2
+        assert "Scope" in "".join(sample.itertext())
+
+
+def test_report_header_and_separate_fragment_section(tmp_path):
+    import json
+    from bulk_report import render
+    barcodes = {tag: {"AAA": 8} for tag in ("L1", "L2", "L3", "SB", "MO")}
+    rna = dict(routed_pairs=10, retained_pairs=8, genomeU=6, genomeM=1, featureU=4,
+               molecules=2, genes_detected=1, barcodes=barcodes)
+    dna = dict(bwa_primary_pairs=10, bwa_mapped_primary_pairs=9, usable_fragments=5,
+               post_blacklist_primary_pairs=9, proper_pair_primary_pairs=7,
+               read_pairs_examined=7, read_pair_duplicates=2, read_pair_optical_duplicates=1,
+               peak_count=1, peak_bases=50, fragments_in_peaks=2, fragment_lengths={"100": 5},
+               caller_status="completed")
+    for name, data in (("s_g.rna.qc.json", rna), ("s_g_m.dna.qc.json", dna),
+                       ("s_g_m.dna.routed.json", barcodes)):
+        (tmp_path / name).write_text(json.dumps(data))
+    targets = [dict(sample="s", group="g", modality="rna", id="s_g", library="run<&>"),
+               dict(sample="s", group="g", modality="dna", id="s_g_m", mark="m", library="run<&>")]
+    html = render(dict(restart=True, targets=targets), tmp_path)
+    assert '<div class="brand">TrESFlow - Bulk</div><h1>run&lt;&amp;&gt;</h1>' in html
+    assert "Bulk TrES-seq QC" not in html
+    assert html.index('<section id="complexity">') < html.index('<section id="fragment-lengths">') < html.index('<section id="metrics">')
+    fragments = html.split('<section id="fragment-lengths">', 1)[1].split('</section>', 1)[0]
+    assert fragments.startswith('<details><summary>Fragment lengths</summary>')
+    assert "Fragment length distribution" in fragments
+    assert "Fragment length distribution" not in html.split('<section id="metrics">', 1)[1]
+    assert "Raw-input sample barcode composition unavailable" in html
+    assert "unassigned totals" in html
+    rna_only = render(dict(restart=True, targets=targets[:1]), tmp_path)
+    assert 'id="rna-complexity"' in rna_only and 'id="complexity"' not in rna_only
+    assert 'href="#fragment-lengths"' not in rna_only
+    dna_only = render(dict(restart=True, targets=targets[1:]), tmp_path)
+    assert 'href="#rna-complexity"' not in dna_only and "No RNA analysis" not in dna_only
+    assert 'id="complexity"' in dna_only and 'id="fragment-lengths"' in dna_only
+
+
+def test_concise_metrics_keep_filter_accounting_and_denominators():
+    from bulk_report import dna_metrics, rna_metrics
+    dna = dict(bwa_primary_pairs=100, bwa_mapped_primary_pairs=90, usable_fragments=60,
+               post_blacklist_primary_pairs=90, proper_pair_primary_pairs=70,
+               read_pairs_examined=70, read_pair_duplicates=20, read_pair_optical_duplicates=7,
+               peak_count=1, peak_bases=50, fragments_in_peaks=15)
+    metrics = {row[0]: row[1:] for row in dna_metrics(dna)}
+    losses = sum(metrics[k][0] for k in ("Blacklist filter losses", "Unmapped / improper-pair losses",
+                                        "Final fragment-selection losses"))
+    assert losses + metrics["Final aligned fragments"][0] == 100
+    assert metrics["Optical duplicate pairs · Picard"][1:] == ("10.00%", "Picard pairs examined")
+    assert metrics["Fragments in peaks (FRiP)"][1:] == ("25.00%", "final aligned fragments")
+    rna = dict(routed_pairs=10, retained_pairs=8, genomeU=6, genomeM=1, featureU=4,
+               molecules=2, genes_detected=1, sense=4, antisense=1)
+    rows = rna_metrics(rna)
+    assert len(rows) == 11
+    assert next(row for row in rows if row[0] == "Sense pairs")[2] == "80.00%"
