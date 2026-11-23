@@ -159,6 +159,11 @@ def preprocess_runtime(tmp_path_factory):
     (root / "bin").mkdir()
     for name in required:
         (root / "bin" / name).symlink_to(RUNTIME / "bin" / name)
+    # Relocated Conda entry points can use env python3.X in their shebang.
+    # Keep that interpreter alias in the restricted preprocessing test runtime.
+    interpreter = (RUNTIME / "bin/python3").resolve()
+    if not (root / "bin" / interpreter.name).exists():
+        (root / "bin" / interpreter.name).symlink_to(interpreter)
     (root / "lib").symlink_to(RUNTIME / "lib", target_is_directory=True)
     assert all(not (root / "bin" / name).exists() for name in ALIGNMENT_TOOLS)
     isolated_path = f"{root}/bin:/usr/local/bin:/usr/bin:/bin"

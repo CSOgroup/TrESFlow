@@ -2,7 +2,7 @@ include { runtimeShellExports; runtimeOutdir } from '../runtime_support/main'
 
 process BULK_REPORT {
     label 'process_single'
-    publishDir { "${runtimeOutdir()}/bulk" }, mode: 'copy'
+    publishDir { "${runtimeOutdir()}/alignments" }, mode: 'copy'
 
     input:
     tuple val(meta), val(spec), path(files, stageAs: 'inputs/*')

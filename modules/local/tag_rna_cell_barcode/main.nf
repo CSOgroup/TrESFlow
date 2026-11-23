@@ -22,7 +22,7 @@ process TAG_RNA_CELL_BARCODE {
     label 'codon_wrapper'
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_cell.*.tsv"
-    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_tag_records.tsv.gz"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.rna_tag_records.tsv.gz", enabled: !params.bulk.toString().toBoolean()
 
     input:
     tuple val(sampleId), val(meta), path(i1, stageAs: 'i1???/*'), path(taggedR1), path(taggedR2), path(cellWhitelist), path(readSetCounts)

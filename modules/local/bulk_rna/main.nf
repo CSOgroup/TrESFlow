@@ -31,7 +31,7 @@ process PREPARE_BULK_RNA {
 process BULK_RNA_MOLECULES {
     tag "${splitName}"
     label 'process_single'
-    publishDir { "${runtimeOutdir()}/bulk/rna/${meta.id}/${meta.group}" }, mode: 'copy', pattern: "*.{bam,bai,bw,json}"
+    publishDir { "${runtimeOutdir()}/alignments" }, mode: 'copy', pattern: "*.{bam,bai,bw,json}"
 
     input:
     tuple val(splitName), val(meta), path(aligned), path(solo), path(starLog), path(preparation)

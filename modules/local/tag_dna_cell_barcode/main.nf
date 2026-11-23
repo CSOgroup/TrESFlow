@@ -22,7 +22,7 @@ process TAG_DNA_CELL_BARCODE {
     label 'codon_wrapper'
 
     publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_cell.*.tsv"
-    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_tag_records.tsv.gz"
+    publishDir { "${runtimeOutdir()}/TrES_Stats" }, mode: 'copy', overwrite: true, pattern: "*.dna_tag_records.tsv.gz", enabled: !params.bulk.toString().toBoolean()
 
     input:
     tuple val(sampleId), val(meta), path(ligationRead, stageAs: 'ligation???/*'), path(taggedR1), path(taggedR2), path(cellWhitelist), path(readSetCounts)

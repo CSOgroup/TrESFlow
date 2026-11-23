@@ -103,16 +103,20 @@ def test_bulk_routes(tmp_path):
     (root / "raw.yaml").write_text(yaml.safe_dump(raw))
     (root / "preprocess.yaml").write_text(yaml.safe_dump(reference_free(raw)))
     launch(root, ["--bulk", "true", "--samplesheet", "raw.yaml", "--outdir", "results/bulk_raw"])
-    start = root / "results/bulk_raw/bulk"
+    start = root / "results/bulk_raw/alignments"
     with (start / "gene_by_group.tsv").open() as h:
         assert list(csv.DictReader(h, delimiter="\t")) == [
             {"gene_id": "g1", "shared_reads_shared_pool": "3", "shared_reads_other": "1"}]
-    q = json.loads((start / "rna/shared_reads/shared_pool/shared_reads_shared_pool.rna.qc.json").read_text())
+    q = json.loads((start / "shared_reads_shared_pool.rna.qc.json").read_text())
     assert q["intronic"] == 1 and q["sense"] == 5 and q["pools_detected"] == 2
     dna, = start.rglob("*.dna.qc.json")
     d = json.loads(dna.read_text())
     assert d["usable_duplicate_fragments"] == 42 and d["usable_fragments"] == 48
     assert d["frip"] == 1 and d["peak_count"] == 1
+    assert all(p.is_file() for p in start.iterdir())
+    assert not (root / "results/bulk_raw/bulk").exists()
+    assert not list((root / "results/bulk_raw").rglob("*tag_records*"))
+    assert not any(p.is_file() for p in (root / "work-bulk_raw").rglob("*"))
     track, = start.rglob("*.cpm.bw")
     with pyBigWig.open(str(track)) as bw:
         assert bw.values("chr1", 200, 201)[0] == pytest.approx(32 / 48 * 1e6, rel=1e-5)
@@ -150,7 +154,7 @@ def test_bulk_routes(tmp_path):
         # resolution of pairs/ is demonstrably independent of the launch folder.
         launch(root, ["--bulk", "true", "--preprocessed_input", "true", "--samplesheet",
                       sheet_name, "--outdir", f"results/{out}"])
-        result = root / "results" / out / "bulk"
+        result = root / "results" / out / "alignments"
         assert snapshot(start) == snapshot(result)
         assert "unassigned totals" in (result / "bulk_report.html").read_text()
         assert all(hashlib.sha256(p.read_bytes()).digest() == digest for p, digest in hashes.items())
@@ -206,7 +210,7 @@ def test_dna_only_single_targets_and_reference(tmp_path):
     (root / "raw.yaml").write_text(yaml.safe_dump(sheet))
     launch(root, ["--bulk", "true", "--bulk_reference_bed", "overlap.bed", "--samplesheet", "raw.yaml",
                   "--outdir", "results/single"])
-    bulk = root / "results/single/bulk"
+    bulk = root / "results/single/alignments"
     qc = json.loads(next(bulk.rglob("*.dna.qc.json")).read_text())
     assert qc["usable_fragments"] == 34 and qc["usable_duplicate_fragments"] == 28
     assert qc["fragments_in_reference"] == 32
@@ -241,7 +245,7 @@ def test_rna_only_physical_pools_and_splice(tmp_path):
     (root / "preprocessed.yaml").write_text(yaml.safe_dump(sheet))
     launch(root, ["--bulk", "true", "--preprocessed_input", "true", "--samplesheet", "preprocessed.yaml",
                   "--outdir", "results/bulk_from_fastqs"])
-    out = root / "results/bulk_from_fastqs/bulk"
+    out = root / "results/bulk_from_fastqs/alignments"
     with pysam.AlignmentFile(next(out.rglob("*.bam"))) as bam:
         records = list(bam)
     assert len(records) == 6 and sum(r.is_unmapped for r in records) == 1

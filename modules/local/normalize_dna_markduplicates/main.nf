@@ -9,8 +9,8 @@ process NORMALIZE_DNA_MARKDUPLICATES {
     tag "${splitName}"
     label 'process_single'
 
-    publishDir { meta.bulk ? "${runtimeOutdir()}/bulk/dna/${meta.id}/${meta.group}/${meta.mark}" : "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*_MarkedDup.bam*"
-    publishDir { meta.bulk ? "${runtimeOutdir()}/bulk/dna/${meta.id}/${meta.group}/${meta.mark}" : "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.DuplicateMetrics.txt"
+    publishDir { meta.bulk ? "${runtimeOutdir()}/alignments" : "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*_MarkedDup.bam*"
+    publishDir { meta.bulk ? "${runtimeOutdir()}/alignments" : "${runtimeOutdir()}/dna_align" }, mode: params.publish_dir_mode, overwrite: true, pattern: "*.DuplicateMetrics.txt"
 
     input:
     tuple val(splitName), val(meta), path(markedDupBam, stageAs: "input_markeddup.bam"), path(markedDupBai, stageAs: "input_markeddup.bam.bai"), path(markedDupMetrics, stageAs: "input.DuplicateMetrics.txt"), path(canonicalChromosomes, stageAs: "canonical_chromosomes.txt")

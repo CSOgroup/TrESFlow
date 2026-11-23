@@ -3,7 +3,7 @@ include { runtimeShellExports; runtimeOutdir; shellQuoteForFastqCleanup } from '
 process BULK_DNA_TARGET {
     tag "${splitName}"
     label 'process_single'
-    publishDir { "${runtimeOutdir()}/bulk/dna/${meta.id}/${meta.group}/${meta.mark}" }, mode: 'copy'
+    publishDir { "${runtimeOutdir()}/alignments" }, mode: 'copy'
 
     input:
     tuple val(splitName), val(meta), path(bam), path(metrics), path(retention), path(reference, stageAs: 'reference/*')

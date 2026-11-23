@@ -171,7 +171,7 @@ NXF_OFFLINE=true nextflow run . --bulk true --preprocessed_input true --samplesh
 
 For raw reads, use the [raw YAML samplesheet](assets/samplesheet.example.yaml). For preprocessed input, supply just the renamed or moved FASTQ pairs and a minimal YAML with the original sample/group labels. Mate paths resolve relative to the YAML. [RNA-only samplesheet](#rna-only-samplesheet) · [DNA-only samplesheet](#dna-only-samplesheet)
 
-Open `bulk/bulk_report.html` for QC. RNA outputs include the raw gene-by-group matrix, indexed molecule BAM and RPM bigWig. Each DNA target has an indexed duplicate-marked BAM, CPM bigWig and peak BED. [Output definitions and analysis settings](docs/output.md#barcoded-bulk-outputs)
+Open `alignments/bulk_report.html` for QC. Bulk analysis files share one flat `alignments/` directory, with sample/group and DNA mark encoded in filenames. RNA outputs include the raw gene-by-group matrix, indexed molecule BAM and RPM bigWig. Each DNA target has an indexed duplicate-marked BAM, CPM bigWig and peak BED. [Output definitions and analysis settings](docs/output.md#barcoded-bulk-outputs)
 
 Use the normal genome references and runtime with pysam and pyBigWig. Bulk DNA also needs a working `epic2` in `runtime.env_prefix/bin`. Epic2 0.0.54 imports `pkg_resources` from setuptools 80.9.0. Check `"$prefix/bin/epic2" --version` before running offline, with `prefix` set to your runtime path.
 
@@ -338,7 +338,7 @@ dna_split_fastqs/
 
 ### Work directory cleanup
 
-`--cleanup_work true` is the default. Generated intermediate FASTQs are removed during the run as soon as every enabled consumer has succeeded. Samplesheet FASTQs and gzip-compressed split FASTQs being published are never early-cleanup targets. Nextflow also removes successful task work directories after the run finishes.
+`--cleanup_work true` is the default. Generated intermediate FASTQs are removed during the run as soon as every enabled consumer has succeeded. Samplesheet FASTQs and gzip-compressed split FASTQs being published are never early-cleanup targets. Nextflow also removes task work contents after successful workflow completion. The empty work root can remain. Bulk tag-record intermediates support barcode QC inside the work directory; bulk outputs contain their count summaries.
 
 Use:
 

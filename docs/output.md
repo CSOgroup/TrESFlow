@@ -7,14 +7,16 @@ The exact directories present depend on whether the YAML samplesheet contains `r
 
 ## Barcoded bulk outputs
 
-With `--bulk true`, open `bulk/bulk_report.html`. Raw-start reports include the shared corrected ligation-round composition at split input. FASTQ-only reports measure barcodes on the supplied, already-routed mates.
+With `--bulk true`, open `alignments/bulk_report.html`. Raw-start reports include the shared corrected ligation-round composition at split input. FASTQ-only reports measure barcodes on the supplied, already-routed mates.
 
-| Output under `bulk/`           | Contents                                                                                                                                                                                                                             |
+| Output under `alignments/`           | Contents                                                                                                                                                                                                                             |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `gene_by_group.tsv`            | STARsolo unique GeneFull counts, summed over physical pools. Each integer is a gene/pool/corrected-UMI molecule in a sample/group.                                                                                                   |
-| `rna/<sample>/<group>/`        | Coordinate-sorted representative-pair BAM and BAI, unstranded molecule RPM bigWig, and numeric QC JSON. XI retains the full TrES identity. XP and STAR CB identify the physical pool. UM and UB give the observed and corrected UMI. |
-| `dna/<sample>/<group>/<mark>/` | Duplicate-marked BAM, BAI, Picard metrics, 50 bp fragment CPM bigWig, treatment-only Epic2 BED, and numeric QC JSON with exact fragment-length frequencies.                                                                          |
+| `<sample>_<group>.dedup.bam[.bai]`, `*.rpm.bw`, `*.rna.qc.json`        | Coordinate-sorted representative-pair BAM and BAI, unstranded molecule RPM bigWig, and numeric QC JSON. XI retains the full TrES identity. XP and STAR CB identify the physical pool. UM and UB give the observed and corrected UMI. |
+| `<sample>_<group>_<mark>_MarkedDup.bam[.bai]`, `*.cpm.bw`, `*.peaks.bed`, `*.dna.qc.json`, `*.DuplicateMetrics.txt` | Duplicate-marked BAM, BAI, Picard metrics, 50 bp fragment CPM bigWig, treatment-only Epic2 BED, and numeric QC JSON with exact fragment-length frequencies.                                                                          |
 | `bulk_report.html`             | Mapping, assignment or fragment yield, barcode composition, RNA saturation, Picard DNA complexity, and peak overlap QC with labeled denominators.                                                                                                              |
+
+All RNA and DNA deliverables share this flat directory. `TrES_Stats/` contains upstream QC summaries and `pipeline_info/` contains run metadata. Bulk tag records remain temporary inputs to barcode QC inside the work directory.
 
 ### RNA counting and coverage
 
@@ -391,14 +393,14 @@ The pipeline does not keep intermediate tagging, uSAM, duplicate-split, or cover
 With `--cleanup_work true`, generated FASTQs are reclaimed at these successful last-consumer barriers:
 
 - RNA sample-barcode pair after UMI tagging; UMI-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
-- RNA trimmed pair after both splitting and barcode-gate metrics; each RNA split pair after `FQ_TO_SAM` in full mode and after every enabled split-FASTQ compression consumer.
+- RNA trimmed pair after both splitting and barcode-gate metrics; each RNA split pair after `FQ_TO_SAM` for single-cell analysis or `PREPARE_BULK_RNA` for bulk analysis and after every enabled split-FASTQ compression consumer.
 - DNA sample-barcode pair after modality tagging; modality-tagged pair after cell-barcode tagging; cell-tagged pair after trimming.
 - For dual-tag filtering, the pre-filter trimmed pair after artifact filtering; the filtered pair after both splitting and barcode-gate metrics. On the bypass path, the trimmed pair waits directly for those same two consumers.
 - Each DNA split pair after alignment in full mode and after every enabled split-FASTQ compression consumer.
 
 Consumer-local staged entries are unlinked after that consumer succeeds, independently of whether Nextflow staged them as symlinks, copies, or hardlinks. The producer cleanup process receives exact paths as values, never stages them, validates that they are regular FASTQs inside the work directory, and performs no glob or recursive deletion. Samplesheet inputs are excluded from every cleanup channel. Compressed split FASTQs remain available for `publishDir`, and all published outputs remain outside the early-cleanup target set.
 
-Nextflow still cleans successful task directories after the workflow finishes successfully. On failure, producer cleanup barriers whose consumers did not all finish do not fire. With cleanup enabled, `-resume` can recompute tasks whose FASTQ cache outputs are gone; cleanup tasks are non-cacheable so recreated intermediates are reclaimed again. Set `--cleanup_work false` to disable both early FASTQ reclamation and successful-run work cleanup for debugging or a more cache-friendly run.
+Nextflow still cleans successful task directories after the workflow finishes successfully. The empty work root can remain. Use `-work-dir` to place work storage outside the result directory and `NXF_HOME` to place the reusable Nextflow runtime cache separately. A launcher can remove empty work directories after the Nextflow command exits successfully. On failure, producer cleanup barriers whose consumers did not all finish do not fire. With cleanup enabled, `-resume` can recompute tasks whose FASTQ cache outputs are gone; cleanup tasks are non-cacheable so recreated intermediates are reclaimed again. Set `--cleanup_work false` to disable both early FASTQ reclamation and successful-run work cleanup for debugging or a more cache-friendly run.
 
 Cell barcode outputs use [full-cell-v2](cell_identity.md):
 `CB = XI = <sample>_<group>_<sb_index>_<L1L2L3>`. This includes published
