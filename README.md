@@ -173,7 +173,7 @@ For raw reads, use the [raw YAML samplesheet](assets/samplesheet.example.yaml). 
 
 Open `alignments/bulk_report.html` for QC. Bulk analysis files share one flat `alignments/` directory, with sample/group and DNA mark encoded in filenames. RNA outputs include the raw gene-by-group matrix, indexed molecule BAM and RPM bigWig. Each DNA target has an indexed duplicate-marked BAM, CPM bigWig and peak BED. [Output definitions and analysis settings](docs/output.md#barcoded-bulk-outputs)
 
-Use the normal genome references and runtime with pysam and pyBigWig. Bulk DNA also needs a working `epic2` in `runtime.env_prefix/bin`. Epic2 0.0.54 imports `pkg_resources` from setuptools 80.9.0. Check `"$prefix/bin/epic2" --version` before running offline, with `prefix` set to your runtime path.
+Use the normal genome references and runtime with pysam and pyBigWig. Bulk DNA also needs a working `epic2` in `runtime.env_prefix/bin`. Epic2 0.0.54 imports `pkg_resources` from setuptools 80.9.0. Check `PATH="$prefix/bin:$PATH" "$prefix/bin/epic2" --version` before running offline, with `prefix` set to your runtime path. Pipeline tasks prepend that runtime's `bin` to `PATH` so script interpreters and child tools use the configured environment.
 
 ### Reference-free preprocessing
 

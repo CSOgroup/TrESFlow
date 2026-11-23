@@ -29,7 +29,7 @@ def runtimeShellExports(runtimeParams) {
         def text = (value ?: '').toString()
         def quoted = "'" + text.replace("'", "'\"'\"'") + "'"
         "export ${key}=${quoted}"
-    }.join('\n') + '\nmkdir -p "$TMPDIR"'
+    }.join('\n') + '\nexport PATH="$RUNTIME_BIN_DIR:$PATH"\nmkdir -p "$TMPDIR"'
 }
 
 def runtimeOutdir() {

@@ -316,7 +316,7 @@ class RuntimeSupport {
 
         return exports.collect { key, value ->
             "export ${key}=${shellQuote(value)}"
-        }.join('\n') + '\nmkdir -p "$TMPDIR"'
+        }.join('\n') + '\nexport PATH="$RUNTIME_BIN_DIR:$PATH"\nmkdir -p "$TMPDIR"'
     }
 
     private static String shellQuote(final Object value) {
