@@ -70,6 +70,8 @@ def rna_metrics(q):
         metric("Antisense pairs", anti, sense + anti, "unambiguous annotated strand"),
         metric("Strand ambiguous pairs", q.get("ambiguous", 0)),
         metric("Corrected molecules", q["molecules"], retained, "pairs submitted to STAR"),
+        metric("Representatives with one mate mapped", q.get("one_mate_mapped_representatives", 0),
+               q["molecules"], "molecule representatives"),
         metric("Pools with molecules", q["pools_detected"]), metric("Detected genes", q["genes_detected"]),
     ]
 

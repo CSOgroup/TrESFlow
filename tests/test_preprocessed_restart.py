@@ -41,9 +41,11 @@ def run_tool(name, *args, cwd=None):
     return result.stdout
 
 
-def make_fixture(root):
+def make_fixture(root, intron=False):
     root.mkdir()
     genome = "".join(random.Random(91).choices("ACGT", k=100000))
+    if intron:
+        genome = genome[:1000] + "GT" + genome[1002:2998] + "AG" + genome[3000:]
     rng = random.Random(43)
     fasta = root / "chr1.fa"
     contigs = {"chr1": genome, **{f"chr{c}": "".join(rng.choices("ACGT", k=1000)) for c in "XYM"}}
@@ -51,7 +53,9 @@ def make_fixture(root):
     (root / "star").mkdir()
     (root / "bwa").mkdir()
     gtf = root / "genes.gtf"
-    gtf.write_text('chr1\ttest\texon\t101\t2000\t.\t+\t.\tgene_id "g1"; transcript_id "t1"; gene_name "g1";\n')
+    exons = [(101, 1000), (3001, 4000)] if intron else [(101, 2000)]
+    gtf.write_text("".join(f'chr1\ttest\texon\t{a}\t{b}\t.\t+\t.\tgene_id "g1"; transcript_id "t1"; gene_name "g1";\n'
+                           for a, b in exons))
     run_tool("STAR", "--runMode", "genomeGenerate", "--genomeDir", root / "star",
              "--genomeFastaFiles", fasta, "--sjdbGTFfile", gtf, "--sjdbOverhang", 99,
              "--genomeSAindexNbases", 5, "--genomeChrBinNbits", 10, "--runThreadN", 1, cwd=root)

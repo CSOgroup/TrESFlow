@@ -1,6 +1,5 @@
 """Small biological equivalence fixture. All input, reference and work paths are private to the test."""
 import csv
-import gzip
 import hashlib
 import json
 import os
@@ -13,7 +12,7 @@ import pysam
 import pytest
 import yaml
 
-from test_preprocessed_restart import REPO, RUNTIME, REVERSE, make_fixture, write_fastq, run_tool
+from test_preprocessed_restart import REPO, RUNTIME, REVERSE, make_fixture, write_fastq
 from test_preprocess_only import reference_free
 from tresflow_fastq_utils import fastq_iter
 from export_rna_fastqs import pool_identifier
@@ -21,14 +20,8 @@ from prepare_bulk_rna import prepare
 
 
 def controlled(root):
-    sheet = make_fixture(root)
+    sheet = make_fixture(root, intron=True)
     genome = (root / "chr1.fa").read_text().splitlines()[1]
-    gtf = root / "genes.gtf"
-    gtf.write_text("".join(f'chr1\tfixture\texon\t{a}\t{b}\t.\t+\t.\tgene_id "g1"; transcript_id "t1";\n'
-                           for a, b in [(101, 1000), (3001, 4000)]))
-    run_tool("STAR", "--runMode", "genomeGenerate", "--genomeDir", root / "star",
-             "--genomeFastaFiles", root / "chr1.fa", "--sjdbGTFfile", gtf, "--sjdbOverhang", 99,
-             "--genomeSAindexNbases", 5, "--genomeChrBinNbits", 10, cwd=root)
     sample = sheet["samples"]["shared_reads"]
     sample["groups"]["shared_pool"]["rna_sb_barcodes"] += ["ACGT"]
     sample["groups"]["other"] = {"rna_sb_barcodes": ["GCAT"]}
@@ -178,3 +171,80 @@ def test_shared_logical_identity_uses_physical_sb(tmp_path):
         pool_identifier(cell, sb) for sb in ("ATGC", "CGAT")}
     with pytest.raises(ValueError, match="missing physical SB"):
         prepare(dict(spec, sb_hd=1), r1, r2, tmp_path / "ambiguous.sam")
+
+
+def test_dna_only_single_targets_and_reference(tmp_path):
+    root = tmp_path / "pipeline"
+    project(root)
+    inputs = tmp_path / "inputs"
+    sheet = make_fixture(inputs)
+    sample = sheet["samples"]["shared_reads"]
+    del sample["rna"]
+    sample["groups"] = {"pool": {"dna_sb_barcodes": ["CGTA"], "mark_barcodes": {"target": "TTTACGTA"}}}
+    dna = sample["dna"]
+    dna["tagmentation"] = "single"
+    records = list(fastq_iter(Path(dna["reads"]["r1"][0])))
+    for role, filename in (("i1", "test_dna_I1.fastq"), ("i2", "test_dna_I2_single_lig.fastq")):
+        seq = (REPO / "assets/testdata" / filename).read_text().splitlines()[1]
+        path = inputs / (role + ".fq")
+        write_fastq(path, [(r[0][1:], seq) for r in records])
+        dna["reads"][role] = str(path)
+    # Retain all 32 fragments overlapping bin 200 and just one at each of
+    # the last two positions. CPM now distinguishes 32/34 from nodup 4/6.
+    for role, paths in dna["reads"].items():
+        path = Path(paths[0] if isinstance(paths, list) else paths)
+        reads = list(fastq_iter(path))
+        write_fastq(path, [(r[0][1:], r[1]) for i, r in enumerate(reads) if i < 32 or i in (32, 40)])
+    (root / "overlap.bed").write_text("chr1\t200\t250\nchr1\t210\t240\n")
+    (root / "raw.yaml").write_text(yaml.safe_dump(sheet))
+    launch(root, ["--bulk", "true", "--bulk_reference_bed", "overlap.bed", "--samplesheet", "raw.yaml",
+                  "--outdir", "results/single"])
+    bulk = root / "results/single/bulk"
+    qc = json.loads(next(bulk.rglob("*.dna.qc.json")).read_text())
+    assert qc["usable_fragments"] == 34 and qc["usable_duplicate_fragments"] == 28
+    assert qc["fragments_in_reference"] == 32
+    with pyBigWig.open(str(next(bulk.rglob("*.bw")))) as track:
+        assert track.values("chr1", 200, 201)[0] == pytest.approx(32/34 * 1e6, rel=1e-5)
+    assert not (bulk / "gene_by_group.tsv").exists()
+
+
+def test_rna_only_physical_pools_and_splice(tmp_path):
+    root = tmp_path / "pipeline"
+    project(root)
+    inputs = tmp_path / "inputs"
+    sheet = controlled(inputs)
+    genome = (inputs / "chr1.fa").read_text().splitlines()[1]
+    cell, umi = "s_g_01_" + "ACGT" * 6, "ACGTACGTAC"
+    prefix = "TGCATGCATG"
+    first, second = [], []
+    for i, (sb, molecular, r1, r2) in enumerate([
+        ("ATGC", umi, genome[960:1000] + genome[3000:3040], genome[3050:3130]),
+        ("CGAT", umi, genome[400:480], genome[540:620]),
+        # STAR counts this unique molecule from a paired template where only
+        # R1 aligns. Both records must survive, with truthful mapping flags.
+        ("CGAT", prefix, genome[600:680], "N" * 80),
+    ]):
+        tags = f"CB:Z:{cell} XI:Z:{cell} UM:Z:{molecular} SB:Z:{sb}"
+        name = f"read{i}_{pool_identifier(cell, sb)}_{molecular} {tags}"
+        first.append((name, r1))
+        second.append((name, r2.translate(REVERSE)[::-1]))
+    for role, records in (("r1", first), ("r2", second)):
+        write_fastq(root / f"{role}.fq", records)
+    sheet["samples"] = {"s": {"preprocessed": [{"modality": "rna", "group": "g", "r1": "r1.fq", "r2": "r2.fq"}]}}
+    (root / "preprocessed.yaml").write_text(yaml.safe_dump(sheet))
+    launch(root, ["--bulk", "true", "--preprocessed_input", "true", "--samplesheet", "preprocessed.yaml",
+                  "--outdir", "results/bulk_from_fastqs"])
+    out = root / "results/bulk_from_fastqs/bulk"
+    with pysam.AlignmentFile(next(out.rglob("*.bam"))) as bam:
+        records = list(bam)
+    assert len(records) == 6 and sum(r.is_unmapped for r in records) == 1
+    pools = {r.get_tag("CB") for r in records if r.get_tag("UB") == umi}
+    assert pools == {pool_identifier(cell, sb) for sb in ("ATGC", "CGAT")}
+    assert all(r.get_tag("XI") == cell for r in records)
+    assert any("N" in (r.cigarstring or "") for r in records)
+    with pyBigWig.open(str(next(out.rglob("*.bw")))) as bw:
+        import math
+        assert bw.values("chr1", 980, 981)[0] > 0
+        gap = bw.values("chr1", 2000, 2001)[0]
+        assert math.isnan(gap) or gap == 0
+    assert (out / "gene_by_group.tsv").read_text() == "gene_id\ts_g\ng1\t3\n"

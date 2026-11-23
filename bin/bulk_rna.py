@@ -75,6 +75,48 @@ def matrix(raw):
     return genes, expected
 
 
+def assigned_pair(records, annotation, stats):
+    """Resolve STAR's read-level assignment using its per-alignment GX and corrected UB."""
+    mapped = [r for r in records if not r.is_unmapped]
+    if not mapped:
+        return None
+    if mapped[0].get_tag("NH") == 1:
+        region, strand = annotation.classify(mapped)
+        stats[region] += 1
+        if strand:
+            stats[strand] += 1
+
+    hits = defaultdict(list)
+    genes = set()
+    unmapped = [r for r in records if r.is_unmapped and not r.is_secondary]
+    for read in mapped:
+        if not read.has_tag("UB") or read.get_tag("UB") == "-":
+            continue
+        gene = read.get_tag("GX")
+        if gene != "-":
+            genes.add(gene)
+            hits[read.get_tag("HI")].append(read)
+    if len(genes) != 1:
+        return None
+    # A unique gene can be supported by a secondary locus alone. Select that
+    # gene's alignment. Preserve NH/MAPQ and promote the selected hit to primary.
+    def rank(hit):
+        return (-len(hit), hit[0].is_secondary,
+                min((r.reference_id, r.reference_start) for r in hit), hit[0].get_tag("HI"))
+    chosen = min(hits.values(), key=rank)
+    one = chosen[0]
+    key = tuple(one.get_tag(t) for t in ("GX", "CB", "UB"))
+    if any(tuple(r.get_tag(t) for t in ("GX", "XP", "UB")) != key for r in chosen):
+        raise ValueError(f"{one.query_name}: inconsistent STAR gene/pool/corrected UMI")
+    complete = len(chosen) == 2
+    pair = chosen if complete else chosen + unmapped
+    if len(pair) != 2 or {r.is_read1 for r in pair} != {True, False}:
+        raise ValueError(f"{one.query_name}: missing mate for counted STAR alignment")
+    for read in pair:
+        read.is_secondary = False
+    return key, pair, complete
+
+
 def summarize(split, index, prep, source, solo):
     genes, expected = matrix(solo / "raw")
     annotation = Regions(index)
@@ -82,6 +124,9 @@ def summarize(split, index, prep, source, solo):
     qc = json.loads(prep.read_text())
     database = sqlite3.connect("molecules.sqlite")
     database.execute("CREATE TABLE molecules (gene, pool, umi, reads INTEGER, PRIMARY KEY(gene,pool,umi)) WITHOUT ROWID")
+    # Single-mate alignments can contribute to GeneFull. Delay these candidates
+    # until a fully aligned representative has been sought for the same molecule.
+    database.execute("CREATE TABLE partial (gene,pool,umi,r1,r2,PRIMARY KEY(gene,pool,umi)) WITHOUT ROWID")
     actual = Counter()
     # Name-sort order defines the representative. ZI distinguishes repeated
     # sequencing names in different technical chunks of the same library.
@@ -89,33 +134,33 @@ def summarize(split, index, prep, source, solo):
         for _, records in groupby(bam, key=lambda r: r.query_name):
             by_input = defaultdict(list)
             for r in records:
-                if not (r.is_unmapped or r.is_secondary or r.is_supplementary):
+                if not r.is_supplementary:
                     by_input[r.get_tag("ZI")].append(r)
             for _, reads in sorted(by_input.items()):
-                one = reads[0]
-                if one.get_tag("NH") != 1:
+                assignment = assigned_pair(reads, annotation, stats)
+                if assignment is None:
                     continue
-                region, strand = annotation.classify(reads)
-                stats[region] += 1
-                if strand:
-                    stats[strand] += 1
-                if not all(one.has_tag(tag) and one.get_tag(tag) not in ("", "-") for tag in ("GX", "UB", "CB")):
-                    continue
-                key = tuple(one.get_tag(tag) for tag in ("GX", "CB", "UB"))
-                if key[:2] not in expected:
-                    continue
-                if len(reads) != 2 or {r.is_read1 for r in reads} != {True, False}:
-                    raise ValueError(f"{one.query_name}: counted GeneFull molecule lacks a complete primary pair")
-                if any(tuple(r.get_tag(t) for t in ("GX", "XP", "UB")) != key for r in reads):
-                    raise ValueError(f"{one.query_name}: inconsistent STAR gene/pool/corrected UMI")
+                key, reads, complete = assignment
                 inserted = database.execute("INSERT OR IGNORE INTO molecules VALUES (?,?,?,1)", key).rowcount
-                if inserted:
+                if not inserted:
+                    database.execute("UPDATE molecules SET reads=reads+1 WHERE gene=? AND pool=? AND umi=?", key)
+                if not complete:
+                    if inserted:
+                        database.execute("INSERT INTO partial VALUES (?,?,?,?,?)",
+                                         (*key, reads[0].to_string(), reads[1].to_string()))
+                    continue
+                # Prefer a complete alignment, then the lexically first QNAME.
+                replaced = not inserted and database.execute(
+                    "DELETE FROM partial WHERE gene=? AND pool=? AND umi=?", key).rowcount
+                if inserted or replaced:
                     actual[key[:2]] += 1
                     for r in reads:
-                        r.set_tag("ZI", None)
                         out.write(r)
-                else:
-                    database.execute("UPDATE molecules SET reads=reads+1 WHERE gene=? AND pool=? AND umi=?", key)
+        for gene, pool, _, r1, r2 in database.execute("SELECT * FROM partial"):
+            actual[gene, pool] += 1
+            stats["one_mate_mapped_representatives"] += 1
+            for record in (r1, r2):
+                out.write(pysam.AlignedSegment.fromstring(record, bam.header))
     if actual != expected:
         mismatch = next(key for key in expected.keys() | actual.keys() if expected[key] != actual[key])
         raise ValueError(f"GeneFull {mismatch}: matrix={expected[mismatch]}, BAM molecules={actual[mismatch]}")
@@ -137,10 +182,16 @@ def summarize(split, index, prep, source, solo):
     qc["depth"] = [[f * qc["retained_pairs"], yield_at(molecule_support, f), yield_at(gene_support.items(), f)]
                    for f in (0.1, 0.25, 0.5, 0.75, 1)]
     qc.update(stats, molecules=sum(counts.values()), genes_detected=len(counts), pools_detected=len({p for _, p in actual}))
+    fields = ("featureU", "countedU")
+    qc.update(dict.fromkeys(fields, 0))
     with (solo / "CellReads.stats").open() as h:
-        rows = list(csv.DictReader(h, delimiter="\t"))
-    for field in ("genomeU", "genomeM", "featureU", "countedU"):
-        qc[field] = sum(int(row[field]) for row in rows)
+        for row in csv.DictReader(h, delimiter="\t"):
+            for field in fields:
+                qc[field] += int(row[field])
+    with Path(f"{split}.Log.final.out").open() as log:
+        mapping = dict(line.strip().split(" |\t", 1) for line in log if " |\t" in line)
+    qc["genomeU"] = int(mapping["Uniquely mapped reads number"])
+    qc["genomeM"] = int(mapping["Number of reads mapped to multiple loci"])
     Path(f"{split}.rna.qc.json").write_text(json.dumps(qc, sort_keys=True))
 
 

@@ -29,11 +29,13 @@ fi
 UMIlen=10
 barcode_tag=XI
 cell_filter=(--soloCellFilter EmptyDrops_CR 15000 0.99 30 20000 90000 50 0.01 20000 0.05 10000)
+unmapped=(None)
 multimappers=EM
 if [[ "${6:-}" == bulk ]]; then
     UMIlen="${7:?missing bulk UMI length}"
     barcode_tag=XP
     cell_filter=(--soloCellFilter None)
+    unmapped=(Within KeepPairs)
     multimappers=Unique
 fi
 
@@ -83,7 +85,7 @@ ulimit -n 32000 2>/dev/null || echo "WARNING: using ulimit -n = $(ulimit -n)" >&
   --outSAMtype BAM SortedByCoordinate \
   --outBAMcompression 0 \
   --outSAMattributes NH HI nM AS UB GX GN NM MD jM jI MC  \
-  --outSAMunmapped None \
+  --outSAMunmapped "${unmapped[@]}" \
   --soloOutFileNames "Solo.out" "features.tsv" "barcodes.tsv" "matrix.mtx" \
   --outFileNamePrefix "${outdir}/${sample_name}."
 

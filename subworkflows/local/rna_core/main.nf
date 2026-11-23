@@ -225,8 +225,9 @@ workflow RNA_CORE {
 
         if( bulk ) {
             ch_bulk_input = RNA_STARSOLO_ALIGN.out.aligned_bam.join(RNA_STARSOLO_ALIGN.out.solo_dir)
+                .join(RNA_STARSOLO_ALIGN.out.star_log.map { id, meta, log -> tuple(id, log) })
                 .join(PREPARE_BULK_RNA.out.prepared.map { id, meta, sam, qc -> tuple(id, qc) })
-                .map { id, meta, bam, soloMeta, solo, qc -> tuple(id, meta, bam, solo, qc) }
+                .map { id, meta, bam, soloMeta, solo, log, qc -> tuple(id, meta, bam, solo, log, qc) }
             BULK_RNA_MOLECULES(ch_bulk_input)
             ch_bulk_counts = BULK_RNA_MOLECULES.out.counts
             ch_bulk_qc = BULK_RNA_MOLECULES.out.qc

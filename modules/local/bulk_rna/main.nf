@@ -1,4 +1,4 @@
-include { runtimeShellExports; runtimeOutdir; runtimeCoreScriptsDir; shellQuoteForFastqCleanup } from '../runtime_support/main'
+include { runtimeShellExports; runtimeOutdir; shellQuoteForFastqCleanup } from '../runtime_support/main'
 
 process PREPARE_BULK_RNA {
     tag "${splitName}"
@@ -31,7 +31,7 @@ process BULK_RNA_MOLECULES {
     publishDir { "${runtimeOutdir()}/bulk/rna/${meta.id}/${meta.group}" }, mode: 'copy', pattern: "*.{bam,bai,bw,json}"
 
     input:
-    tuple val(splitName), val(meta), path(aligned), path(solo), path(preparation)
+    tuple val(splitName), val(meta), path(aligned), path(solo), path(starLog), path(preparation)
 
     output:
     path("${splitName}.dedup.bam")
@@ -48,8 +48,11 @@ process BULK_RNA_MOLECULES {
         "${preparation}" by_name.bam "${solo}"
     "\$SAMTOOLS_BIN" sort -@ ${task.cpus} -o "${splitName}.dedup.bam" representatives.bam
     "\$SAMTOOLS_BIN" index "${splitName}.dedup.bam"
-    bash "${runtimeCoreScriptsDir()}/RNA_COVERAGE.sh" "${splitName}" "${splitName}.dedup.bam" \
-        "${meta.rna_star_index_dir}" "${meta.rna_star_index_dir}/chrNameLength.txt" . "${task.cpus}" bulk
+    "\$SAMTOOLS_BIN" collate -u -O "${splitName}.dedup.bam" | \
+        "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" blocks | \
+        LC_ALL=C sort -k1,1n -k2,2n -T . | \
+        "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" track "${splitName}.dedup.bam" \
+        "${splitName}.rna.qc.json" "${splitName}.rpm.bw"
     rm molecules.sqlite representatives.bam by_name.bam
     """
 }

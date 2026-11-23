@@ -3,7 +3,6 @@
 import argparse
 import csv
 import json
-import os
 import re
 import subprocess
 import sys
