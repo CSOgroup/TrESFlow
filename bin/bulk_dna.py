@@ -149,6 +149,7 @@ def analyze(args):
         qc = {row["metric"]: int(row["pairs"]) for row in csv.DictReader(h, delimiter="\t")}
     picard = read_duplicate_metrics(args.metrics)
     qc.update({k: picard.get(k) for k in ("read_pairs_examined", "read_pair_duplicates", "read_pair_optical_duplicates")})
+    qc["picard"] = picard
     qc.update(usable_fragments=n, usable_duplicate_fragments=duplicates, peak_count=count, peak_bases=bases,
               fragments_in_peaks=overlap, frip=overlap/n if n else None, fragment_lengths=lengths,
               caller_status="completed" if n else "no usable fragments", coverage_bin_bp=50,
