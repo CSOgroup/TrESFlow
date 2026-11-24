@@ -278,7 +278,7 @@ def render(spec, root):
                 distribution += details("Full fragment-length range", cards(
                     [fragment_figure(lengths, scope, full_range=True)], wide=True))
             fragment_plots.append(f"<h3>{escape(scope)}</h3>" + distribution)
-            note = f"Alignment filter losses count primary R1 records. Final fragments include duplicate-flagged pairs. FRiP uses all final fragments. CPM · 50 bp bins. Epic2 · {q['caller_status']}."
+            note = f"Alignment filter losses count primary R1 records. Final fragments include duplicate-flagged pairs. FRiP uses all final fragments. CPM · 50 bp bins. MACS3 · {q['caller_status']}."
         metrics.append(details(scope, table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
                                + f"<p>{escape(note)}</p>"))
 

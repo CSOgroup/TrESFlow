@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use the same complete primary target fragments for CPM, Epic2 and overlap QC."""
+"""Use the same complete primary target fragments for CPM, MACS3 and overlap QC."""
 import argparse
 import csv
 import gzip
@@ -47,9 +47,9 @@ def create_fragments(by_name, sizes):
                 lo, hi = left.reference_start, max(left.reference_end, right.reference_end)
                 if not 0 <= lo < hi <= sizes[chrom]:
                     raise ValueError(f"{chrom}:{lo}-{hi} outside configured chromosome sizes")
-                print(chrom, lo, left.reference_end, chrom, right.reference_start, right.reference_end,
-                      ".", 0, "-" if left.is_reverse else "+", "-" if right.is_reverse else "+",
-                      sep="\t", file=bed)
+                # MACS3 BEDPE is three columns describing the full fragment,
+                # rather than the ten-column BEDPE format used by bedtools.
+                print(chrom, lo, hi, sep="\t", file=bed)
                 # deepTools gets one exact contiguous interval per eligible fragment.
                 # This also covers long inserts and overlapping mates exactly once.
                 span = pysam.AlignedSegment(bam.header)
@@ -92,34 +92,37 @@ def overlap_count(path):
     count = 0
     with open("target.bedpe") as handle:
         for raw in handle:
-            chrom, lo, end1, _, _, end2 = raw.split()[:6]
+            chrom, lo, hi = raw.split()
             starts, ends = intervals.get(chrom, ([], []))
             i = bisect_right(ends, int(lo))
-            count += i < len(starts) and starts[i] < max(int(end1), int(end2))
+            count += i < len(starts) and starts[i] < int(hi)
     bases = sum(sum(ends) - sum(starts) for starts, ends in intervals.values())
     return count, bases
 
 
-def call_peaks(args, n, sizes, peak_bed, fraction):
-    command = [args.epic2, "--treatment", "target.bedpe", "--keep-duplicates",
-               "--chromsizes", args.sizes, "--effective-genome-fraction", str(fraction),
-               "--bin-size", "200", "--gaps-allowed", "3", "--e-value", "1000", "-o", "islands.tsv"]
+def call_peaks(args, n, sizes, peak_bed):
+    command = [args.macs3, "callpeak", "--treatment", "target.bedpe", "--format", "BEDPE",
+               "--gsize", str(args.effective), "--keep-dup", "all", "--nolambda",
+               "--qvalue", "0.05", "--broad", "--broad-cutoff", "0.1", "--name", "target"]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     print(result.stdout, flush=True)
     if result.returncode:
-        raise RuntimeError(f"Epic2 failed with exit status {result.returncode}")
-    valid = re.search(r"Valid ChIP reads: (\d+) \((\d+) before", result.stdout)
-    if not valid or tuple(map(int, valid.groups())) != (n, n):
-        raise ValueError(f"Epic2's effective treatment count does not reconcile to {n} usable fragments")
+        raise RuntimeError(f"MACS3 failed with exit status {result.returncode}")
+    # The XLS header records input fragments even when no peaks are called.
+    valid = re.search(r"^# total fragments in treatment: (\d+)\s*$",
+                      Path("target_peaks.xls").read_text(), re.MULTILINE)
+    if not valid or int(valid.group(1)) != n:
+        raise ValueError(f"MACS3's effective treatment count does not reconcile to {n} usable fragments")
     count = 0
-    with open("islands.tsv") as handle, peak_bed.open("w") as out:
-        rows = csv.DictReader(handle, delimiter="\t")
-        if not rows.fieldnames or not {"#Chromosome", "Start", "End"} <= set(rows.fieldnames):
-            raise ValueError("Epic2 returned an invalid treatment-only output header")
-        for row in rows:
-            chrom, start = row["#Chromosome"], int(row["Start"])
-            # Epic2 stores the inclusive last base of the terminal bin.
-            end = min(sizes[chrom], int(row["End"]) + 1)
+    with open("target_peaks.broadPeak") as handle, peak_bed.open("w") as out:
+        for raw in handle:
+            if not raw.strip():
+                continue
+            chrom, lo, hi = raw.split()[:3]
+            start, end = int(lo), int(hi)
+            # MACS3 broadPeak coordinates are already zero-based, half-open.
+            if chrom not in sizes or not 0 <= start < end <= sizes[chrom]:
+                raise ValueError(f"MACS3 returned an invalid peak interval: {raw.strip()}")
             print(chrom, start, end, sep="\t", file=out)
             count += 1
     return count
@@ -127,8 +130,7 @@ def call_peaks(args, n, sizes, peak_bed, fraction):
 
 def analyze(args):
     sizes = dict((c, int(n)) for c, n in (line.split() for line in args.sizes.read_text().splitlines()))
-    fraction = args.effective / sum(sizes.values())
-    if not 0 < fraction <= 1:
+    if not 0 < args.effective <= sum(sizes.values()):
         raise ValueError("effective genome size must be within the configured chromosome sizes")
     lengths, duplicates = create_fragments(args.by_name, sizes)
     n = sum(lengths.values())
@@ -138,7 +140,7 @@ def analyze(args):
         pysam.index("coverage.bam")
         subprocess.run([args.coverage, "-b", "coverage.bam", "-o", bw, "--normalizeUsing", "CPM",
                         "--binSize", "50", "--numberOfProcessors", str(args.threads)], check=True)
-        count = call_peaks(args, n, sizes, peaks, fraction)
+        count = call_peaks(args, n, sizes, peaks)
     else:
         with pyBigWig.open(bw, "w") as empty:
             empty.addHeader(list(sizes.items()))
@@ -153,14 +155,16 @@ def analyze(args):
     qc.update(usable_fragments=n, usable_duplicate_fragments=duplicates, peak_count=count, peak_bases=bases,
               fragments_in_peaks=overlap, frip=overlap/n if n else None, fragment_lengths=lengths,
               caller_status="completed" if n else "no usable fragments", coverage_bin_bp=50,
-              effective_genome_size=args.effective, epic2_genome_fraction=fraction,
-              epic2_bin_bp=200, epic2_gaps=3, epic2_e_value=1000, epic2_keep_duplicates=True)
+              effective_genome_size=args.effective, peak_caller="MACS3", macs3_format="BEDPE",
+              macs3_broad=True, macs3_q_value=0.05, macs3_broad_cutoff=0.1,
+              macs3_keep_duplicates=True, macs3_nolambda=True)
     if args.reference:
         qc["reference_bed"] = args.reference.name
         qc["fragments_in_reference"] = overlap_count(args.reference)[0]
     qc["depth"] = [[f * qc["bwa_primary_pairs"], f * n] for f in (0.1, 0.25, 0.5, 0.75, 1)]
     Path(f"{args.split}.dna.qc.json").write_text(json.dumps(qc, sort_keys=True))
-    for name in ("spans.bam", "coverage.bam", "coverage.bam.bai", "target.bedpe", "islands.tsv"):
+    for name in ("spans.bam", "coverage.bam", "coverage.bam.bai", "target.bedpe",
+                 "target_peaks.xls", "target_peaks.broadPeak", "target_peaks.gappedPeak"):
         Path(name).unlink(missing_ok=True)
 
 
@@ -172,6 +176,6 @@ if __name__ == "__main__":
     parser.add_argument("effective", type=int)
     parser.add_argument("threads", type=int)
     parser.add_argument("--reference", type=Path)
-    parser.add_argument("--epic2", default="epic2")
+    parser.add_argument("--macs3", default="macs3")
     parser.add_argument("--coverage", default="bamCoverage")
     analyze(parser.parse_args())

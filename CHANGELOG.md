@@ -3,6 +3,12 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Bulk DNA peak calling uses MACS3 treatment-only broad peaks. Paired fragment spans, duplicate retention, coverage normalization and the published peak BED filenames are preserved. The runtime requires `macs3` for bulk DNA, and QC JSON/reporting identify MACS3 and its settings.
+
 ## v1.2.1 - 2026-10-12
 
 ### Added

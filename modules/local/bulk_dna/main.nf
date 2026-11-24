@@ -21,7 +21,7 @@ process BULK_DNA_TARGET {
     "\$PYTHON3_BIN" "${projectDir}/bin/bulk_dna.py" "${splitName}" by_name.bam \
         "${meta.canonical_chrom_sizes}" "${retention}" "${metrics}" \
         ${meta.dna_effective_genome_size} ${task.cpus} ${referenceArg} \
-        --coverage "\$BAMCOVERAGE_BIN" --epic2 "\$RUNTIME_BIN_DIR/epic2"
+        --coverage "\$BAMCOVERAGE_BIN" --macs3 "\$RUNTIME_BIN_DIR/macs3"
     rm by_name.bam
     """
 }

@@ -14,11 +14,16 @@ micromamba create -n tres
 micromamba activate tres
 
 micromamba install -c conda-forge -c bioconda --strict-channel-priority \
-  pandas polars ipython pysam pybedtools numpy matplotlib seaborn scipy \
+  pandas polars ipython pysam pybigwig pybedtools numpy matplotlib seaborn scipy \
   pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
   snapatac2 screen samtools bwa-mem2 star fastqc pigz multiqc trim-galore \
-  deeptools parallel ucsc-bedGraphToBigWig nextflow git gatk4 cutadapt
+  deeptools macs3 parallel ucsc-bedGraphToBigWig nextflow git gatk4 cutadapt
 ```
+
+This environment supports both single-cell analysis (the default) and bulk
+analysis (`--bulk true`). Use the same `runtime.env_prefix` for either mode.
+The install command includes MACS3 for bulk DNA peak calling and pyBigWig for
+bulk RNA/DNA coverage. Both modes also require the Codon/Seq installation below.
 
 Clone TrESFlow:
 
@@ -173,7 +178,7 @@ For raw reads, use the [raw YAML samplesheet](assets/samplesheet.example.yaml). 
 
 Open `alignments/bulk_report.html` for QC. Bulk analysis files share one flat `alignments/` directory, with sample/group and DNA mark encoded in filenames. RNA outputs include the raw gene-by-group matrix, indexed molecule BAM and RPM bigWig. Each DNA target has an indexed duplicate-marked BAM, CPM bigWig and peak BED. [Output definitions and analysis settings](docs/output.md#barcoded-bulk-outputs)
 
-Use the normal genome references and runtime with pysam and pyBigWig. Bulk DNA also needs a working `epic2` in `runtime.env_prefix/bin`. Epic2 0.0.54 imports `pkg_resources` from setuptools 80.9.0. Check `PATH="$prefix/bin:$PATH" "$prefix/bin/epic2" --version` before running offline, with `prefix` set to your runtime path. Pipeline tasks prepend that runtime's `bin` to `PATH` so script interpreters and child tools use the configured environment.
+Use the normal genome references and runtime with pysam and pyBigWig. Bulk DNA also needs a working `macs3` in `runtime.env_prefix/bin`. Check `PATH="$prefix/bin:$PATH" "$prefix/bin/macs3" --version` before running offline, with `prefix` set to your runtime path. Bulk DNA calls treatment-only broad peaks using paired fragments and retains duplicates. Pipeline tasks prepend that runtime's `bin` to `PATH` so script interpreters and child tools use the configured environment.
 
 ### Reference-free preprocessing
 

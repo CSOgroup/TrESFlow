@@ -203,6 +203,7 @@ samples:
 ### `runtime`
 
 - `env_prefix`: environment prefix containing `python3`, `codon`, `cutadapt` (5.2 in the supported environment), `trim_galore`, `STAR`, `samtools`, `bedGraphToBigWig`, `bwa-mem2`, `bamCoverage`, `FastQC`, and `gatk`
+- The [README installation command](../README.md#installation) supplies one shared environment for single-cell and bulk analysis. Bulk DNA additionally uses `macs3`; bulk RNA/DNA coverage uses the `pyBigWig` Python module. Both are included in that command, with Codon/Seq installed separately into the same prefix.
 - `tmpdir`: optional explicit task temporary directory. If omitted, the pipeline uses `--outdir`. The pipeline creates it if missing and fails if it is not writable.
 
 ### `references`

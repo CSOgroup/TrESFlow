@@ -95,7 +95,7 @@ def snapshot(root):
 
 
 def test_bulk_routes(tmp_path):
-    if not (RUNTIME / "bin/epic2").exists() or not shutil.which("nextflow"):
+    if not (RUNTIME / "bin/macs3").exists() or not shutil.which("nextflow"):
         pytest.skip("bulk runtime unavailable")
     root = tmp_path / "pipeline"
     project(root)
@@ -112,6 +112,7 @@ def test_bulk_routes(tmp_path):
     dna, = start.rglob("*.dna.qc.json")
     d = json.loads(dna.read_text())
     assert d["usable_duplicate_fragments"] == 42 and d["usable_fragments"] == 48
+    assert d["peak_caller"] == "MACS3" and d["caller_status"] == "completed"
     assert d["frip"] == 1 and d["peak_count"] == 1
     assert all(p.is_file() for p in start.iterdir())
     assert not (root / "results/bulk_raw/bulk").exists()
@@ -270,20 +271,96 @@ def test_rna_only_physical_pools_and_splice(tmp_path):
     assert (out / "gene_by_group.tsv").read_text() == "gene_id\ts_g\ng1\t3\n"
 
 
-def test_empty_and_failed_epic2_calls(tmp_path, monkeypatch):
+def test_empty_and_failed_macs3_calls(tmp_path, monkeypatch):
     from argparse import Namespace
     from bulk_dna import call_peaks
 
     monkeypatch.chdir(tmp_path)
     caller = tmp_path / "caller"
-    caller.write_text("#!/bin/sh\nprintf '#Chromosome\\tStart\\tEnd\\tChIPCount\\tScore\\tStrand\\n' > islands.tsv\n"
-                      "echo 'Valid ChIP reads: 3 (3 before out of bounds removal)'\n")
+    caller.write_text("#!/bin/sh\n: > target_peaks.broadPeak\n"
+                      "echo '# total fragments in treatment: 3' > target_peaks.xls\n")
     caller.chmod(0o755)
-    args = Namespace(epic2=caller, sizes=tmp_path / "chrom.sizes")
+    args = Namespace(macs3=caller, effective=2700)
     bed = tmp_path / "success.bed"
-    assert call_peaks(args, 3, {"chr1": 3000}, bed, 0.9) == 0
+    assert call_peaks(args, 3, {"chr1": 3000}, bed) == 0
     assert bed.read_bytes() == b""
     caller.write_text("#!/bin/sh\nexit 7\n")
-    with pytest.raises(RuntimeError, match="Epic2 failed with exit status 7"):
-        call_peaks(args, 3, {"chr1": 3000}, tmp_path / "failure.bed", 0.9)
+    with pytest.raises(RuntimeError, match="MACS3 failed with exit status 7"):
+        call_peaks(args, 3, {"chr1": 3000}, tmp_path / "failure.bed")
     assert not (tmp_path / "failure.bed").exists()
+
+
+@pytest.mark.parametrize("fragments", ["1", "missing"])
+def test_macs3_rejects_fragment_count_mismatch(tmp_path, monkeypatch, fragments):
+    from argparse import Namespace
+    from bulk_dna import call_peaks
+
+    monkeypatch.chdir(tmp_path)
+    caller = tmp_path / "caller"
+    caller.write_text(f"#!/bin/sh\necho '# total fragments in treatment: {fragments}' > target_peaks.xls\n")
+    caller.chmod(0o755)
+    with pytest.raises(ValueError, match="does not reconcile to 3 usable fragments"):
+        call_peaks(Namespace(macs3=caller, effective=2700), 3, {"chr1": 3000}, Path("peaks.bed"))
+
+
+@pytest.mark.parametrize("fragment_count,genome_size,expected_peaks", [(20, 1000000, 1), (1, 400, 0)])
+def test_real_macs3_fragment_input(tmp_path, monkeypatch, fragment_count, genome_size, expected_peaks):
+    from argparse import Namespace
+    from bulk_dna import call_peaks, overlap_count
+
+    caller = RUNTIME / "bin/macs3"
+    if not caller.exists():
+        pytest.skip("MACS3 runtime unavailable")
+    monkeypatch.chdir(tmp_path)
+    # Repeated coordinates must survive, and each paired fragment counts once.
+    Path("target.bedpe").write_text("chr1\t100\t300\n" * fragment_count)
+    bed = Path("peaks.bed")
+    args = Namespace(macs3=caller, effective=genome_size)
+    assert call_peaks(args, fragment_count, {"chr1": genome_size}, bed) == expected_peaks
+    assert bed.read_text() == ("chr1\t100\t300\n" if expected_peaks else "")
+    assert overlap_count(bed) == ((fragment_count, 200) if expected_peaks else (0, 0))
+
+
+@pytest.mark.parametrize("interval", ["chr1\t0\t3000", "chr1\t100\t100", "chr1\t0\t3001", "chr2\t0\t10"])
+def test_macs3_peak_coordinates(tmp_path, monkeypatch, interval):
+    from argparse import Namespace
+    from bulk_dna import call_peaks
+
+    monkeypatch.chdir(tmp_path)
+    caller = tmp_path / "caller"
+    caller.write_text("#!/bin/sh\necho '# total fragments in treatment: 3' > target_peaks.xls\n"
+                      f"printf '{interval}\\n' > target_peaks.broadPeak\n")
+    caller.chmod(0o755)
+    args = Namespace(macs3=caller, effective=2700)
+    bed = Path("peaks.bed")
+    if interval == "chr1\t0\t3000":
+        assert call_peaks(args, 3, {"chr1": 3000}, bed) == 1
+        assert bed.read_text() == interval + "\n"
+    else:
+        with pytest.raises(ValueError, match="MACS3 returned an invalid peak interval"):
+            call_peaks(args, 3, {"chr1": 3000}, bed)
+
+
+def test_bulk_dna_without_usable_fragments(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from bulk_dna import analyze
+
+    monkeypatch.chdir(tmp_path)
+    with pysam.AlignmentFile("empty.bam", "wb", header=dict(SQ=[dict(SN="chr1", LN=3000)])):
+        pass
+    Path("chrom.sizes").write_text("chr1\t3000\n")
+    Path("retention.tsv").write_text("metric\tpairs\nbwa_primary_pairs\t0\n")
+    Path("duplicates.txt").write_text(
+        "READ_PAIRS_EXAMINED\tREAD_PAIR_DUPLICATES\tPERCENT_DUPLICATION\n0\t0\t0\n")
+    analyze(Namespace(split="empty", by_name=Path("empty.bam"), sizes=Path("chrom.sizes"),
+                      retention=Path("retention.tsv"), metrics=Path("duplicates.txt"),
+                      effective=2700, threads=1, reference=None,
+                      macs3="missing-caller", coverage="missing-coverage"))
+    qc = json.loads(Path("empty.dna.qc.json").read_text())
+    assert qc["peak_caller"] == "MACS3" and qc["caller_status"] == "no usable fragments"
+    assert qc["usable_fragments"] == qc["peak_count"] == qc["fragments_in_peaks"] == 0
+    assert qc["frip"] is None and qc["macs3_keep_duplicates"]
+    assert Path("empty.peaks.bed").read_bytes() == b""
+    with pyBigWig.open("empty.cpm.bw") as track:
+        assert track.chroms() == {"chr1": 3000} and track.intervals("chr1") is None
+    assert not Path("target.bedpe").exists() and not Path("spans.bam").exists()

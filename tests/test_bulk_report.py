@@ -146,6 +146,7 @@ def test_final_fragments_include_pairs_outside_peaks(tmp_path, monkeypatch):
     lengths, duplicates = create_fragments("pairs.bam", {"chr1": 1000})
     Path("peaks.bed").write_text("chr1\t100\t140\n")
     assert sum(lengths.values()) == 2 and duplicates == 1
+    assert Path("target.bedpe").read_text() == "chr1\t100\t140\nchr1\t300\t340\n"
     assert overlap_count(Path("peaks.bed")) == (1, 40)
     with pysam.AlignmentFile("spans.bam") as bam:
         assert sum(1 for _ in bam) == 2
@@ -196,6 +197,7 @@ def test_report_header_and_separate_fragment_section(tmp_path):
     assert "Fragment length distribution" in fragments
     assert "Fragment length distribution" not in html.split('<section id="metrics">', 1)[1]
     assert "Raw-input sample barcode composition unavailable" in html
+    assert "MACS3 · completed" in html
     assert "unassigned totals" in html
     rna_only = render(dict(restart=True, targets=targets[:1]), tmp_path)
     assert 'id="rna-complexity"' in rna_only and 'id="complexity"' not in rna_only
