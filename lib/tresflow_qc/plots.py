@@ -161,7 +161,6 @@ def _short_stage(stage: str) -> str:
         "Mark barcode accepted": "Mark barcode",
         "Routed group pairs": "Group input",
         "Gene-assigned pairs": "Gene assignment",
-        "Mapped pairs (R1)": "Mapped R1",
     }.get(stage, stage)
 
 

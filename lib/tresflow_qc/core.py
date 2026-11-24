@@ -88,6 +88,7 @@ def retention_display_stage(stage: object) -> str:
         "Properly paired": "Mapped",
         "Proper pair": "Mapped",
         "Properly paired after blacklist": "Mapped",
+        "Mapped pairs (R1)": "Mapped R1 after blacklist",
     }.get(value, value)
 
 
