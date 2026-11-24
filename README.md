@@ -16,14 +16,12 @@ micromamba activate tres
 micromamba install -c conda-forge -c bioconda --strict-channel-priority \
   pandas polars ipython pysam pybigwig pybedtools numpy matplotlib seaborn scipy \
   pyarrow upsetplot anndata scanpy matplotlib-venn leidenalg scikit-learn \
-  snapatac2 screen samtools bwa-mem2 star fastqc pigz multiqc trim-galore \
+  snapatac2 screen samtools bwa-mem2 star==2.7.11b fastqc pigz multiqc trim-galore \
   deeptools macs3 parallel ucsc-bedGraphToBigWig nextflow git gatk4 cutadapt
 ```
 
 This environment supports both single-cell analysis (the default) and bulk
-analysis (`--bulk true`). Use the same `runtime.env_prefix` for either mode.
-The install command includes MACS3 for bulk DNA peak calling and pyBigWig for
-bulk RNA/DNA coverage. Both modes also require the Codon/Seq installation below.
+analysis (`--bulk true`). Both modes also require the Codon/Seq installation below.
 
 Clone TrESFlow:
 
@@ -104,7 +102,6 @@ samples:
 
 - A sample may contain RNA, DNA, or both.
 - FASTQs are defined once at sample level. Groups define how reads are assigned downstream.
-- Groups may independently participate in RNA and/or DNA.
 - Use shared `sb_oligo_indices` for normal corresponding RNA/DNA selections. The physical lookup expands each selected chemistry automatically.
 - Use `rna_sb_oligo_indices` and `dna_sb_oligo_indices` for independent selections or modality-specific groups. Each keeps its actual index in the cell identifier; differing selections warn and continue. List order never declares correspondence.
 - Existing `sb_barcodes`, `rna_sb_barcodes` and `dna_sb_barcodes` sequence inputs retain their precedence and chemistry rules. Shared indices are exclusive with other selectors; modality indices conflict with sequence selectors that apply to that modality. Shared `sb_barcodes` applies to RNA and single DNA; dual DNA indices may coexist with that RNA input.
@@ -170,8 +167,8 @@ NXF_OFFLINE=true nextflow run . \
 Use `--bulk true` to count RNA molecules per sample/group and DNA fragments per sample/group/mark. RNA-only, DNA-only (single or dual tagmentation), and combined runs are supported.
 
 ```bash
-NXF_OFFLINE=true nextflow run . --bulk true --samplesheet raw.yaml --outdir results/bulk_raw
-NXF_OFFLINE=true nextflow run . --bulk true --preprocessed_input true --samplesheet preprocessed.yaml --outdir results/bulk_from_fastqs
+NXF_OFFLINE=true nextflow run . --bulk true --samplesheet raw.yaml --outdir bulk_raw
+NXF_OFFLINE=true nextflow run . --bulk true --preprocessed_input true --samplesheet preprocessed.yaml --outdir bulk_from_fastqs
 ```
 
 For raw reads, use the [raw YAML samplesheet](assets/samplesheet.example.yaml). For preprocessed input, supply just the renamed or moved FASTQ pairs and a minimal YAML with the original sample/group labels. Mate paths resolve relative to the YAML. [RNA-only samplesheet](#rna-only-samplesheet) · [DNA-only samplesheet](#dna-only-samplesheet)
