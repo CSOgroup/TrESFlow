@@ -411,6 +411,107 @@ class QcFixture:
 
 
 class SharedQcTests(unittest.TestCase):
+    def test_rna_quantities_and_shared_expandable_ligation_panels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            QcFixture(root, rna=True, dna=False, groups={"g1": ["AAA"]})
+            solo = root / "rna_align/sample_g1.Solo.outGeneFull"
+            with (solo / "Summary.csv").open("a") as f:
+                f.write("UMIs in Cells,11\n")
+            write(solo / "Features.stats", "yesUMIs 17\n")
+            path = root / "TrES_Stats/sample.rna_barcode_composition.tsv"
+            with path.open("a") as f:
+                for tag in ("L1", "L2", "L3"):
+                    for seq, count in [("ACGT", 60), ("NoMatch", 30)]:
+                        f.write(f"sample\trna\t__all__\t{tag}\t{seq}\t{seq}\t{seq}\t{count}\t0\t90\tsplit-input pairs\texisting\n")
+            model = build_report_model(root)
+            metrics = {r["metric"]: r for r in model.qc_metrics}
+            self.assertEqual(metrics["final_bam_read_pairs"]["value"], 14)
+            self.assertEqual(metrics["corrected_molecules_all_barcodes"]["value"], 17)
+            self.assertEqual(metrics["corrected_molecules_called_cells"]["value"], 11)
+            output = root / "preview.html"
+            render_report(model, generate_inline_plots(model), output)
+            document = output.read_text()
+            self.assertIn("Features.stats", document)
+            self.assertIn("Summary.csv", document)
+            self.assertIn("rna_filter_retention.tsv", document)
+            section = document.split('<section id="ligation-barcodes">', 1)[1].split('<section id="rna-complexity">')[0]
+            tree = ET.fromstring('<root>' + section.split('</section>', 1)[0] + '</section></root>')
+            menus = [d for d in tree.iter('details') if d.find('summary') is not None and
+                     d.find('summary').text.startswith('Ligation barcode abundance')]
+            self.assertEqual(len(menus), 1)
+            self.assertNotIn('open', menus[0].attrib)
+            self.assertEqual(len(menus[0].findall('./div/article')), 3)
+            self.assertIn('Exact barcode counts and denominators', section)
+            self.assertIn('data-svg-download=', section)
+            self.assertIn('data-export-format="png"', section)
+            (solo / "Features.stats").unlink()
+            model = build_report_model(root)
+            row = next(r for r in model.qc_metrics if r["metric"] == "corrected_molecules_all_barcodes")
+            self.assertIsNone(row["value"])
+            self.assertIn("not supplied", row["source"])
+
+    def test_staged_feature_stats_keep_split_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "inputs"
+            QcFixture(root, rna=True, dna=False)
+            write(root / "1/sample_g1.Solo.features.stats", "yesUMIs 17\n")
+            write(root / "2/sample_g2.Solo.features.stats", "yesUMIs 23\n")
+            model = build_report_model(root)
+            totals = {r["run"]: r["value"] for r in model.qc_metrics
+                      if r["metric"] == "corrected_molecules_all_barcodes"}
+            self.assertEqual(totals, {"g1": 17, "g2": 23})
+
+    def test_missing_ligation_measurements_are_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            QcFixture(root, rna=True, dna=False, groups={"g1": ["AAA"]})
+            model = build_report_model(root)
+            output = root / "preview.html"
+            render_report(model, generate_inline_plots(model), output)
+            html = output.read_text()
+            section = html.split('<section id="ligation-barcodes">', 1)[1].split('</section>', 1)[0]
+            self.assertIn("Independent per-round counts unavailable", section)
+            self.assertIn("sample RNA L1; sample RNA L2; sample RNA L3", section)
+            self.assertNotIn('<svg', section)
+            self.assertNotIn('data-count=', section)
+
+    def test_dna_modality_qc_never_leaks_into_rna(self):
+        for dna in (True, False):
+            with self.subTest(dna=dna), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                QcFixture(root, rna=True, dna=dna)
+                # An orphan DNA stats file must also be harmless for an RNA-only report.
+                write(root / "TrES_Stats/sample.dna_modality.stats.tsv",
+                      "reads\t100\t100\nbc_reads\t40\t40\n")
+                model = build_report_model(root)
+                mo = [r for r in model.qc_metrics if r["metric"].startswith("modality_barcode_")]
+                self.assertTrue(all(r["modality"] == "DNA" for r in mo))
+                self.assertEqual(bool(mo), dna)
+                self.assertFalse(any(r["modality"] == "RNA" and
+                                     r["source"].endswith(".dna_modality.stats.tsv")
+                                     for r in model.qc_metrics))
+                if dna:
+                    marginal = [r for r in mo if r["source"].endswith(".dna_modality.stats.tsv")]
+                    self.assertEqual({r["value"] for r in marginal}, {40})
+                self.assertTrue(any(r["modality"] == "RNA" and
+                                    r["metric"] == "sample_barcode_matched_pairs"
+                                    for r in model.qc_metrics))
+
+    def test_rna_layer_percentages_require_a_valid_original_denominator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            QcFixture(root, rna=True, dna=False, groups={"g1": ["AAA"]})
+            path = root / "TrES_Stats/sample.rna_cell.stats_L1.tsv"
+            for denominator, expected in ((1, None), (None, None), (90, None), (100, 70.0)):
+                with self.subTest(denominator=denominator):
+                    header = "" if denominator is None else f"reads\t{denominator}\t100\n"
+                    write(path, header + "reads_with_L1\t70\t7000\n")
+                    model = build_report_model(root)
+                    metrics = {r["metric"]: r["value"] for r in model.qc_metrics}
+                    self.assertEqual(metrics["cell_barcode_L1_matched_pairs"], 70)
+                    self.assertEqual(metrics["cell_barcode_L1_match_pct"], expected)
+
     def test_dna_layer_qc_preserves_counts_and_warns_once_for_unverified_percentages(self):
         warning = "Some barcode percentages are unavailable because the original read-pair denominator could not be verified for these preprocessed inputs."
         with tempfile.TemporaryDirectory() as tmp:
@@ -454,7 +555,7 @@ class SharedQcTests(unittest.TestCase):
             QcFixture(root)
             model = build_report_model(root, "fixture", "1.2.3")
             rna = [row["stage"] for row in model.retention if row["run"] == "g1" and row["modality"] == "RNA"]
-            self.assertEqual(rna, ["Raw input", "After paired trimming", "L1–L2–L3 accepted", "Sample barcode accepted — all required barcodes accepted", "Properly paired", "Canonical chromosomes", "Called-cell final BAM"])
+            self.assertEqual(rna, ["Raw input", "After paired trimming", "L1–L2–L3 accepted", "Sample barcode accepted — all required barcodes accepted", "Paired alignments", "Canonical chromosomes", "Called-cell final BAM"])
             dna = [row["stage"] for row in model.retention if row["run"] == "g1" and row["branch"] == "H3A"]
             self.assertEqual(dna, ["Raw input", "After paired trimming", "After DT artifact filter", "L1–L2–L3 accepted", "Sample barcode accepted", "MO barcode accepted — all required barcodes accepted", "Mark-specific routing branch", "Properly paired after blacklist", "Canonical marked-duplicate BAM", "Canonical NoDup final"])
             removed = {"Routed to run", "Entered STAR", "STAR mapped primary", "BWA primary", "After blacklist removal", "Mapped after blacklist", "Joint barcode accepted"}
@@ -1080,6 +1181,18 @@ class SharedQcTests(unittest.TestCase):
             ]
             self.assertEqual([row["value"] for row in saturation], [37.5])
             self.assertTrue(all("unique GeneFull feature" in str(row["denominator"]) for row in saturation))
+            self.assertTrue(all("all barcodes" in str(row["denominator"]) for row in saturation))
+            report = root / "report.html"
+            render_report(model, generate_inline_plots(model), report)
+            document = report.read_text()
+            self.assertIn("RNA read pairs · raw / called-cell BAM", document)
+            self.assertIn("including singletons", document)
+            self.assertIn("RNA sequencing saturation · all barcodes", document)
+            self.assertIn("Calculated across all barcodes, before cell calling", document)
+            self.assertIn("corrected molecules / read pairs assigned to a unique GeneFull feature", document)
+            self.assertNotIn("RNA raw / final", document)
+            self.assertNotIn("Properly paired", document)
+            self.assertIn("<td>Paired alignments</td>", document)
 
             duplicate_source = dict(saturation[0])
             duplicate_source["branch"] = "RNA replicate"

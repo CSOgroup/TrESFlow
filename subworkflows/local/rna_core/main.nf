@@ -188,6 +188,7 @@ workflow RNA_CORE {
     ch_aligned_solo_dirs = channel.empty()
     ch_aligned_solo_summaries = channel.empty()
     ch_aligned_solo_report_summaries = channel.empty()
+    ch_aligned_solo_report_features = channel.empty()
     ch_aligned_star_logs = channel.empty()
     ch_internal_filtered_bams = channel.empty()
     ch_filter_retention_metrics = channel.empty()
@@ -264,6 +265,7 @@ workflow RNA_CORE {
             ch_aligned_solo_dirs = RNA_STARSOLO_ALIGN.out.solo_dir
             ch_aligned_solo_summaries = RNA_STARSOLO_ALIGN.out.solo_summary
             ch_aligned_solo_report_summaries = RNA_STARSOLO_ALIGN.out.report_solo_summary
+            ch_aligned_solo_report_features = RNA_STARSOLO_ALIGN.out.report_solo_features
             ch_aligned_star_logs = RNA_STARSOLO_ALIGN.out.star_log
             ch_internal_filtered_bams = RNA_FILTERED_BAM.out.filtered_bam
             ch_filter_retention_metrics = RNA_FILTERED_BAM.out.retention_metrics
@@ -395,6 +397,7 @@ workflow RNA_CORE {
     aligned_solo_dirs = ch_aligned_solo_dirs
     aligned_solo_summaries = ch_aligned_solo_summaries
     aligned_solo_report_summaries = ch_aligned_solo_report_summaries
+    aligned_solo_report_features = ch_aligned_solo_report_features
     aligned_star_logs = ch_aligned_star_logs
     internal_filtered_bams = ch_internal_filtered_bams
     filter_retention_metrics = ch_filter_retention_metrics

@@ -133,6 +133,7 @@ def find_files(root: Path) -> list[Path]:
         "dna_align/*.DuplicateMetrics.txt",
         "rna_align/*.Log.final.out",
         "rna_align/*.Solo.outGeneFull/Summary.csv",
+        "rna_align/*.Solo.outGeneFull/Features.stats",
         "pipeline_info/derived_contract/*.tsv",
     )
     found: list[Path] = []
@@ -768,6 +769,7 @@ def build_report_model(
     artifacts: dict[str, dict[str, object]] = {}
     star_logs: dict[str, tuple[dict, Path]] = {}
     summaries: dict[str, tuple[dict, Path]] = {}
+    feature_stats: dict[str, tuple[dict, Path]] = {}
     flagstats: dict[tuple[str, str, str], tuple[dict, Path]] = {}
     duplicates: dict[str, tuple[dict, Path]] = {}
 
@@ -787,6 +789,11 @@ def build_report_model(
             artifacts[match.group(1)] = read_artifact_summary(path)
         elif name.endswith(".Log.final.out"):
             star_logs[name.removesuffix(".Log.final.out")] = (read_star_log(path), path)
+        elif name == "Features.stats" and path.parent.name.endswith(".Solo.outGeneFull"):
+            feature_stats[path.parent.name.removesuffix(".Solo.outGeneFull")] = (
+                dict(line.split() for line in path.read_text().splitlines() if line.strip()), path)
+        elif match := re.match(r"^(.+)\.Solo\.features\.stats$", name):
+            feature_stats[match[1]] = (dict(line.split() for line in path.read_text().splitlines() if line.strip()), path)
         elif match := re.match(r"^(.+)\.Solo\.summary\.csv$", name):
             # Pipeline-integrated report carrier: split identity is encoded in
             # the filename so it survives Nextflow's inputs/?/* staging.
@@ -854,25 +861,25 @@ def build_report_model(
             if marginal:
                 _collect_marginal_qc(qc, branch, marginal[0], marginal[1], "sample_barcode")
             modality_stats = marginal_stats.get((branch.parent, "dna_modality"))
-            if modality_stats:
+            if branch.modality == "DNA" and modality_stats:
                 _collect_marginal_qc(qc, branch, modality_stats[0], modality_stats[1], "modality_barcode")
             for layer, values, path in sorted(cell_stats.get((branch.parent, branch.modality.lower()), [])):
                 matched = values.get(f"reads_with_L{layer}", {})
                 count = matched.get("count")
-                match_pct = matched.get("percent")
-                if branch.modality == "DNA":
-                    denominator = values.get("reads", {}).get("count")
-                    verified = (
-                        denominator is not None and denominator > 0
-                        and count is not None and 0 <= count <= denominator
-                        and (raw is None or denominator == raw)
-                    )
-                    match_pct = percentage(count, denominator) if verified else None
+                # Legacy layer stats can carry placeholder denominators. Keep
+                # their counts, but only publish a verified marginal percentage.
+                denominator = values.get("reads", {}).get("count")
+                verified = (
+                    denominator is not None and denominator > 0
+                    and count is not None and 0 <= count <= denominator
+                    and (raw is None or denominator == raw)
+                )
+                match_pct = percentage(count, denominator) if verified else None
                 definition = "raw input pairs; marginal layer match"
                 _add_qc(qc, branch, f"cell_barcode_L{layer}_matched_pairs", count, "read_pairs", definition, path.name, "ALL")
                 _add_qc(
                     qc, branch, f"cell_barcode_L{layer}_match_pct", match_pct, "percent", definition, path.name, "ALL",
-                    include_unavailable=branch.modality == "DNA" and count is not None,
+                    include_unavailable=count is not None,
                 )
             if gate_values:
                 for metric, value in gate_values.items():
@@ -903,7 +910,7 @@ def build_report_model(
                         ("Sample barcode accepted — all required barcodes accepted", gate_values["sample_barcode_accepted_pairs"], "shared", gate_contract[1].name, "read pairs"),
                     ]
                 )
-                for label, metric in (("Properly paired", "paired_filter_pairs"), ("Canonical chromosomes", "canonical_pairs"), ("Called-cell final BAM", "called_cell_pairs")):
+                for label, metric in (("Paired alignments", "paired_filter_pairs"), ("Canonical chromosomes", "canonical_pairs"), ("Called-cell final BAM", "called_cell_pairs")):
                     if metric in filt:
                         stages.append((label, filt[metric], "branch", by_name[filter_name][0].name, "primary R1 pair representatives"))
             else:
@@ -952,9 +959,26 @@ def build_report_model(
                     ("unique_genome_mapping_pct", "Uniquely mapped reads %", "percent", "STAR input pairs"),
                 ):
                     _add_qc(qc, branch, metric, star[0].get(source_key), unit, denominator, star[1].name)
+            final_count = filt.get("called_cell_pairs")
+            final_source = filter_name
+            if final_count is None:
+                final_stats = flagstats.get(("rna", branch.split_id, "filtered_cells"))
+                if final_stats:
+                    final_count = final_stats[0].get("read1")
+                    final_source = final_stats[1].name
+            _add_qc(qc, branch, "final_bam_read_pairs", final_count, "read_pairs",
+                    "called cells; canonical chromosomes; primary R1 representatives including singletons",
+                    final_source, include_unavailable=True)
+            features = feature_stats.get(branch.split_id)
+            _add_qc(qc, branch, "corrected_molecules_all_barcodes",
+                    integer(features[0].get("yesUMIs")) if features else None, "molecules", "all barcodes; unique GeneFull",
+                    str(features[1].relative_to(input_root)) if features else f"{branch.split_id}.Solo.outGeneFull/Features.stats (not supplied)",
+                    include_unavailable=True)
             summary = summaries.get(branch.split_id)
             if summary:
                 values, path = summary
+                _add_qc(qc, branch, "corrected_molecules_called_cells", integer(values.get("UMIs in Cells")), "molecules",
+                        "called cells; unique GeneFull", str(path.relative_to(input_root)), include_unavailable=True)
                 cells = integer(values.get("Estimated Number of Cells"))
                 _add_qc(qc, branch, "estimated_cells", cells, "cells", "called STARsolo cells", path.name)
                 saturation_fraction = numeric(values.get("Sequencing Saturation"))
@@ -966,10 +990,14 @@ def build_report_model(
                     "sequencing_saturation_pct",
                     saturation_fraction * 100 if saturation_fraction is not None else None,
                     "percent",
-                    "STARsolo 2.7.11b: 1 - collapsed UMIs / reads assigned to a unique GeneFull feature",
+                    "all barcodes; STARsolo 2.7.11b: 1 - corrected molecules / read pairs assigned to a unique GeneFull feature",
                     path.name,
                 )
                 _add_qc(qc, branch, "median_umi_per_cell", values.get("Median UMI per Cell"), "UMIs_per_cell", "called STARsolo cells", path.name)
+            else:
+                _add_qc(qc, branch, "corrected_molecules_called_cells", None, "molecules",
+                        "called cells; unique GeneFull", f"{branch.split_id}.Solo.outGeneFull/Summary.csv (not supplied)",
+                        include_unavailable=True)
         else:
             split_name = f"{branch.parent}.dna_read_retention.tsv"
             align_name = f"{branch.split_id}.dna_alignment_retention.tsv"

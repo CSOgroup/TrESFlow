@@ -37,14 +37,18 @@ def test_routed_marks_and_missing_tags():
 
 
 def test_ranked_chart_keeps_unassigned_and_all_exact_counts():
-    counts = Counter({(f"seq{i}", ""): 15-i for i in range(12)})
-    counts["NoMatch", ""] = 1
+    counts = Counter({(f"seq{i}", ""): 40-i for i in range(30)})
+    counts["NoMatch", ""] = 500
     panel = BarcodePanel("s · RNA", "rna", "L1", "Split input", sum(counts.values()), "split-input pairs", counts)
     svg = abundance_svg(panel)
-    ElementTree.fromstring(svg)
-    assert "Top 8 of 12" in svg and "Unassigned" in svg and "seq11" not in svg
+    root = ElementTree.fromstring(svg)
+    bars = [r for r in root.iter() if "data-barcode" in r.attrib]
+    assert [r.attrib["data-barcode"] for r in bars] == [f"seq{i}" for i in range(24)] + ["NoMatch"]
+    assert all(int(r.attrib["data-denominator"]) == sum(counts.values()) for r in bars)
+    assert f"{100*40/sum(counts.values()):.1f}%" in "".join(bars[0].itertext())
+    assert "Top 24 of 30" in svg and "Unassigned" in svg and "seq29" not in svg
     html = barcode_section([panel])
-    assert "seq11" in html.split("Exact barcode counts and denominators")[1]
+    assert "seq29" in html.split("Exact barcode counts and denominators")[1]
     assert html.count("data-svg-download=") == 2
 
 
@@ -53,10 +57,14 @@ def test_concise_cards_keep_counts_and_correct_denominators():
     rna = dict(routed_pairs=50, molecules=10, featureU=40, genes_detected=7)
     assert saturation(rna) == 75
     html = target_card("RNA", rna, True, raw=100)
-    assert "10 (10.00% of raw modality pairs)" in html
+    assert "Corrected molecules · all barcodes" in html
+    assert "<strong>10</strong>" in html
+    assert "10.00% of raw modality pairs" not in html
+    assert "RNA sequencing saturation · all barcodes" in html
     assert "75.00%" in html and "Pools with molecules" not in html
     supplied = target_card("RNA", rna, True)
-    assert "10 (20.00% of supplied group pairs)" in supplied
+    assert "<strong>10</strong>" in supplied
+    assert "20.00% of supplied group pairs" not in supplied
     assert "unavailable" in supplied and "Supplied group pairs" in supplied
     assert saturation(dict(featureU=0, molecules=0)) is None
     dna = dict(usable_fragments=80, bwa_primary_pairs=100, read_pair_duplicates=25,
@@ -201,6 +209,10 @@ def test_report_header_and_separate_fragment_section(tmp_path):
     assert "unassigned totals" in html
     rna_only = render(dict(restart=True, targets=targets[:1]), tmp_path)
     assert 'id="rna-complexity"' in rna_only and 'id="complexity"' not in rna_only
+    assert "RNA sequencing saturation · all barcodes" in rna_only
+    assert "no called-cell selection" in rna_only
+    assert "1 − corrected molecules / uniquely assigned GeneFull read pairs" in rna_only
+    assert "Corrected molecules · all barcodes" in rna_only
     assert 'href="#fragment-lengths"' not in rna_only
     dna_only = render(dict(restart=True, targets=targets[1:]), tmp_path)
     assert 'href="#rna-complexity"' not in dna_only and "No RNA analysis" not in dna_only
@@ -222,5 +234,32 @@ def test_concise_metrics_keep_filter_accounting_and_denominators():
     rna = dict(routed_pairs=10, retained_pairs=8, genomeU=6, genomeM=1, featureU=4,
                molecules=2, genes_detected=1, sense=4, antisense=1)
     rows = rna_metrics(rna)
-    assert len(rows) == 11
+    assert len(rows) == 13
+    metrics = {row[0]: row[1:] for row in rows}
+    assert metrics["Corrected molecules · all barcodes"] == (2, "—", "")
+    assert metrics["Unique GeneFull-assigned read pairs"] == (4, "50.00%", "STAR input read pairs; all barcodes")
+    assert metrics["Post-clipping length losses · read pairs"] == (2, "20.00%", "routed read pairs; all barcodes")
     assert next(row for row in rows if row[0] == "Sense pairs")[2] == "80.00%"
+
+
+def test_ligation_small_zero_unassigned_and_tie_ranking():
+    counts = Counter({("CCC", ""): 5, ("AAA", ""): 5})
+    panel = BarcodePanel("s · RNA", "rna", "L2", "Split input", 10, "split-input pairs", counts)
+    svg = abundance_svg(panel)
+    bars = [r for r in ElementTree.fromstring(svg).iter() if "data-barcode" in r.attrib]
+    assert [r.attrib["data-barcode"] for r in bars] == ["AAA", "CCC", "NoMatch"]
+    assert bars[-1].attrib["data-count"] == "0"
+    assert "Top 24" not in svg
+    assert "50.0%" in svg
+
+
+def test_bulk_final_bam_pairs_never_fall_back_to_gene_assigned_pairs():
+    from bulk_report import rna_metrics, target_card
+    q = dict(routed_pairs=10, retained_pairs=8, genomeU=6, genomeM=1, featureU=4,
+             molecules=2, genes_detected=1)
+    name = "Final deduplicated BAM read-pair representatives · all barcodes"
+    rows = dict((r[0], r[1]) for r in rna_metrics(q))
+    assert rows[name] is None
+    assert f"{name}</span><strong>unavailable" in target_card("RNA", q, True)
+    q.update(final_bam_pairs=3, final_bam_pairs_source="final.flagstat:read1")
+    assert dict((r[0], r[1]) for r in rna_metrics(q))[name] == 3

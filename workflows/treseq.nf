@@ -302,6 +302,7 @@ workflow TRESEQ {
         .mix(RNA_CORE.out.filter_retention_metrics.map { splitName, meta, metrics -> metrics })
         .mix(DNA_CORE.out.alignment_retention_metrics.map { splitName, meta, metrics -> metrics })
         .mix(RNA_CORE.out.aligned_solo_report_summaries.map { splitName, meta, reportSoloSummary -> reportSoloSummary })
+        .mix(RNA_CORE.out.aligned_solo_report_features.map { splitName, meta, features -> features })
         .mix(RNA_CORE.out.aligned_star_logs.map { splitName, meta, starLog -> starLog })
         .mix(DNA_CORE.out.duplicate_metrics.map { splitName, meta, metrics -> metrics })
         .mix(ch_samtools_flagstat.map { meta, flagstat -> flagstat })

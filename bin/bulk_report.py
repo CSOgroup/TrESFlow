@@ -6,17 +6,17 @@ import json
 import sys
 from datetime import datetime, timezone
 from html import escape
-from itertools import groupby, zip_longest
+from itertools import zip_longest
 from contextlib import ExitStack
 from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
-from tresflow_qc.bulk_barcodes import abundance_svg, label, raw_panels, routed_panels
+from tresflow_qc.bulk_barcodes import raw_panels, routed_panels
 from tresflow_qc.core import _unique_run_labels, read_barcode_counts, read_duplicate_metrics
 from tresflow_qc.bulk_fragments import fragment_figure
 from tresflow_qc.bulk_retention import retention_figures
-from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, overview_strip, plot_markup, prepare_plots
+from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, overview_strip, plot_markup, prepare_plots, barcode_section, barcode_panels
 from tresflow_qc.plots import _complexity_figure, _rna_complexity_figure, mark_palette
 
 
@@ -55,16 +55,18 @@ def rna_metrics(q):
     mapped = q["genomeU"]
     sense, anti = q.get("sense", 0), q.get("antisense", 0)
     return [
-        metric("Routed input pairs", routed),
-        metric("Pairs submitted to STAR", retained, routed, "routed pairs"),
-        metric("Uniquely mapped pairs", mapped, retained, "pairs submitted to STAR"),
-        metric("Multimapped pairs", q["genomeM"], retained, "pairs submitted to STAR"),
-        metric("Gene-assigned pairs", q["featureU"], retained, "pairs submitted to STAR"),
+        metric("Routed read pairs · all barcodes", routed),
+        metric("Post-clipping length losses · read pairs", routed - retained, routed, "routed read pairs; all barcodes"),
+        metric("Read pairs submitted to STAR · all barcodes", retained, routed, "routed read pairs; all barcodes"),
+        metric("Uniquely genome-mapped read pairs", mapped, retained, "STAR input read pairs; all barcodes"),
+        metric("Multimapped read pairs", q["genomeM"], retained, "STAR input read pairs; all barcodes"),
+        metric("Unique GeneFull-assigned read pairs", q["featureU"], retained, "STAR input read pairs; all barcodes"),
         *(metric(f"{region.capitalize()} pairs", q.get(region, 0), mapped, "uniquely mapped pairs")
           for region in ("exonic", "intronic", "intergenic")),
         metric("Sense pairs", sense, sense + anti, "unambiguous annotated strand"),
-        metric("Corrected molecules", q["molecules"], retained, "pairs submitted to STAR"),
-        metric("Detected genes", q["genes_detected"]),
+        metric("Final deduplicated BAM read-pair representatives · all barcodes", q.get("final_bam_pairs")),
+        metric("Corrected molecules · all barcodes", q["molecules"]),
+        metric("Detected genes · all barcodes", q["genes_detected"]),
     ]
 
 
@@ -146,32 +148,6 @@ def preprocessing(root):
     return panels, tables, warnings
 
 
-def barcode_section(panels):
-    sections = []
-    for sample, subset in groupby(sorted(panels, key=lambda p: p.sample or p.scope),
-                                   key=lambda p: p.sample or p.scope):
-        observed = sorted(subset, key=lambda p: (p.modality, p.scope, p.tag))
-        visible = [p for p in observed if p.tag not in {"L1", "L2", "L3"}]
-        ligation = [p for p in observed if p.tag in {"L1", "L2", "L3"}]
-        content = barcode_panels(visible) if visible else ""
-        if ligation:
-            content += details("Ligation barcode abundance · L1 / L2 / L3", barcode_panels(ligation))
-        sections.append(f'<section class="barcode-sample"><h3>{escape(sample)}</h3>{content}</section>')
-    return "".join(sections)
-
-
-def barcode_panels(panels):
-    figures, exact = [], []
-    for p in panels:
-        figures.append(dict(kind=f"{p.stage}-{p.tag}", run=p.scope, svg=abundance_svg(p)))
-        for identity, count in sorted(p.counts.items(), key=lambda item: (-item[1], item[0])):
-            pct = percent(count, p.denominator)
-            exact.append([p.scope, p.stage, p.title, label(identity), count, pct, p.denominator, p.definition])
-    return cards(figures) + details("Exact barcode counts and denominators", table(
-        ["Scope", "Stage", "Barcode", "Sequence / group or mark", "Read pairs", "Percent",
-         "Denominator (pairs)", "Denominator definition"], exact))
-
-
 def target_card(title, q, rna, raw=None):
     if q is None:
         return f'<article class="run-card"><h3>{escape(title)}</h3><p>No routed analysis output was observed.</p></article>'
@@ -181,15 +157,16 @@ def target_card(title, q, rna, raw=None):
     source = "raw modality pairs" if raw is not None else "supplied group pairs"
     fields = [
         ("Raw input pairs · modality", number(raw)),
-        ("Final molecules" if rna else "Final aligned fragments",
-         f"{number(final)} ({percent(final, denominator)} of {source})"),
+        ("Corrected molecules · all barcodes" if rna else "Final aligned fragments",
+         number(final) if rna else f"{number(final)} ({percent(final, denominator)} of {source})"),
     ]
     if raw is None:
         fields.append(("Supplied group pairs", number(supplied)))
     if rna:
         value = saturation(q)
-        fields.extend([("Genes detected", q["genes_detected"]),
-                       ("RNA sequencing saturation", "unavailable" if value is None else f"{value:.2f}%")])
+        fields.extend([("Final deduplicated BAM read-pair representatives · all barcodes", number(q.get("final_bam_pairs"))),
+                       ("Genes detected · all barcodes", q["genes_detected"]),
+                       ("RNA sequencing saturation · all barcodes", "unavailable" if value is None else f"{value:.2f}%")])
     else:
         fields.extend([
             ("DNA duplicate pairs · Picard", percent(q["read_pair_duplicates"], q["read_pairs_examined"])),
@@ -269,7 +246,10 @@ def render(spec, root):
             else:
                 figure = _rna_complexity_figure(scope, [dict(branch=t["group"], value=value)])
                 rna_plots.append(f'<h3>{escape(scope)}</h3>' + cards([figure], wide=True))
-            note = "Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation."
+            final_source = q.get("final_bam_pairs_source", f"{split}.dedup.bam: unavailable; no final BAM R1 count in supplied QC summaries; BAM was not scanned")
+            note = (f"Final BAM read-pair count source: {final_source}. Corrected molecule source: {split}.rna.qc.json (molecules). "
+                    f"Gene-assigned pairs are not final BAM pairs. ")
+            note += "RNA metrics cover all accepted barcodes in this group; no called-cell selection is applied. Read pairs are counted before UMI collapse. Corrected molecules count distinct gene, original-cell-pool and corrected-UMI combinations. Post-clipping length losses are pairs with either retained mate shorter than 20 nt. Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation."
         else:
             dna_plots.append(f'<h3>{escape(scope)}</h3>' + dna_complexity(q, root, split, scope, t["mark"]))
             lengths = q["fragment_lengths"]
@@ -281,6 +261,13 @@ def render(spec, root):
             note = f"Alignment filter losses count primary R1 records. Final fragments include duplicate-flagged pairs. FRiP uses all final fragments. CPM · 50 bp bins. MACS3 · {q['caller_status']}."
         metrics.append(details(scope, table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
                                + f"<p>{escape(note)}</p>"))
+        if rna:
+            metrics.append(table(["RNA quantity", "Count", "Unit", "Population", "Source file"], [
+                ["Final deduplicated BAM read-pair representatives", q.get("final_bam_pairs"),
+                 "read_pairs", "all barcodes in this group", final_source],
+                ["Corrected molecules", q["molecules"], "molecules", "all barcodes in this group",
+                 f"{split}.rna.qc.json:molecules"],
+            ]))
 
     if restart:
         panels = [p for p in routed_panels(targets, routed) if p.tag != "SB"]
@@ -289,7 +276,7 @@ def render(spec, root):
     if retention_plots:
         retention_section = f'''<section id="retention"><h2>Read-pair retention</h2>
 <p>Each node shows surviving pairs and their percentage of the input named in the panel.
-Routing steps select the displayed group or mark. RNA ends at gene assignment, before UMI collapse. DNA alignment counts use primary R1 records,
+Routing steps select the displayed group or mark. RNA covers all accepted barcodes in each group and ends at GeneFull read-pair assignment, before UMI collapse. Corrected molecules are reported separately. DNA alignment counts use primary R1 records,
 and final fragments are complete pairs including duplicates.</p>{cards(retention_plots, wide=True)}</section>'''
     library = ", ".join(sorted({t["library"] for t in targets}))
     stage = ("Measurements start at the supplied routed pairs. Raw depth, upstream losses, unassigned totals "
@@ -301,9 +288,12 @@ and final fragments are complete pairs including duplicates.</p>{cards(retention
     rna_section = ""
     if rna_plots:
         rna_section = f'''<section id="rna-complexity">
-<h2>RNA sequencing saturation</h2>
-<p>Fraction of uniquely assigned GeneFull pairs that do not contribute a new corrected molecule ·
-1 − molecules / assigned pairs. UMI correction and gene assignments are fixed by STARsolo.</p>
+<h2>RNA sequencing saturation · all barcodes</h2>
+<p>Calculated across all barcodes in each group, with no called-cell selection:
+1 − corrected molecules / uniquely assigned GeneFull read pairs.
+This is the fraction of assigned read pairs that do not contribute a new corrected molecule.
+The denominator is assigned read pairs, not STAR input or a called-cell BAM count.
+UMI correction and gene assignments are fixed by STARsolo.</p>
 {"".join(rna_plots)}</section>'''
     dna_section = ""
     if dna_plots:
@@ -322,8 +312,8 @@ Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>
     .hero .brand{text-transform:none}.hero h1,main h3{overflow-wrap:anywhere}
     .barcode-sample{padding:0;border:0;margin:1rem 0 1.5rem}
     .run-plots{min-width:0}.run-plots>.plot-card{min-width:0}
-    .bulk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:.8rem;margin:.75rem 0 1.2rem}
-    .bulk-grid .plot-card{min-width:0;padding:.65rem}.bulk-grid .svg-scroll svg{width:100%;max-width:560px;height:auto}
+    .bulk-grid:not(.barcode-grid){display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:.8rem;margin:.75rem 0 1.2rem}
+    .bulk-grid:not(.barcode-grid) .plot-card{min-width:0;padding:.65rem}.bulk-grid:not(.barcode-grid) .svg-scroll svg{width:100%;max-width:560px;height:auto}
     .bulk-grid .plot-actions{margin-bottom:.2rem}.bulk-warnings{border-left:3px solid var(--orange);padding:.5rem 1rem;background:#fff6ed;margin:1rem 0}
     .bulk-warnings ul{margin:.25rem 0}section{scroll-margin-top:3rem}.bulk-grid+h3{margin-top:1.6rem}
     """

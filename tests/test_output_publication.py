@@ -54,6 +54,18 @@ class OutputPublicationTests(unittest.TestCase):
         self.assertNotIn("resolvedOutdir')}/qc/", modules_config)
         self.assertNotIn("resolvedOutdir')}/multiqc", modules_config)
 
+    def test_report_stages_uniquely_named_starsolo_feature_stats(self):
+        module = (REPO_ROOT / "modules/local/rna_starsolo_align/main.nf").read_text()
+        rna = (REPO_ROOT / "subworkflows/local/rna_core/main.nf").read_text()
+        workflow = (REPO_ROOT / "workflows/treseq.nf").read_text()
+        self.assertIn('path("report/${splitName}.Solo.features.stats"), optional: true', module)
+        self.assertEqual(module.count('if [[ -f "${splitName}.Solo.outGeneFull/Features.stats" ]]'), 2)
+        self.assertIn('ch_aligned_solo_report_features = RNA_STARSOLO_ALIGN.out.report_solo_features', rna)
+        self.assertIn('aligned_solo_report_features = ch_aligned_solo_report_features', rna)
+        self.assertEqual(workflow.count('RNA_CORE.out.aligned_solo_report_features.map'), 1)
+        report_sources = workflow.split('ch_report_source_files =', 1)[1]
+        self.assertIn('RNA_CORE.out.aligned_solo_report_features.map', report_sources)
+
     def test_report_uses_explicit_metric_channels_and_publishes_normalized_outputs(self):
         workflow = (REPO_ROOT / "workflows/treseq.nf").read_text(encoding="utf-8")
         entry_workflow = (REPO_ROOT / "main.nf").read_text(encoding="utf-8")

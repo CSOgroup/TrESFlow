@@ -28,6 +28,7 @@ process RNA_STARSOLO_ALIGN {
     tuple val(splitName), val(meta), path("${splitName}.Solo.outGeneFull"), emit: solo_dir
     tuple val(splitName), val(meta), path("${splitName}.Solo.outGeneFull/Summary.csv"), emit: solo_summary
     tuple val(splitName), val(meta), path("report/${splitName}.Solo.summary.csv"), emit: report_solo_summary
+    tuple val(splitName), val(meta), path("report/${splitName}.Solo.features.stats"), optional: true, emit: report_solo_features
     tuple val(splitName), val(meta), path("${splitName}.Aligned.sortedByCoord.out.bam"), emit: aligned_bam
     tuple val(splitName), val(meta), path("${splitName}.Log.final.out"), emit: star_log
     path("versions.yml"), emit: versions
@@ -87,6 +88,10 @@ EOF
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \
           "report/${splitName}.Solo.summary.csv"
+        if [[ -f "${splitName}.Solo.outGeneFull/Features.stats" ]]; then
+          cp "${splitName}.Solo.outGeneFull/Features.stats" \
+            "report/${splitName}.Solo.features.stats"
+        fi
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":
@@ -113,6 +118,10 @@ EOF
         mkdir -p report
         cp "${splitName}.Solo.outGeneFull/Summary.csv" \
           "report/${splitName}.Solo.summary.csv"
+        if [[ -f "${splitName}.Solo.outGeneFull/Features.stats" ]]; then
+          cp "${splitName}.Solo.outGeneFull/Features.stats" \
+            "report/${splitName}.Solo.features.stats"
+        fi
 
         cat <<-END_VERSIONS > versions.yml
         "${task.process}":

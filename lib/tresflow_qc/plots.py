@@ -773,7 +773,7 @@ def _rna_complexity_figure(run: str, rows: list[dict[str, object]]) -> dict[str,
     width = int(math.ceil(left + bar_width + 34.0))
     row_height = 76.0
     height = int(math.ceil(58.0 + len(ordered) * row_height + 42.0))
-    parts = ['<text class="panel-title" x="20" y="28">RNA sequencing saturation</text>']
+    parts = ['<text class="panel-title" x="20" y="28">RNA sequencing saturation · all barcodes</text>']
     for index, row in enumerate(ordered):
         value = numeric(row.get("value"))
         if value is None or value < 0 or value > 100:
@@ -800,7 +800,7 @@ def _rna_complexity_figure(run: str, rows: list[dict[str, object]]) -> dict[str,
             parts.append(f'<text x="{left + observed_width / 2:.1f}" y="{y + 25}" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#fff">{observed:.1f}%</text>')
         if new_width >= _text_width(f"{new_fraction:.1f}%", 13, weight=700) + 14.0:
             parts.append(f'<text x="{left + observed_width + new_width / 2:.1f}" y="{y + 25}" text-anchor="middle" style="font-size:13px;font-weight:700;fill:{INK}">{new_fraction:.1f}%</text>')
-        parts.append(f'<text class="axis muted" x="{left}" y="{y + 57}">STARsolo reported saturation {observed:.2f}%</text>')
+        parts.append(f'<text class="axis muted" x="{left}" y="{y + 57}">All-barcode saturation {observed:.2f}%</text>')
     legend_y = height - 27.0
     parts.append(
         f'<rect x="{left}" y="{legend_y - 11}" width="14" height="14" rx="3" fill="{RNA}"/>'

@@ -58,7 +58,7 @@ def _table(headers: list[tuple[str, str]], rows: Iterable[dict[str, object]], cl
             value = row.get(key, "")
             if key == "value" and row.get("unit") == "percent":
                 value = fmt_pct(value, 2)
-            elif key == "value" and row.get("unit") in {"read_pairs", "cells", "fragments"}:
+            elif key == "value" and row.get("unit") in {"read_pairs", "cells", "fragments", "molecules"}:
                 value = fmt_count(value)
             elif key.endswith("_pct") or key in {"percentage", "percent_duplication"}:
                 value = fmt_pct(value)
@@ -70,6 +70,53 @@ def _table(headers: list[tuple[str, str]], rows: Iterable[dict[str, object]], cl
             cells.append(f"<td>{esc(value)}</td>")
         body.append("<tr>" + "".join(cells) + "</tr>")
     return f'<div class="table-scroll"><table class="{esc(classes)}"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+
+
+def details(title, content):
+    return f'<details><summary>{esc(title)}</summary>{content}</details>'
+
+
+def table(headers, rows):
+    keys = [str(i) for i in range(len(headers))]
+    formatted = [{k: (fmt_count(v) if isinstance(v, int) else "unavailable" if v is None else v)
+                  for k, v in zip(keys, r)} for r in rows]
+    return _table(list(zip(keys, headers)), formatted)
+
+
+def cards(figures):
+    return '<div class="bulk-grid barcode-grid">' + "".join(
+        f'<article class="plot-card">{plot_markup(item)}</article>' for item in prepare_plots(figures)
+    ) + '</div>'
+
+
+def barcode_section(panels):
+    from itertools import groupby
+
+    sections = []
+    for sample, subset in groupby(sorted(panels, key=lambda p: p.sample or p.scope),
+                                   key=lambda p: p.sample or p.scope):
+        observed = sorted(subset, key=lambda p: (p.modality, p.scope, p.tag))
+        visible = [p for p in observed if p.tag not in {"L1", "L2", "L3"}]
+        ligation = [p for p in observed if p.tag in {"L1", "L2", "L3"}]
+        content = barcode_panels(visible) if visible else ""
+        if ligation:
+            content += details("Ligation barcode abundance · L1 / L2 / L3", barcode_panels(ligation))
+        sections.append(f'<section class="barcode-sample"><h3>{esc(sample)}</h3>{content}</section>')
+    return "".join(sections)
+
+
+def barcode_panels(panels):
+    from .bulk_barcodes import abundance_svg, label
+
+    figures, exact = [], []
+    for p in panels:
+        figures.append(dict(kind=f"{p.stage}-{p.tag}", run=p.scope, svg=abundance_svg(p)))
+        for identity, count in sorted(p.counts.items(), key=lambda item: (-item[1], item[0])):
+            pct = fmt_pct(_pct(count, p.denominator), 2)
+            exact.append([p.scope, p.stage, p.title, label(identity), count, pct, p.denominator, p.definition, p.source or "unavailable: source not supplied"])
+    return cards(figures) + details("Exact barcode counts and denominators", table(
+        ["Scope", "Stage", "Barcode", "Sequence / group or mark", "Read pairs", "Percent",
+         "Denominator (pairs)", "Denominator definition", "Source"], exact))
 
 
 def _run_cards(model: ReportModel) -> str:
@@ -168,16 +215,20 @@ def _run_cards(model: ReportModel) -> str:
         if "RNA" in modalities:
             metrics.extend(
                 [
-                    ("RNA raw / final", _raw_final(raw_by_modality.get("RNA"), final_rna)),
+                    (
+                        "RNA read pairs · raw / called-cell BAM",
+                        _raw_final(raw_by_modality.get("RNA"), final_rna),
+                        "Raw input covers all barcodes. The final BAM count is primary R1 representatives in called cells on canonical chromosomes, including singletons; it is not a corrected molecule count.",
+                    ),
                     (
                         "RNA fully barcode-assigned pairs",
                         _count_and_raw_pct(rna_assignment, raw_by_modality.get("RNA")),
                         "Pairs passing L1, L2, L3 and sample-barcode gates on the same pair.",
                     ),
                     (
-                        "RNA sequencing saturation",
+                        "RNA sequencing saturation · all barcodes",
                         saturation_text,
-                        "STARsolo Summary.csv: 1 minus collapsed UMI count divided by reads assigned to a unique GeneFull feature. Multiple inputs are not averaged without their exact denominators.",
+                        "Across all barcodes, before cell calling: 1 minus corrected molecules divided by read pairs assigned to a unique GeneFull feature. Multiple inputs are not averaged without their exact denominators.",
                     ),
                 ]
             )
@@ -205,7 +256,7 @@ def _run_cards(model: ReportModel) -> str:
                 ))
                 for modality in modalities
             }
-            metrics = [item for item in metrics if item[0] not in {"RNA raw / final", "DNA raw / final", "RNA sequencing saturation", "DNA duplicate components"}]
+            metrics = [item for item in metrics if item[0] not in {"RNA read pairs · raw / called-cell BAM", "DNA raw / final", "RNA sequencing saturation · all barcodes", "DNA duplicate components"}]
             metrics.extend((f"{modality} raw / exported", _raw_final(raw_by_modality.get(modality), routed[modality])) for modality in modalities)
             metrics.extend((label, "not run") for label in ("Alignment", "Duplication", "Coverage", "Cell calling"))
         cells = []
@@ -289,6 +340,50 @@ def plot_markup(item: dict[str, object]) -> str:
     )
 
 
+def _ligation_section(model):
+    from .bulk_barcodes import ligation_panels
+    panels = ligation_panels(model.barcode_composition)
+    content = barcode_section(panels)
+    observed = {(p.sample, p.modality, p.tag) for p in panels}
+    missing = [(parent, modality, tag) for parent, modality in
+               sorted({(b.parent, b.modality.lower()) for b in model.branches})
+               for tag in ("L1", "L2", "L3") if (parent, modality, tag) not in observed]
+    if missing:
+        content += details("Ligation barcode abundance · unavailable measurements",
+                           '<p class="unavailable">Independent per-round counts unavailable: ' +
+                           esc("; ".join(f"{p} {m.upper()} {t}" for p, m, t in missing)) +
+                           '. The supplied composition sidecars omit these rounds. Raw cell-count totals '
+                           'cannot recover split-input per-round counts or Unassigned.</p>')
+    return f'<section id="ligation-barcodes"><h2>Ligation barcode abundance</h2>{content}</section>' if content else ""
+
+
+def _rna_quantities(model):
+    if model.run_metadata.get("preprocess_only"):
+        return ""
+    labels = {
+        "final_bam_read_pairs": "Final BAM read-pair representatives",
+        "corrected_molecules_all_barcodes": "Corrected molecules · all barcodes",
+        "corrected_molecules_called_cells": "Corrected molecules · called cells",
+    }
+    rows = []
+    for branch in model.branches:
+        if branch.modality != "RNA":
+            continue
+        for metric, label in labels.items():
+            row = next((r for r in model.qc_metrics if r["run"] == branch.run and
+                        r["parent_sample"] == branch.parent and r["branch"] == branch.branch and
+                        r["metric"] == metric), {})
+            rows.append(dict(run=branch.run, quantity=label, value=fmt_count(row.get("value")),
+                             unit=row.get("unit", "read_pairs" if metric == "final_bam_read_pairs" else "molecules"),
+                             population=row.get("denominator", "called cells" if metric != "corrected_molecules_all_barcodes" else "all barcodes"),
+                             source=row.get("source", "unavailable: source not supplied")))
+    if not rows:
+        return ""
+    return '<section id="rna-quantities"><h2>RNA final read pairs and corrected molecules</h2>' + _table(
+        [("run", "Run"), ("quantity", "Quantity"), ("value", "Count"), ("unit", "Unit"),
+         ("population", "Population"), ("source", "Source file")], rows) + '</section>'
+
+
 def _retention_section(plots: list[dict[str, object]]) -> str:
     selected = _plots_of_kind(plots, "retention")
     if not selected:
@@ -297,7 +392,13 @@ def _retention_section(plots: list[dict[str, object]]) -> str:
         f'<article class="plot-card run-plot"><h3>{esc(item["run"])}</h3>{plot_markup(item)}</article>'
         for item in selected
     )
-    return f'<section id="retention"><h2>Read-pair retention</h2><div class="run-plots">{cards}</div></section>'
+    return (f'<section id="retention"><h2>Read-pair retention</h2>'
+            '<p>RNA counts before cell calling cover all accepted barcodes in the displayed group. '
+            'Called-cell final BAM counts cover called cells on canonical chromosomes. '
+            'RNA BAM counts are primary R1 read-pair representatives, including singletons, '
+            'without UMI deduplication or a gene-assignment requirement. Corrected molecules '
+            'count distinct gene, cell-barcode and corrected-UMI combinations.</p>'
+            f'<div class="run-plots">{cards}</div></section>')
 
 
 def _single_plot_section(plots: list[dict[str, object]], kind: str, heading: str, section_id: str) -> str:
@@ -356,10 +457,12 @@ def _rna_complexity_section(plots: list[dict[str, object]]) -> str:
         for item in selected
     )
     explanation = (
-        '<details class="metric-explanation"><summary>RNA sequencing saturation</summary>'
-        '<p>STARsolo 2.7.11b reports <code>1 − collapsed UMIs / reads assigned to a unique GeneFull feature</code>. '
+        '<details class="metric-explanation"><summary>RNA sequencing saturation · all barcodes</summary>'
+        '<p>Calculated across all barcodes, before cell calling: STARsolo 2.7.11b reports '
+        '<code>1 − corrected molecules / read pairs assigned to a unique GeneFull feature</code>. '
         'With TrESFlow’s STARsolo settings, UMIs are collapsed with <code>1MM_CR</code> and filtered with <code>MultiGeneUMI_CR</code>. '
-        'The value is the fraction of unique-feature reads that do not contribute a new reported UMI, and depends on sequencing depth and RNA library complexity; '
+        'Called-cell BAM read-pair counts are a different population and are not the denominator. '
+        'The value is the fraction of unique-feature read pairs that do not contribute a new corrected molecule, and depends on sequencing depth and RNA library complexity; '
         'it is not an absolute RNA duplicate-pair count.</p></details>'
     )
     return f'<section id="rna-complexity"><h2>RNA library complexity and saturation</h2>{explanation}<div class="run-plots">{cards}</div></section>'
@@ -506,7 +609,7 @@ main{max-width:1540px;margin:auto;padding:0 max(3vw,1.2rem) 4rem}section{padding
 .run-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(390px,100%),1fr));gap:1.1rem}.run-card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:1.25rem;box-shadow:0 5px 18px rgba(35,63,58,.075)}.mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem;margin-top:1rem}.mini-grid div{border-top:1px solid var(--line);padding-top:.6rem}.mini-grid span,.mini-grid strong{display:block}.mini-grid strong{font-size:.92rem;margin-top:.2rem;overflow-wrap:anywhere;white-space:pre-line}
 .run-plots{display:grid;gap:1.5rem}.plot-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:1.15rem;box-shadow:0 7px 22px rgba(35,63,58,.085)}.run-plot h3{font-size:1.12rem;margin:0 0 .65rem;padding-bottom:.65rem;border-bottom:1px solid var(--line)}.plot-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.45rem;margin:0 0 .55rem}.plot-download{border:0;border-radius:999px;background:var(--teal-soft);color:#145f5a;font:700 .78rem/1 system-ui;padding:.58rem .8rem;cursor:pointer}.plot-download:hover{background:#cbe6e1}.plot-download:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(40,111,155,.28)}.svg-scroll{width:100%;overflow-x:auto;padding:.2rem 0}.svg-scroll svg{display:block;width:auto;height:auto;max-width:none;margin-inline:auto}
 .metric-explanation{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:.75rem 1rem;margin:-.35rem 0 1.2rem;box-shadow:0 2px 8px rgba(35,63,58,.04)}.metric-explanation summary{cursor:pointer;font-weight:720;color:#176b66}.metric-explanation p{max-width:1000px;color:var(--muted);margin:.7rem 0 .25rem}
-.table-scroll{overflow:auto;max-height:540px;border:1px solid var(--line);border-radius:14px;margin:.8rem 0}table{border-collapse:collapse;width:100%;font-size:.79rem;background:var(--card)}th{position:sticky;top:0;background:#edf3f0;text-align:left;z-index:1}th,td{padding:.58rem .68rem;border-bottom:1px solid #edf0ee;vertical-align:top;white-space:nowrap}tr:hover td{background:#faf7ef}details{margin:1rem 0}summary{cursor:pointer;font-weight:700}.file-links{display:flex;flex-wrap:wrap;gap:.5rem}.file-link{padding:.52rem .75rem;border:0;border-radius:999px;background:var(--teal-soft);font-size:.81rem;color:#145f5a}.file-link:hover,.file-link:focus-visible{background:#cbe6e1;outline:none;box-shadow:0 0 0 3px rgba(40,111,155,.2)}.unavailable{color:var(--muted);font-style:italic}a{color:#176c68}
+.barcode-sample{padding:0;border:0;margin:1rem 0 1.5rem}.barcode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));gap:.8rem;margin:.75rem 0 1.2rem}.barcode-grid .plot-card{min-width:0;padding:.65rem}.barcode-grid .svg-scroll svg{width:auto;min-width:460px;max-width:none;height:auto}.barcode-grid .plot-actions{margin-bottom:.2rem}.table-scroll{overflow:auto;max-height:540px;border:1px solid var(--line);border-radius:14px;margin:.8rem 0}table{border-collapse:collapse;width:100%;font-size:.79rem;background:var(--card)}th{position:sticky;top:0;background:#edf3f0;text-align:left;z-index:1}th,td{padding:.58rem .68rem;border-bottom:1px solid #edf0ee;vertical-align:top;white-space:nowrap}tr:hover td{background:#faf7ef}details{margin:1rem 0}summary{cursor:pointer;font-weight:700}.file-links{display:flex;flex-wrap:wrap;gap:.5rem}.file-link{padding:.52rem .75rem;border:0;border-radius:999px;background:var(--teal-soft);font-size:.81rem;color:#145f5a}.file-link:hover,.file-link:focus-visible{background:#cbe6e1;outline:none;box-shadow:0 0 0 3px rgba(40,111,155,.2)}.unavailable{color:var(--muted);font-style:italic}a{color:#176c68}
 footer{max-width:1540px;margin:auto;padding:1.5rem max(4vw,2rem);color:var(--muted);font-size:.75rem}
 @media(max-width:950px){.mini-grid{grid-template-columns:1fr}.run-cards{grid-template-columns:1fr}.overview-strip{grid-template-columns:1fr 1fr}main{padding-inline:1rem}.plot-card{border-radius:17px}}
 @media(max-width:560px){.overview-strip{grid-template-columns:1fr}header{padding-inline:1rem}nav{padding-inline:.7rem}.plot-card{padding:.75rem}.plot-actions{justify-content:flex-start}}
@@ -556,10 +659,12 @@ def render_report(model: ReportModel, plots: list[dict[str, object]], output_pat
     sample = _sample_section(plots)
     complexity = _dna_complexity_section(plots)
     rna_complexity = _rna_complexity_section(plots)
+    rna_quantities = _rna_quantities(model)
+    ligation = _ligation_section(model)
     document = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(model.library_name)} · TrESFlow QC</title><style>{CSS}</style></head>
 <body><header><div class="brand">TrESFlow · sequencing QC</div><div class="hero"><h1>{esc(model.library_name)}</h1></div></header>
-<nav><a href="#overview">Overview</a><a href="#retention">Retention</a>{'<a href="#mark-composition">DNA marks</a>' if mark else ''}{'<a href="#sample-composition">Sample barcodes</a>' if sample else ''}{'<a href="#complexity">DNA complexity</a>' if complexity else ''}{'<a href="#rna-complexity">RNA complexity</a>' if rna_complexity else ''}<a href="#details">Metrics</a></nav>
-<main>{_overview(model)}{retention}{mark}{sample}{complexity}{rna_complexity}{_details(model)}</main>
+<nav><a href="#overview">Overview</a><a href="#retention">Retention</a>{'<a href="#mark-composition">DNA marks</a>' if mark else ''}{'<a href="#sample-composition">Sample barcodes</a>' if sample else ''}{'<a href="#ligation-barcodes">Ligation barcodes</a>' if ligation else ''}{'<a href="#complexity">DNA complexity</a>' if complexity else ''}{'<a href="#rna-complexity">RNA complexity</a>' if rna_complexity else ''}<a href="#details">Metrics</a></nav>
+<main>{_overview(model)}{rna_quantities}{retention}{mark}{sample}{ligation}{complexity}{rna_complexity}{_details(model)}</main>
 <footer>Offline TrESFlow QC report · normalized schema 2.0 · no external resources</footer>
 {PLOT_EXPORT_SCRIPT}</body></html>'''
     output_path.parent.mkdir(parents=True, exist_ok=True)
