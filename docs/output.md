@@ -34,6 +34,21 @@ STARsolo uses the pool identifier and the observed UM tag for forward-stranded `
 
 The BAM retains one primary pair per counted molecule, preferring two mapped mates and then the lexically first read name. If only one mate maps at the selected gene alignment, its mate retains the original sequence and qualities as an unmapped primary record. This also handles counted singleton secondary alignments whose mate maps at another STAR hit. For a multimapping pair assigned to one gene, the representative uses a STAR alignment to that gene and retains NH and MAPQ. The RPM bigWig counts each template’s union of aligned blocks once per base and normalizes to one million counted molecules.
 
+After sorting and indexing the final `.rna.dedup.bam`, bulk RNA QC scans its
+records to count primary R1 representatives. The predicate is equivalent to
+`samtools view -c -f 0x40 -F 0x900`: require READ1 and exclude secondary and
+supplementary alignments. Unmapped R1 records belonging to retained singleton
+templates are included; proper-pair, MAPQ, duplicate and QC-pass filters are not
+applied. This audit does not modify BAM records or coverage.
+
+The `.rna.qc.json` records `final_bam_pairs`, `final_bam_pairs_source`,
+`final_bam_pairs_definition`, the required/excluded flags, unmapped R1 and primary
+R2 counts, and `final_bam_pairs_match_molecules`. The last field compares the
+measured BAM count with the independently computed molecule total; the molecule
+or gene-assigned count is never used as a substitute. The report displays the
+measured count, source and definition. Legacy QC JSON without a verified BAM
+count continues to display unavailable until a separate audit is requested.
+
 ### DNA coverage and peaks
 
 Complete primary proper pairs on canonical chromosomes contribute one fragment after the existing blacklist and alignment filters. Picard flags remain in the published BAM. Duplicate-flagged target fragments contribute to deepTools CPM coverage, MACS3 and FRiP. deepTools counts the full insert once in 50 bp bins.

@@ -51,6 +51,8 @@ process BULK_RNA_MOLECULES {
         "${preparation}" by_name.bam "${solo}"
     "\$SAMTOOLS_BIN" sort -@ ${task.cpus} -o "${splitName}.rna.dedup.bam" representatives.bam
     "\$SAMTOOLS_BIN" index "${splitName}.rna.dedup.bam"
+    "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna.py" --final-bam-qc \
+        "${splitName}.rna.dedup.bam" "${splitName}.rna.qc.json"
     "\$SAMTOOLS_BIN" collate -u -O "${splitName}.rna.dedup.bam" | \
         "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" blocks | \
         LC_ALL=C sort -k1,1n -k2,2n -T . | \

@@ -145,6 +145,41 @@ def assigned_pair(records, annotation, stats):
     return key, pair, complete
 
 
+def update_final_bam_qc(bam_path, qc_path):
+    """Audit the final BAM independently of gene assignment or molecule totals."""
+    required, excluded = 0x40, 0x900
+    pairs = unmapped_r1 = primary_r2 = 0
+    # Read until EOF rather than relying on index counts or mapped-only fetches:
+    # retained singleton templates can have an unmapped R1 representative.
+    with pysam.AlignmentFile(bam_path, "rb") as bam:
+        for read in bam.fetch(until_eof=True):
+            if read.flag & excluded:
+                continue
+            if read.flag & required:
+                pairs += 1
+                unmapped_r1 += int(read.is_unmapped)
+            if read.is_read2:
+                primary_r2 += 1
+    qc = json.loads(qc_path.read_text())
+    qc.update(
+        final_bam_pairs=pairs,
+        final_bam_pairs_source=f"{bam_path.name}: sequential BAM scan; require 0x40, exclude 0x900",
+        final_bam_pairs_definition=(
+            "Primary R1 representatives across all barcodes: require READ1 (0x40); "
+            "exclude SECONDARY (0x100) and SUPPLEMENTARY (0x800). Include unmapped R1 "
+            "records from retained singleton templates; no mapped, proper-pair, MAPQ, "
+            "duplicate or QC-pass requirement."),
+        final_bam_pairs_required_flags=required,
+        final_bam_pairs_excluded_flags=excluded,
+        final_bam_unmapped_r1_records=unmapped_r1,
+        final_bam_primary_r2_records=primary_r2,
+        final_bam_pairs_match_molecules=(pairs == qc["molecules"]),
+    )
+    temporary = qc_path.with_name(qc_path.name + ".tmp")
+    temporary.write_text(json.dumps(qc, sort_keys=True))
+    temporary.replace(qc_path)
+
+
 def summarize(split, index, prep, source, solo):
     genes, expected = matrix(solo / "raw")
     annotation = Regions(index)
@@ -224,4 +259,7 @@ def summarize(split, index, prep, source, solo):
 
 
 if __name__ == "__main__":
-    summarize(sys.argv[1], *map(Path, sys.argv[2:]))
+    if sys.argv[1] == "--final-bam-qc":
+        update_final_bam_qc(*map(Path, sys.argv[2:]))
+    else:
+        summarize(sys.argv[1], *map(Path, sys.argv[2:]))

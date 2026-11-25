@@ -266,6 +266,8 @@ def render(spec, root):
             final_source = q.get("final_bam_pairs_source", f"{rna_artifact(root, split, 'dedup.bam').name}: unavailable; no final BAM R1 count in supplied QC summaries; BAM was not scanned")
             note = (f"Final BAM read-pair count source: {final_source}. Corrected molecule source: {split}.rna.qc.json (molecules). "
                     f"Gene-assigned pairs are not final BAM pairs. ")
+            if q.get("final_bam_pairs_definition"):
+                note += q["final_bam_pairs_definition"] + " "
             note += "RNA metrics cover all accepted barcodes in this group; no called-cell selection is applied. Read pairs are counted before UMI collapse. Corrected molecules count distinct gene, original-cell-pool and corrected-UMI combinations. Post-clipping length losses are pairs with either retained mate shorter than 20 nt. Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation."
         else:
             dna_plots.append(f'<h3>{escape(scope)}</h3>' + dna_complexity(q, root, split, scope, t["mark"]))
@@ -279,11 +281,12 @@ def render(spec, root):
         metrics.append(details(scope, table(METRIC_HEADERS, rna_metrics(q) if rna else dna_metrics(q))
                                + f"<p>{escape(note)}</p>"))
         if rna:
-            metrics.append(table(["RNA quantity", "Count", "Unit", "Population", "Source file"], [
+            metrics.append(table(["RNA quantity", "Count", "Unit", "Population", "Source file", "Definition"], [
                 ["Final deduplicated BAM read-pair representatives", q.get("final_bam_pairs"),
-                 "read_pairs", "all barcodes in this group", final_source],
+                 "read_pairs", "all barcodes in this group", final_source,
+                 q.get("final_bam_pairs_definition", "unavailable: no verified final BAM count definition supplied")],
                 ["Corrected molecules", q["molecules"], "molecules", "all barcodes in this group",
-                 f"{split}.rna.qc.json:molecules"],
+                 f"{split}.rna.qc.json:molecules", "Distinct gene, original-cell-pool and corrected-UMI combinations"],
             ]))
 
     if restart:
