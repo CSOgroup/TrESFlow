@@ -31,16 +31,16 @@ process PREPARE_BULK_RNA {
 process BULK_RNA_MOLECULES {
     tag "${splitName}"
     label 'process_single'
-    publishDir { "${runtimeOutdir()}/alignments" }, mode: 'copy', pattern: "*.{bam,bai,bw,json}"
+    publishDir { "${runtimeOutdir()}/alignments" }, mode: 'copy', pattern: "*.rna.{dedup.bam,dedup.bam.bai,rpm.bw,qc.json}"
 
     input:
     tuple val(splitName), val(meta), path(aligned), path(solo), path(starLog), path(preparation)
 
     output:
-    path("${splitName}.dedup.bam")
-    path("${splitName}.dedup.bam.bai")
-    path("${splitName}.rpm.bw")
-    path("${splitName}.counts.tsv"), emit: counts
+    path("${splitName}.rna.dedup.bam")
+    path("${splitName}.rna.dedup.bam.bai")
+    path("${splitName}.rna.rpm.bw")
+    path("${splitName}.rna.counts.tsv"), emit: counts
     path("${splitName}.rna.qc.json"), emit: qc
 
     script:
@@ -49,13 +49,13 @@ process BULK_RNA_MOLECULES {
     "\$SAMTOOLS_BIN" sort -N -@ ${task.cpus} -o by_name.bam "${aligned}"
     "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna.py" "${splitName}" "${meta.rna_star_index_dir}" \
         "${preparation}" by_name.bam "${solo}"
-    "\$SAMTOOLS_BIN" sort -@ ${task.cpus} -o "${splitName}.dedup.bam" representatives.bam
-    "\$SAMTOOLS_BIN" index "${splitName}.dedup.bam"
-    "\$SAMTOOLS_BIN" collate -u -O "${splitName}.dedup.bam" | \
+    "\$SAMTOOLS_BIN" sort -@ ${task.cpus} -o "${splitName}.rna.dedup.bam" representatives.bam
+    "\$SAMTOOLS_BIN" index "${splitName}.rna.dedup.bam"
+    "\$SAMTOOLS_BIN" collate -u -O "${splitName}.rna.dedup.bam" | \
         "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" blocks | \
         LC_ALL=C sort -k1,1n -k2,2n -T . | \
-        "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" track "${splitName}.dedup.bam" \
-        "${splitName}.rna.qc.json" "${splitName}.rpm.bw"
+        "\$PYTHON3_BIN" "${projectDir}/bin/bulk_rna_coverage.py" track "${splitName}.rna.dedup.bam" \
+        "${splitName}.rna.qc.json" "${splitName}.rna.rpm.bw"
     rm molecules.sqlite representatives.bam by_name.bam
     """
 }

@@ -9,7 +9,7 @@ process BULK_REPORT {
 
     output:
     path('bulk_report.html')
-    path('gene_by_group.tsv'), optional: true
+    path('rna.gene_by_group.tsv'), optional: true
 
     script:
     def encoded = groovy.json.JsonOutput.toJson(spec).bytes.encodeBase64().toString()

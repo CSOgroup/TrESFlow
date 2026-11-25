@@ -3,6 +3,7 @@
 import base64
 import csv
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from html import escape
@@ -18,6 +19,22 @@ from tresflow_qc.bulk_fragments import fragment_figure
 from tresflow_qc.bulk_retention import retention_figures
 from tresflow_qc.html_report import CSS, PLOT_EXPORT_SCRIPT, overview_strip, plot_markup, prepare_plots, barcode_section, barcode_panels
 from tresflow_qc.plots import _complexity_figure, _rna_complexity_figure, mark_palette
+
+
+RNA_MATRIX = "rna.gene_by_group.tsv"
+
+
+def rna_artifact(root, split, suffix):
+    """Prefer modality-explicit names while reading older completed runs."""
+    current = root / f"{split}.rna.{suffix}"
+    legacy = root / f"{split}.{suffix}"
+    return legacy if not current.is_file() and legacy.is_file() else current
+
+
+def rna_matrix(root):
+    current = root / RNA_MATRIX
+    legacy = root / "gene_by_group.tsv"
+    return legacy if not current.is_file() and legacy.is_file() else current
 
 
 def merge_counts(paths, output):
@@ -246,7 +263,7 @@ def render(spec, root):
             else:
                 figure = _rna_complexity_figure(scope, [dict(branch=t["group"], value=value)])
                 rna_plots.append(f'<h3>{escape(scope)}</h3>' + cards([figure], wide=True))
-            final_source = q.get("final_bam_pairs_source", f"{split}.dedup.bam: unavailable; no final BAM R1 count in supplied QC summaries; BAM was not scanned")
+            final_source = q.get("final_bam_pairs_source", f"{rna_artifact(root, split, 'dedup.bam').name}: unavailable; no final BAM R1 count in supplied QC summaries; BAM was not scanned")
             note = (f"Final BAM read-pair count source: {final_source}. Corrected molecule source: {split}.rna.qc.json (molecules). "
                     f"Gene-assigned pairs are not final BAM pairs. ")
             note += "RNA metrics cover all accepted barcodes in this group; no called-cell selection is applied. Read pairs are counted before UMI collapse. Corrected molecules count distinct gene, original-cell-pool and corrected-UMI combinations. Post-clipping length losses are pairs with either retained mate shorter than 20 nt. Region fractions use aligned blocks of uniquely mapped pairs. Exon overlap takes precedence over gene-body overlap. Strand compares R1 with the unambiguous annotation."
@@ -329,11 +346,23 @@ Duplicate-flagged fragments remain included in bulk coverage and peaks.</p>
 {rna_section}{dna_section}{fragment_section}
 <section id="metrics"><h2>Metrics</h2>{"".join(metrics)}</section></main>{PLOT_EXPORT_SCRIPT}</body></html>'''
 
+
+def write_outputs(spec, root, output):
+    """Regenerate report outputs without renaming or editing supplied artifacts."""
+    paths = [rna_artifact(root, target["id"], "counts.tsv")
+             for target in spec["targets"] if target["modality"] == "rna"]
+    paths = [path for path in paths if path.is_file()]
+    output.mkdir(parents=True, exist_ok=True)
+    matrix = output / RNA_MATRIX
+    if paths:
+        merge_counts(paths, matrix)
+    elif any(target["modality"] == "rna" for target in spec["targets"]):
+        existing = rna_matrix(root)
+        if existing.is_file() and existing.resolve() != matrix.resolve():
+            shutil.copyfile(existing, matrix)
+    (output / "bulk_report.html").write_text(render(spec, root))
+
+
 if __name__ == "__main__":
     spec = json.loads(base64.b64decode(sys.argv[1]))
-    root = Path(sys.argv[2])
-    paths = [root / f"{target['id']}.counts.tsv" for target in spec["targets"] if target["modality"] == "rna"]
-    paths = [path for path in paths if path.is_file()]
-    if paths:
-        merge_counts(paths, Path("gene_by_group.tsv"))
-    Path("bulk_report.html").write_text(render(spec, root))
+    write_outputs(spec, Path(sys.argv[2]), Path.cwd())

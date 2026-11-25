@@ -196,7 +196,7 @@ def summarize(split, index, prep, source, solo):
     counts = Counter()
     for (gene, _), count in actual.items():
         counts[gene] += count
-    with open(f"{split}.counts.tsv", "w") as handle:
+    with open(f"{split}.rna.counts.tsv", "w") as handle:
         print("gene_id", split, sep="\t", file=handle)
         for gene in genes:
             print(gene, counts[gene], sep="\t", file=handle)

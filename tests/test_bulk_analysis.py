@@ -83,7 +83,7 @@ def snapshot(root):
         elif p.suffix == ".bw":
             with pyBigWig.open(str(p)) as bw:
                 result[p.name] = {c: bw.intervals(c) for c in bw.chroms()}
-        elif p.suffix == ".bed" or p.name == "gene_by_group.tsv":
+        elif p.suffix == ".bed" or p.name == "rna.gene_by_group.tsv":
             result[p.name] = p.read_text()
         elif p.name.endswith(".qc.json"):
             qc = json.loads(p.read_text())
@@ -104,7 +104,7 @@ def test_bulk_routes(tmp_path):
     (root / "preprocess.yaml").write_text(yaml.safe_dump(reference_free(raw)))
     launch(root, ["--bulk", "true", "--samplesheet", "raw.yaml", "--outdir", "results/bulk_raw"])
     start = root / "results/bulk_raw/alignments"
-    with (start / "gene_by_group.tsv").open() as h:
+    with (start / "rna.gene_by_group.tsv").open() as h:
         assert list(csv.DictReader(h, delimiter="\t")) == [
             {"gene_id": "g1", "shared_reads_shared_pool": "3", "shared_reads_other": "1"}]
     q = json.loads((start / "shared_reads_shared_pool.rna.qc.json").read_text())
@@ -226,7 +226,7 @@ def test_dna_only_single_targets_and_reference(tmp_path):
     assert qc["fragments_in_reference"] == 32
     with pyBigWig.open(str(next(bulk.rglob("*.bw")))) as track:
         assert track.values("chr1", 200, 201)[0] == pytest.approx(32/34 * 1e6, rel=1e-5)
-    assert not (bulk / "gene_by_group.tsv").exists()
+    assert not (bulk / "rna.gene_by_group.tsv").exists()
 
 
 def test_rna_only_physical_pools_and_splice(tmp_path):
@@ -268,7 +268,7 @@ def test_rna_only_physical_pools_and_splice(tmp_path):
         assert bw.values("chr1", 980, 981)[0] > 0
         gap = bw.values("chr1", 2000, 2001)[0]
         assert math.isnan(gap) or gap == 0
-    assert (out / "gene_by_group.tsv").read_text() == "gene_id\ts_g\ng1\t3\n"
+    assert (out / "rna.gene_by_group.tsv").read_text() == "gene_id\ts_g\ng1\t3\n"
 
 
 def test_empty_and_failed_macs3_calls(tmp_path, monkeypatch):

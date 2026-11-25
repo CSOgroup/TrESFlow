@@ -11,12 +11,20 @@ With `--bulk true`, open `alignments/bulk_report.html`. Raw-start reports includ
 
 | Output under `alignments/`           | Contents                                                                                                                                                                                                                             |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `gene_by_group.tsv`            | STARsolo unique GeneFull counts, summed over physical pools. Each integer is a gene/pool/corrected-UMI molecule in a sample/group.                                                                                                   |
-| `<sample>_<group>.dedup.bam[.bai]`, `*.rpm.bw`, `*.rna.qc.json`        | Coordinate-sorted representative-pair BAM and BAI, unstranded molecule RPM bigWig, and numeric QC JSON. XI retains the full TrES identity. XP and STAR CB identify the physical pool. UM and UB give the observed and corrected UMI. |
+| `rna.gene_by_group.tsv`            | STARsolo unique GeneFull counts, summed over physical pools. Each integer is a gene/pool/corrected-UMI molecule in a sample/group.                                                                                                   |
+| `<sample>_<group>.rna.dedup.bam[.bai]`, `*.rna.rpm.bw`, `*.rna.qc.json`        | Coordinate-sorted representative-pair BAM and BAI, unstranded molecule RPM bigWig, and numeric QC JSON. XI retains the full TrES identity. XP and STAR CB identify the physical pool. UM and UB give the observed and corrected UMI. |
 | `<sample>_<group>_<mark>_MarkedDup.bam[.bai]`, `*.cpm.bw`, `*.peaks.bed`, `*.dna.qc.json`, `*.DuplicateMetrics.txt` | Duplicate-marked BAM, BAI, Picard metrics, 50 bp fragment CPM bigWig, treatment-only MACS3 broad-peak BED, and numeric QC JSON with exact fragment-length frequencies.                                                                          |
 | `bulk_report.html`             | Mapping, assignment or fragment yield, barcode composition, RNA saturation, Picard DNA complexity, and peak overlap QC with labeled denominators.                                                                                                              |
 
 All RNA and DNA deliverables share this flat directory. `TrES_Stats/` contains upstream QC summaries and `pipeline_info/` contains run metadata. Bulk tag records remain temporary inputs to barcode QC inside the work directory.
+
+New bulk RNA outputs use `.rna.dedup.bam`, `.rna.dedup.bam.bai`,
+`.rna.rpm.bw`, and the unchanged `.rna.qc.json` suffix. Per-group count files
+carried into reporting use `.rna.counts.tsv`; the published combined table is
+`rna.gene_by_group.tsv`. Count-table column names remain sample/group IDs.
+Report regeneration accepts legacy `.dedup.bam`, `.counts.tsv`, and
+`gene_by_group.tsv` inputs, preferring explicit names when both exist. It does not
+rename supplied files or infer missing final-BAM read-pair counts.
 
 ### RNA counting and coverage
 
@@ -34,11 +42,15 @@ MACS3 uses treatment-only paired-end mode with three-column BEDPE input (`chrom`
 
 ### Reading the bulk report
 
+L1/L2/L3 panels show the 24 most abundant assigned sequences plus Unassigned,
+ranked by pair count. Percentages use the full original denominator. Expandable
+tables retain all counts and source files.
+
 The overview band lists independent sample/group runs, modalities, DNA marks, recorded tagmentation, the launch-resolved pipeline version and the UTC report-generation time. Missing historical metadata is labeled unavailable.
 
 Read-pair retention uses the single-cell report's plotting and export components. Shared raw processing is shown once per sample/modality, followed by each RNA group or DNA group/mark. Routing steps select the named branch. Raw-start percentages use that sample/modality's raw pairs. FASTQ-only plots start at the supplied group/mark pairs and use those pairs as their percentage denominator. RNA retention ends at gene-assigned pairs before UMI collapse. DNA retention ends at all final eligible fragments, including duplicates. Unknown upstream stages are omitted.
 
-Overview cards show raw input pairs for the sample/modality, final RNA molecules or DNA aligned fragments for the group/mark, and the final yield as a percentage of raw input. RNA cards include genes detected and sequencing saturation (1 − corrected molecules / uniquely assigned GeneFull pairs). DNA cards include Picard duplicate-pair percentage, peaks and FRiP. Final DNA aligned fragments include every complete primary proper pair passing blacklist and canonical-chromosome filtering, including duplicate-flagged fragments. Peak overlap is measured afterward and is used only for the FRiP numerator.
+Overview cards distinguish RNA corrected molecules from final BAM read-pair representatives, with unavailable BAM counts shown explicitly. RNA quantities identify their all-barcode population and source files; molecules are not expressed as a percentage of input read pairs. RNA saturation is calculated across all barcodes as 1 − corrected molecules / uniquely assigned GeneFull read pairs. DNA cards show aligned fragments and their yield as a percentage of raw input. DNA cards include Picard duplicate-pair percentage, peaks and FRiP. Final DNA aligned fragments include every complete primary proper pair passing blacklist and canonical-chromosome filtering, including duplicate-flagged fragments. Peak overlap is measured afterward and is used only for the FRiP numerator.
 
 Unassigned sample-barcode warnings show percentages with their measurement stage and denominator. The sample-barcode plots use raw input pairs only. Barcode plots are grouped by sample, with sample-barcode and DNA-mark plots side by side. Each sample has a collapsed L1/L2/L3 menu. Plot labels retain their modality, group and measurement stage. DNA marks retain their observed stage and denominator. FASTQ-only reports show the observed supplied group pairs and their final yield, with raw counts and upstream unassigned percentages labeled unavailable. A missing physical tag is labeled separately from an observed unassigned barcode.
 
